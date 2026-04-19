@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Team Kalender Pro</title>
+    <!-- Frameworks & UI Libs -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc, query, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD25cVhiguQKP4PTD8evGI4CxSh7rglbBs",
+            authDomain: "montage-pe-a5f79.firebaseapp.com",
+            projectId: "montage-pe-a5f79",
+            storageBucket: "montage-pe-a5f79.firebasestorage.app",
+            messagingSenderId: "588324363042",
+            appId: "1:588324363042:web:c544a07261f62de427237b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        window.FirebaseSDK = { db, auth, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc, query, addDoc, getDocs, signInAnonymously, onAuthStateChanged, signInWithCustomToken };
+    </script>
+
+    <style>
+        :root {
+            --primary: #60a5fa;
+            --bg-main: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #38bdf8;
+        }
+        body {
+            overscroll-behavior-y: contain;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: #f8fafc;
+            -webkit-font-smoothing: antialiased;
+        }
+        * { -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+        .page-transition { animation: slideUp 0.2s ease-out; }
+        @keyframes slideUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+        /* ── CALENDAR STYLES FROM APP 2 ── */
+        .cal-col { border-right: 1px solid #e2e8f0; min-height: 120px; padding: 4px; display: flex; flex-direction: column; gap: 4px; }
+        .cal-col:last-child { border-right: none; }
+        .cal-card-item { border-radius: 4px; padding: 6px 7px; border-left: 2.5px solid; position: relative; font-size: 11px; }
+        .green-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+        @keyframes gd { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.7);} 50%{box-shadow:0 0 6px 3px rgba(16,185,129,0.3);} }
+        .green-dot { animation: gd 2s infinite; }
+
+        /* Delete mode highlight */
+        .delete-mode-card { cursor: pointer !important; }
+        .delete-mode-card:hover { opacity: 0.7 !important; outline: 2px solid #ef4444; }
+
+        /* Copy mode highlight */
+        .copy-mode-card { cursor: copy !important; }
+        .copy-mode-card:hover { opacity: 0.8 !important; outline: 2px solid #f59e0b; }
+
+        /* Paste target day */
+        .paste-target-col { background: rgba(245, 158, 11, 0.08) !important; }
+        .paste-target-col:hover { background: rgba(245, 158, 11, 0.18) !important; cursor: copy; }
+
+        ::-webkit-scrollbar { height: 8px; width: 8px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+        .live-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 0 rgba(34, 197, 94, 0.4); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+    const { useState, useEffect, useMemo, useRef, memo, useCallback } = React;
+
+    const APP_ID = 'montage-pe-a5f79';
+    const ADMIN_PIN = "8852";
+
+    const CARD_COLORS = ['#cfe2ff','#d1e7dd','#fff3cd','#f8d7da','#e2d9f3','#d0f4de','#fce4ec','#e8f5e9','#fff8e1','#e3f2fd','#f3e5f5','#e0f7fa'];
+    const CARD_BORDER = ['#0d6efd','#198754','#ffc107','#dc3545','#6f42c1','#20c997','#e91e63','#4caf50','#ff9800','#2196f3','#9c27b0','#00bcd4'];
+    const CARD_TEXT  = ['#052c65','#0a3622','#664d03','#58151c','#2c1654','#0a3622','#560a21','#1b5e20','#4d3700','#0d2b6e','#3b0764','#003d47'];
+
+    const DAY_NAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+
+    // --- Hilfskomponenten ---
+    const Icon = memo(({ name, size = 18, className = "" }) => {
+        const iconRef = useRef(null);
+        useEffect(() => {
+            if (window.lucide && iconRef.current) {
+                iconRef.current.innerHTML = '';
+                const i = document.createElement('i');
+                i.setAttribute('data-lucide-name', name);
+                iconRef.current.appendChild(i);
+                window.lucide.createIcons({ attrs: { class: className, style: `width: ${size}px; height: ${size}px;` }, nameAttr: 'data-lucide-name' });
+            }
+        }, [name, className, size]);
+        return <span ref={iconRef} className={`inline-flex items-center justify-center ${className}`}></span>;
+    });
+
+    const formatDate = (isoStr) => {
+        if (!isoStr) return "N/A";
+        const d = new Date(isoStr);
+        return isNaN(d.getTime()) ? "N/A" : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
+    const getWeekNumber = (d) => {
+        d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    };
+
+    const getCalWeekDays = (base) => {
+        const d = new Date(base);
+        const day = d.getDay();
+        const diffToMon = (day === 0) ? -6 : 1 - day;
+        const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMon);
+        return Array.from({length: 6}, (_, i) => {
+            return new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i);
+        });
+    };
+
+    const toLocalDateStr = (dateObj) => {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    // --- LOGIN SCREEN ---
+    const LoginScreen = ({ onLogin, teams }) => {
+        const [pin, setPin] = useState("");
+        const [error, setError] = useState("");
+
+        const handleAction = (val) => {
+            if (val === 'C') { setPin(""); return; }
+            if (pin.length >= 4) return;
+            const newPin = pin + val;
+            setPin(newPin);
+
+            if (newPin.length === 4) {
+                if (newPin === ADMIN_PIN) {
+                    onLogin('admin');
+                } else {
+                    const team = teams.find(t => t.pin === newPin);
+                    if (team) onLogin('team', team);
+                    else {
+                        setError("Falscher PIN");
+                        setTimeout(() => { setPin(""); setError(""); }, 1000);
+                    }
+                }
+            }
+        };
+
+        return (
+            <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
+                <div className="w-full max-w-sm text-center">
+                    <div className="mb-12">
+                        <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-indigo-500/20">
+                            <Icon name="calendar" size={40} className="text-white" />
+                        </div>
+                        <h1 className="text-3xl font-black tracking-tight text-white uppercase italic">PE-MONTAGE</h1>
+                        <p className="text-slate-500 mt-2 font-medium tracking-widest uppercase text-[10px]">Tourendisposition</p>
+                    </div>
+
+                    <div className="mb-8">
+                        <div className="flex justify-center gap-4 mb-4">
+                            {[0,1,2,3].map(i => (
+                                <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${pin.length > i ? 'bg-indigo-500 border-indigo-500 scale-125' : 'border-slate-700'}`}></div>
+                            ))}
+                        </div>
+                        {error && <p className="text-red-500 text-sm font-bold uppercase tracking-widest">{error}</p>}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                        {[1,2,3,4,5,6,7,8,9,'C',0].map(n => (
+                            <button
+                                key={n}
+                                onClick={() => handleAction(n)}
+                                className={`h-16 rounded-2xl text-xl font-bold transition-all active:scale-90 flex items-center justify-center ${n === 'C' ? 'bg-slate-800 text-slate-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                            >
+                                {n}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // CALENDAR VIEW — vollständig übertragen aus App 2
+    // ─────────────────────────────────────────────────────────────
+    function CalendarView({ team, onBack, appId, isAdminAccess = false }) {
+        const [calEntries, setCalEntries] = useState([]);
+        const [calWeek, setCalWeek] = useState(new Date());
+        const [editCalEntry, setEditCalEntry] = useState(null);
+        const [showCalImport, setShowCalImport] = useState(false);
+        const [calImportText, setCalImportText] = useState('');
+        const [calImportResult, setCalImportResult] = useState(null);
+        const [showCalPdfModal, setShowCalPdfModal] = useState(null);
+        const [deleteMode, setDeleteMode] = useState(false);
+        const [copyEntry, setCopyEntry] = useState(null);
+
+        const days = getCalWeekDays(calWeek);
+
+        // Firestore listener — Pfad aus App 1
+        useEffect(() => {
+            const { db, collection, onSnapshot } = window.FirebaseSDK;
+            const path = `artifacts/${appId}/public/data/teams/${team.id}/calentries`;
+            const unsub = onSnapshot(collection(db, path), (snap) => {
+                setCalEntries(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            }, (err) => console.error("Firestore Error:", err));
+            return unsub;
+        }, [team.id, appId]);
+
+        const entriesForDay = useCallback((dayStr) => {
+            return calEntries.filter(e => {
+                if (!e.deliveryDate) return false;
+                return e.deliveryDate.substring(0, 10) === dayStr;
+            });
+        }, [calEntries]);
+
+        const colorIndex = useMemo(() => {
+            const map = {};
+            calEntries.forEach((e,i) => { map[e.id] = i % CARD_COLORS.length; });
+            return map;
+        }, [calEntries]);
+
+        const deleteCalEntry = async (id) => {
+            const { db, doc, deleteDoc } = window.FirebaseSDK;
+            const path = `artifacts/${appId}/public/data/teams/${team.id}/calentries`;
+            await deleteDoc(doc(db, path, id));
+        };
+
+        const compressCalImage = (file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > 1200) { h *= 1200/w; w = 1200; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        const saveCalEntry = async (entry) => {
+            const { db, doc, updateDoc } = window.FirebaseSDK;
+            const path = `artifacts/${appId}/public/data/teams/${team.id}/calentries`;
+            await updateDoc(doc(db, path, entry.id), {
+                entryType: entry.entryType || 'LIEFERUNG',
+                customer: entry.customer,
+                address: entry.address,
+                memo: entry.memo,
+                auftragsNr: entry.auftragsNr,
+                target: parseInt(entry.target) || 0,
+                deliveryDate: entry.deliveryDate,
+                image: entry.image || null,
+            });
+            setEditCalEntry(null);
+        };
+
+        const saveNewCalEntry = async (entry) => {
+            const { db, doc, setDoc } = window.FirebaseSDK;
+            const path = `artifacts/${appId}/public/data/teams/${team.id}/calentries`;
+            const id = `cal-${crypto.randomUUID()}`;
+            const payload = { ...entry, id, createdAt: new Date().toISOString() };
+            delete payload.isNew;
+            if (!payload.entryType) payload.entryType = 'LIEFERUNG';
+            await setDoc(doc(db, path, id), payload);
+            setEditCalEntry(null);
+        };
+
+        const processCalImport = async () => {
+            if (!calImportText.trim()) return;
+            const lines = calImportText.split(/\r?\n/);
+            let currentDay = null;
+            const newEntries = [];
+            const dayRegex = /(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)\s+(\d{2}\.\d{2}\.\d{4})/i;
+
+            const weekDayMap = {};
+            DAY_NAMES.forEach((name, i) => { weekDayMap[name.toLowerCase()] = days[i]; });
+            weekDayMap['sonntag'] = null;
+
+            for (let line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                const dayMatch = trimmed.match(dayRegex);
+                if (dayMatch) {
+                    const dayNameLower = dayMatch[1].toLowerCase();
+                    if (weekDayMap[dayNameLower]) {
+                        currentDay = weekDayMap[dayNameLower];
+                    } else {
+                        const [d,m,y] = dayMatch[2].split('.');
+                        currentDay = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
+                    }
+                    continue;
+                }
+                if (!currentDay) continue;
+                const rawParts = trimmed.split('/');
+                if (rawParts.length < 3) continue;
+                const p = rawParts.map(x => x.trim());
+                if (p[0].toUpperCase() !== 'LIEFERUNG') continue;
+                const customer = p[1] || '';
+                const address = p[2] || '';
+                const memo = p[3] || '';
+                const auftragsNr = p.slice(4).join('/').trim();
+                if (!customer && !address) continue;
+                const eleMatch = memo.match(/(\d+)\s*ELE/i);
+                const target = eleMatch ? parseInt(eleMatch[1]) : 0;
+                const id = `cal-${crypto.randomUUID()}`;
+                const deliveryDateStr = toLocalDateStr(currentDay);
+                newEntries.push({ id, entryType: 'LIEFERUNG', customer, address, memo, auftragsNr, target, deliveryDate: deliveryDateStr, image: null, createdAt: new Date().toISOString() });
+            }
+            if (newEntries.length > 0) {
+                const { db, doc, setDoc } = window.FirebaseSDK;
+                const path = `artifacts/${appId}/public/data/teams/${team.id}/calentries`;
+                for (const e of newEntries) {
+                    await setDoc(doc(db, path, e.id), e);
+                }
+            }
+            setCalImportText('');
+            setShowCalImport(false);
+            setCalImportResult(newEntries.length);
+        };
+
+        const triggerEntryPDF = (entry) => {
+            setShowCalPdfModal(entry);
+            setTimeout(() => {
+                const el = document.getElementById('cal-single-pdf-content');
+                if (!el) return;
+                html2pdf().set({
+                    margin: 10,
+                    filename: `Auftrag_${(entry.auftragsNr||'export').replace(/\//g,'_')}.pdf`,
+                    image: { type:'jpeg', quality:0.98 },
+                    html2canvas: { scale:2, useCORS:true, backgroundColor:'#ffffff' },
+                    jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
+                    pagebreak: { mode: ['css'] }
+                }).from(el).save().then(() => setShowCalPdfModal(null));
+            }, 300);
+        };
+
+        const triggerWeekPDF = () => {
+            setTimeout(() => {
+                const el = document.getElementById('cal-week-pdf-content');
+                if (!el) return;
+                html2pdf().set({
+                    margin: 5,
+                    filename: `Kalender_KW${getWeekNumber(calWeek)}.pdf`,
+                    image: { type:'jpeg', quality:0.98 },
+                    html2canvas: { scale:2, useCORS:true, backgroundColor:'#ffffff' },
+                    jsPDF: { unit:'mm', format:'a3', orientation:'landscape' },
+                }).from(el).save();
+            }, 200);
+        };
+
+        const pasteCopyToDay = async (dayStr) => {
+            if (!copyEntry) return;
+            const { db, doc, setDoc } = window.FirebaseSDK;
+            const path = `artifacts/${appId}/public/data/teams/${team.id}/calentries`;
+            const id = `cal-${crypto.randomUUID()}`;
+            const newEntry = {
+                ...copyEntry,
+                id,
+                deliveryDate: dayStr,
+                createdAt: new Date().toISOString()
+            };
+            await setDoc(doc(db, path, id), newEntry);
+            setCopyEntry(null);
+        };
+
+        const defaultNewDate = toLocalDateStr(days[0]);
+        const emptyEntry = {
+            isNew: true,
+            customer: '', address: '', memo: '', auftragsNr: '',
+            target: '', image: null,
+            entryType: 'LIEFERUNG',
+            deliveryDate: defaultNewDate
+        };
+
+        return (
+            <div style={{ minHeight:'100vh', background:'#f1f5f9', display:'flex', flexDirection:'column' }}>
+
+                {/* Hidden PDF areas */}
+                <div style={{ position:'absolute', left:'-9999px', top:0 }}>
+                    {showCalPdfModal && (
+                        <div id="cal-single-pdf-content" style={{ padding:'15mm', background:'#fff', color:'#000', fontFamily:'Inter,Arial,sans-serif', width:'190mm' }}>
+                            <h1 style={{ fontSize:'22pt', fontWeight:900, borderBottom:'2pt solid #000', paddingBottom:'4mm', marginBottom:'6mm', textTransform:'uppercase' }}>Auftrag</h1>
+                            <table style={{ width:'100%', marginBottom:'8mm', fontSize:'11pt' }}>
+                                <tbody>
+                                    <tr><td style={{ color:'#888', fontWeight:'bold', width:'35mm', paddingBottom:'3mm' }}>Auftragsnr.</td><td style={{ fontWeight:900 }}>{showCalPdfModal.auftragsNr || '—'}</td></tr>
+                                    <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Kunde</td><td style={{ fontWeight:'bold' }}>{showCalPdfModal.customer}</td></tr>
+                                    <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Adresse</td><td>{showCalPdfModal.address}</td></tr>
+                                    <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Datum</td><td>{formatDate(showCalPdfModal.deliveryDate)}</td></tr>
+                                    <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Memo</td><td>{showCalPdfModal.memo}</td></tr>
+                                    {showCalPdfModal.target > 0 && <tr><td style={{ color:'#888', fontWeight:'bold' }}>ELE</td><td style={{ fontWeight:900 }}>{showCalPdfModal.target} ELE</td></tr>}
+                                </tbody>
+                            </table>
+                            {showCalPdfModal.image && (
+                                <div style={{ textAlign:'center', marginTop:'8mm' }}>
+                                    <p style={{ fontSize:'8pt', color:'#888', marginBottom:'4mm', fontWeight:'bold', textTransform:'uppercase' }}>Foto</p>
+                                    <img src={showCalPdfModal.image} style={{ maxWidth:'100%', maxHeight:'160mm', objectFit:'contain', display:'block', margin:'0 auto' }} />
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div id="cal-week-pdf-content" style={{ padding:'8mm', background:'#fff', fontFamily:'Inter,Arial,sans-serif', width:'420mm' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'5mm', borderBottom:'1.5pt solid #000', paddingBottom:'3mm' }}>
+                            <div>
+                                <h1 style={{ fontSize:'16pt', fontWeight:900, margin:0, textTransform:'uppercase' }}>Wochenkalender — {team.name}</h1>
+                                <div style={{ fontSize:'12pt', fontWeight:900, color:'#2563eb', margin:'1mm 0 0 0' }}>KW {getWeekNumber(calWeek)}</div>
+                            </div>
+                            <p style={{ margin:0, fontSize:'9pt', color:'#666' }}>{formatDate(toLocalDateStr(days[0]))} – {formatDate(toLocalDateStr(days[5]))}</p>
+                        </div>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'3mm' }}>
+                            {days.map((day,di) => {
+                                const dayStr = toLocalDateStr(day);
+                                const dayEnt = entriesForDay(dayStr);
+                                return (
+                                    <div key={di}>
+                                        <div style={{ background:'#f1f5f9', borderRadius:'4pt', padding:'3mm', marginBottom:'2mm', textAlign:'center' }}>
+                                            <div style={{ fontSize:'9pt', fontWeight:900, textTransform:'uppercase', color:'#1e293b' }}>{DAY_NAMES[di]}</div>
+                                            <div style={{ fontSize:'7pt', color:'#64748b' }}>{formatDate(dayStr)}</div>
+                                            <div style={{ fontSize:'6pt', color:'#3b82f6', fontWeight:'bold' }}>{dayEnt.length} Aufträge</div>
+                                        </div>
+                                        {dayEnt.map((e,ei) => {
+                                            const ci = colorIndex[e.id] || 0;
+                                            return (
+                                                <div key={ei} style={{ background:CARD_COLORS[ci], borderLeft:`2pt solid ${CARD_BORDER[ci]}`, borderRadius:'4pt', padding:'2mm 3mm', marginBottom:'2mm' }}>
+                                                    {e.auftragsNr && <div style={{ fontSize:'5.5pt', color:CARD_TEXT[ci], fontWeight:900, opacity:0.7, marginBottom:'1mm' }}>{e.auftragsNr}</div>}
+                                                    <div style={{ fontSize:'7pt', fontWeight:900, color:CARD_TEXT[ci], lineHeight:1.2, marginBottom:'1mm' }}>{e.customer}</div>
+                                                    <div style={{ fontSize:'6pt', color:CARD_TEXT[ci], opacity:0.8, lineHeight:1.2, marginBottom:'1mm' }}>{e.address}</div>
+                                                    <div style={{ fontSize:'6pt', color:CARD_TEXT[ci], opacity:0.7, lineHeight:1.2 }}>{e.memo}</div>
+                                                    {e.target > 0 && <div style={{ display:'inline-block', background:CARD_BORDER[ci], color:'#fff', fontSize:'5.5pt', fontWeight:900, padding:'0.5mm 2mm', borderRadius:'3pt', marginTop:'1mm' }}>{e.target} ELE</div>}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── TOP NAV ── */}
+                <div style={{ background:'#1e293b', padding:'10px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, zIndex:40, borderBottom:'2px solid #334155', flexShrink:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <button
+                            onClick={onBack}
+                            style={{ background:'#334155', border:'none', borderRadius:10, width:34, height:34, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}
+                        >
+                            <Icon name="arrow-left" size={16} className="text-blue-400"/>
+                        </button>
+                        <div>
+                            <div style={{ color:'#94a3b8', fontSize:8, fontWeight:900, textTransform:'uppercase', letterSpacing:1 }}>
+                                {isAdminAccess ? 'ADMIN-ZUGRIFF' : 'TEAM-ANSICHT'} • Wochenkalender
+                            </div>
+                            <div style={{ color:'#fff', fontSize:13, fontWeight:900, fontStyle:'italic' }}>
+                                {team.name} — KW {getWeekNumber(calWeek)} — {formatDate(toLocalDateStr(days[0]))} bis {formatDate(toLocalDateStr(days[5]))}
+                            </div>
+                        </div>
+                    </div>
+                    <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                        <button onClick={() => { const d=new Date(calWeek); d.setDate(d.getDate()-7); setCalWeek(d); }} style={{ background:'#334155', border:'none', borderRadius:8, width:30, height:30, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <Icon name="chevron-left" size={14} className="text-blue-400"/>
+                        </button>
+                        <button onClick={() => setCalWeek(new Date())} style={{ background:'#334155', border:'none', borderRadius:8, padding:'4px 10px', color:'#cbd5e1', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>
+                            Heute
+                        </button>
+                        <button onClick={() => { const d=new Date(calWeek); d.setDate(d.getDate()+7); setCalWeek(d); }} style={{ background:'#334155', border:'none', borderRadius:8, width:30, height:30, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            <Icon name="chevron-right" size={14} className="text-blue-400"/>
+                        </button>
+                        <button onClick={() => setEditCalEntry({...emptyEntry})} style={{ background:'#10b981', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                            <Icon name="plus" size={12}/>Neu
+                        </button>
+                        <button onClick={() => setShowCalImport(true)} style={{ background:'#3b82f6', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                            <Icon name="upload" size={12}/>Import
+                        </button>
+                        <button onClick={triggerWeekPDF} style={{ background:'#475569', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                            <Icon name="download" size={12}/>A3 PDF
+                        </button>
+                        <button
+                            onClick={() => { setDeleteMode(!deleteMode); setCopyEntry(null); }}
+                            style={{ background: deleteMode ? '#ef4444' : '#334155', border: deleteMode ? '2px solid #fca5a5' : 'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}
+                        >
+                            <Icon name={deleteMode ? "x" : "trash-2"} size={12}/>{deleteMode ? 'Fertig' : 'Löschen'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Mode banners */}
+                {deleteMode && (
+                    <div style={{ background:'#ef4444', padding:'8px 16px', textAlign:'center', fontSize:10, fontWeight:900, color:'#fff', textTransform:'uppercase', letterSpacing:1 }}>
+                        🗑 LÖSCHMODUS AKTIV — Auftrag anklicken zum löschen — dann „Fertig" klicken
+                    </div>
+                )}
+                {copyEntry && (
+                    <div style={{ background:'#f59e0b', padding:'8px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:10, fontWeight:900, color:'#fff' }}>
+                        <span>📋 KOPIEREN: „{copyEntry.customer}" — Auf einen Tag-Bereich klicken zum Einfügen</span>
+                        <button onClick={() => setCopyEntry(null)} style={{ background:'rgba(0,0,0,0.2)', border:'none', borderRadius:6, padding:'3px 10px', color:'#fff', cursor:'pointer', fontSize:9, fontWeight:900 }}>Abbrechen</button>
+                    </div>
+                )}
+
+                {/* ── KALENDER GRID ── */}
+                <div style={{ flex:1, overflowX:'auto', overflowY:'auto' }}>
+                    <div style={{ minWidth:760 }}>
+                        {/* Wochentag-Namen oben */}
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', borderBottom:'2px solid #000', background:'#1e293b' }}>
+                            {DAY_NAMES.map((name,di) => (
+                                <div key={di} style={{ textAlign:'center', padding:'6px 4px', borderRight: di<5 ? '1px solid #334155':'none' }}>
+                                    <div style={{ fontSize:10, fontWeight:900, color:'#fff', textTransform:'uppercase', letterSpacing:1 }}>{name}</div>
+                                    <div style={{ fontSize:9, color:'#94a3b8', marginTop:1 }}>{formatDate(toLocalDateStr(days[di]))}</div>
+                                    <div style={{ fontSize:9, color:'#60a5fa', marginTop:1 }}>{entriesForDay(toLocalDateStr(days[di])).length} Aufträge</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Auftrags-Spalten */}
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', background:'#fff', alignItems:'start' }}>
+                            {days.map((day,di) => {
+                                const dayStr = toLocalDateStr(day);
+                                const dayEnt = entriesForDay(dayStr);
+                                const isPasteTarget = copyEntry && !deleteMode;
+                                return (
+                                    <div
+                                        key={di}
+                                        className={`cal-col${isPasteTarget ? ' paste-target-col' : ''}`}
+                                        onClick={() => { if (isPasteTarget) pasteCopyToDay(dayStr); }}
+                                        style={{ cursor: isPasteTarget ? 'copy' : 'default' }}
+                                    >
+                                        {dayEnt.length === 0 && (
+                                            <div style={{ height:40, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                                {isPasteTarget
+                                                    ? <span style={{ fontSize:9, color:'#f59e0b', fontWeight:900 }}>+ Hier einfügen</span>
+                                                    : <span style={{ fontSize:9, color:'#cbd5e1', fontStyle:'italic' }}>—</span>
+                                                }
+                                            </div>
+                                        )}
+                                        {dayEnt.map((e) => {
+                                            const ci = colorIndex[e.id] || 0;
+                                            return (
+                                                <div
+                                                    key={e.id}
+                                                    className={`cal-card-item${deleteMode ? ' delete-mode-card' : ''}`}
+                                                    style={{ background:CARD_COLORS[ci], borderLeftColor:CARD_BORDER[ci], color:CARD_TEXT[ci], cursor:'pointer' }}
+                                                    onClick={(ev) => {
+                                                        ev.stopPropagation();
+                                                        if (deleteMode) {
+                                                            if (confirm(`"${e.customer}" löschen?`)) deleteCalEntry(e.id);
+                                                        } else if (copyEntry) {
+                                                            pasteCopyToDay(dayStr);
+                                                        } else {
+                                                            setEditCalEntry({...e});
+                                                        }
+                                                    }}
+                                                >
+                                                    {e.image && <div className="green-dot"></div>}
+                                                    {deleteMode && (
+                                                        <div style={{ position:'absolute', top:3, left:3, background:'#ef4444', borderRadius:'50%', width:14, height:14, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff', fontWeight:900 }}>✕</div>
+                                                    )}
+                                                    <div style={{ fontSize:8, fontWeight:900, letterSpacing:1, textTransform:'uppercase', marginBottom:3, padding:'1px 5px', background:CARD_BORDER[ci], color:'#fff', borderRadius:2, display:'inline-block', marginLeft: deleteMode ? 16 : 0 }}>
+                                                        {e.entryType || 'LIEFERUNG'}
+                                                    </div>
+                                                    {e.auftragsNr && (
+                                                        <div style={{ fontSize:8, fontWeight:900, opacity:0.75, marginBottom:2, textTransform:'uppercase', paddingRight: e.image ? 10 : 0 }}>
+                                                            {e.auftragsNr}
+                                                        </div>
+                                                    )}
+                                                    <div style={{ fontSize:10, fontWeight:900, lineHeight:1.3, marginBottom:2, textTransform:'uppercase' }}>{e.customer}</div>
+                                                    <div style={{ fontSize:9, fontWeight:700, lineHeight:1.3, marginBottom:2, opacity:0.85 }}>{e.address}</div>
+                                                    {e.memo && <div style={{ fontSize:8, lineHeight:1.3, opacity:0.75 }}>{e.memo}</div>}
+                                                    {e.target > 0 && (
+                                                        <div style={{ marginTop:3, display:'inline-block', background:CARD_BORDER[ci], color:'#fff', fontSize:8, fontWeight:900, padding:'1px 5px', borderRadius:3 }}>
+                                                            {e.target} ELE
+                                                        </div>
+                                                    )}
+                                                    {/* Copy button per card */}
+                                                    {!deleteMode && !copyEntry && (
+                                                        <button
+                                                            onClick={(ev) => { ev.stopPropagation(); setCopyEntry({...e}); }}
+                                                            title="Kopieren"
+                                                            style={{ position:'absolute', bottom:3, right:22, background:'rgba(37,99,235,0.15)', border:'none', borderRadius:3, padding:'1px 4px', cursor:'pointer', fontSize:9, color:'#2563eb', lineHeight:1 }}
+                                                        >⧉</button>
+                                                    )}
+                                                    {!deleteMode && (
+                                                        <button
+                                                            onClick={(ev) => { ev.stopPropagation(); if(!copyEntry) deleteCalEntry(e.id); }}
+                                                            style={{ position:'absolute', bottom:3, right:3, background:'rgba(220,38,38,0.15)', border:'none', borderRadius:3, padding:'1px 4px', cursor:'pointer', fontSize:9, color:'#dc2626', lineHeight:1 }}
+                                                        >✕</button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        {/* Paste indicator when entries exist */}
+                                        {isPasteTarget && dayEnt.length > 0 && (
+                                            <div style={{ margin:'4px 0', padding:'6px', background:'rgba(245,158,11,0.15)', border:'1px dashed #f59e0b', borderRadius:4, textAlign:'center', fontSize:9, color:'#f59e0b', fontWeight:900 }}>
+                                                + Hier einfügen
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── EDIT / NEU MODAL ── */}
+                {editCalEntry && (
+                    <div style={{ position:'fixed', inset:0, zIndex:50, background:'rgba(15,23,42,0.96)', display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto' }}>
+                        <div style={{ width:'100%', maxWidth:400, background:'rgba(51,65,85,0.98)', backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:24, padding:24, display:'flex', flexDirection:'column', gap:12 }}>
+                            <h3 style={{ color:'#fff', fontSize:11, fontWeight:900, textTransform:'uppercase', fontStyle:'italic', margin:0 }}>
+                                {editCalEntry.isNew ? 'Neuer Eintrag' : 'Auftrag bearbeiten'}
+                            </h3>
+                            {!editCalEntry.isNew && (
+                                <button
+                                    onClick={() => triggerEntryPDF(editCalEntry)}
+                                    style={{ alignSelf:'flex-start', background:'#3b82f6', border:'none', borderRadius:8, padding:'6px 12px', color:'#fff', fontSize:9, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}
+                                >
+                                    <Icon name="download" size={12}/>PDF exportieren
+                                </button>
+                            )}
+                            <input style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#0f172a', border:'2px solid #3b82f6', color:'#60a5fa', fontSize:12, fontWeight:900, textTransform:'uppercase', letterSpacing:1, boxSizing:'border-box' }}
+                                placeholder="Typ (z.B. LIEFERUNG)" value={editCalEntry.entryType || 'LIEFERUNG'}
+                                onChange={e => setEditCalEntry({...editCalEntry, entryType:e.target.value.toUpperCase()})}/>
+                            <input style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
+                                placeholder="Kunde *" value={editCalEntry.customer}
+                                onChange={e => setEditCalEntry({...editCalEntry, customer:e.target.value})}/>
+                            <input style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
+                                placeholder="Adresse" value={editCalEntry.address}
+                                onChange={e => setEditCalEntry({...editCalEntry, address:e.target.value})}/>
+                            <input style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
+                                placeholder="Memo / Hausinfo" value={editCalEntry.memo}
+                                onChange={e => setEditCalEntry({...editCalEntry, memo:e.target.value})}/>
+                            <input style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
+                                placeholder="Auftragsnr. (z.B. 251266654/SLI)" value={editCalEntry.auftragsNr}
+                                onChange={e => setEditCalEntry({...editCalEntry, auftragsNr:e.target.value})}/>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                                <input type="number" style={{ padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
+                                    placeholder="ELE" value={editCalEntry.target || ''}
+                                    onChange={e => setEditCalEntry({...editCalEntry, target:e.target.value})}/>
+                                <input type="date" style={{ padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
+                                    value={editCalEntry.deliveryDate?.substring(0,10) || ''}
+                                    onChange={e => setEditCalEntry({...editCalEntry, deliveryDate: e.target.value})}/>
+                            </div>
+                            <div>
+                                <input type="file" accept="image/*" className="hidden" id="cal-img-upload-modal"
+                                    onChange={async(ev) => {
+                                        if (!ev.target.files[0]) return;
+                                        const b64 = await compressCalImage(ev.target.files[0]);
+                                        setEditCalEntry(prev => ({...prev, image:b64}));
+                                        ev.target.value = '';
+                                    }}/>
+                                <label htmlFor="cal-img-upload-modal" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'10px', border:'1px dashed rgba(255,255,255,0.2)', borderRadius:10, color:'#94a3b8', cursor:'pointer', fontSize:9, fontWeight:700, textTransform:'uppercase' }}>
+                                    <Icon name="camera" size={14}/>{editCalEntry.image ? 'Foto ersetzen' : 'Foto anhängen'}
+                                </label>
+                                {editCalEntry.image && (
+                                    <div style={{ position:'relative', marginTop:6 }}>
+                                        <img src={editCalEntry.image} style={{ width:'100%', height:80, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)' }}/>
+                                        <button onClick={() => setEditCalEntry(p => ({...p, image:null}))} style={{ position:'absolute', top:4, right:4, background:'#ef4444', border:'none', borderRadius:'50%', width:18, height:18, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10 }}>✕</button>
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:4 }}>
+                                <button onClick={() => setEditCalEntry(null)} style={{ padding:'12px', background:'transparent', border:'none', color:'#64748b', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>Abbrechen</button>
+                                <button
+                                    onClick={() => {
+                                        if (!editCalEntry.customer) return;
+                                        if (editCalEntry.isNew) saveNewCalEntry(editCalEntry);
+                                        else saveCalEntry(editCalEntry);
+                                    }}
+                                    style={{ padding:'12px', background:'#3b82f6', border:'none', borderRadius:12, color:'#fff', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}
+                                >Speichern</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── IMPORT MODAL ── */}
+                {showCalImport && (
+                    <div style={{ position:'fixed', inset:0, zIndex:50, background:'rgba(15,23,42,0.98)', padding:24, display:'flex', flexDirection:'column' }}>
+                        <div style={{ color:'#60a5fa', fontSize:10, fontWeight:900, textTransform:'uppercase', letterSpacing:1, marginBottom:4 }}>
+                            Import → KW {getWeekNumber(calWeek)} ({formatDate(toLocalDateStr(days[0]))} – {formatDate(toLocalDateStr(days[5]))}) — {team.name}
+                        </div>
+                        <div style={{ color:'#94a3b8', fontSize:9, fontWeight:700, marginBottom:8 }}>
+                            Format: Montag 20.04.2026 → LIEFERUNG / Kunde / Adresse / Memo / AuftragsNr
+                        </div>
+                        <textarea
+                            style={{ flex:1, width:'100%', background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', padding:16, borderRadius:12, fontSize:11, color:'#fff', fontFamily:'monospace', resize:'none', boxSizing:'border-box' }}
+                            placeholder={"Montag 20.04.2026 (3)\nLIEFERUNG / E.O. Knecht AG / Segelhofstrasse, 5405 Dättwil AG / Haus A12 47 ELE / 251266654/SLI"}
+                            value={calImportText}
+                            onChange={e => setCalImportText(e.target.value)}
+                        />
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginTop:24 }}>
+                            <button onClick={() => setShowCalImport(false)} style={{ padding:'14px', background:'transparent', border:'none', color:'#64748b', fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>Abbrechen</button>
+                            <button onClick={processCalImport} style={{ padding:'14px', background:'#3b82f6', border:'none', borderRadius:12, color:'#fff', fontWeight:900, cursor:'pointer' }}>Import in KW {getWeekNumber(calWeek)}</button>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── IMPORT RESULT ── */}
+                {calImportResult !== null && (
+                    <div style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(15,23,42,0.95)', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+                        <div style={{ background:'rgba(51,65,85,0.98)', backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:24, padding:32, width:'100%', maxWidth:300, display:'flex', flexDirection:'column', alignItems:'center', gap:20 }}>
+                            <div style={{ width:64, height:64, background:'#10b981', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                <Icon name="check" size={32} className="text-white"/>
+                            </div>
+                            <div style={{ textAlign:'center' }}>
+                                <div style={{ color:'#94a3b8', fontSize:9, fontWeight:900, textTransform:'uppercase', marginBottom:4 }}>Kalender Import KW {getWeekNumber(calWeek)}</div>
+                                <div style={{ color:'#fff', fontSize:48, fontWeight:900, fontStyle:'italic', lineHeight:1 }}>{calImportResult}</div>
+                                <div style={{ color:'#10b981', fontSize:11, fontWeight:900, textTransform:'uppercase', marginTop:4 }}>Aufträge erfasst</div>
+                            </div>
+                            <button onClick={() => setCalImportResult(null)} style={{ width:'100%', padding:'14px', background:'#3b82f6', border:'none', borderRadius:12, color:'#fff', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>OK</button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // --- ADMIN PANEL (Verwaltung & Team-Auswahl) ---
+    const AdminPanel = ({ teams, onLogout, onSelectTeam, appId }) => {
+        const [isAdding, setIsAdding] = useState(false);
+        const [deleteConfirm, setDeleteConfirm] = useState(null);
+        const [deleteCodeInput, setDeleteCodeInput] = useState("");
+        const [newTeam, setNewTeam] = useState({ name: '', pin: '', color: '#3b82f6' });
+
+        const handleAddTeam = async () => {
+            if (!newTeam.name || !newTeam.pin) return;
+            const { db, doc, setDoc } = window.FirebaseSDK;
+            const teamId = newTeam.name.toLowerCase().replace(/\s+/g, '-');
+            await setDoc(doc(db, `artifacts/${appId}/public/data/teams_config`, teamId), {
+                ...newTeam, id: teamId
+            });
+            setIsAdding(false);
+            setNewTeam({ name: '', pin: '', color: '#3b82f6' });
+        };
+
+        const confirmDelete = async () => {
+            if (deleteCodeInput !== ADMIN_PIN) {
+                alert("Falscher Admin-Code! Löschung abgebrochen.");
+                return;
+            }
+            const { db, doc, deleteDoc } = window.FirebaseSDK;
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/teams_config`, deleteConfirm.id));
+            setDeleteConfirm(null);
+            setDeleteCodeInput("");
+        };
+
+        return (
+            <div className="min-h-screen bg-slate-950 flex flex-col p-8 page-transition">
+                <header className="flex justify-between items-center mb-12">
+                    <div>
+                        <h1 className="text-3xl font-black text-white italic uppercase tracking-tight">Gruppen Verwalter</h1>
+                        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">Management Zentrale</p>
+                    </div>
+                    <button onClick={onLogout} className="bg-slate-900 border border-slate-800 text-slate-400 px-6 py-2 rounded-xl text-xs font-bold uppercase active:scale-95 transition-all">Logout</button>
+                </header>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <button onClick={() => setIsAdding(true)} className="border-2 border-dashed border-slate-800 hover:border-indigo-500 hover:bg-indigo-500/5 rounded-3xl p-8 flex flex-col items-center justify-center gap-4 transition-all group">
+                        <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Icon name="plus" className="text-indigo-400" size={24} />
+                        </div>
+                        <p className="font-black text-slate-500 group-hover:text-white uppercase italic">Neue Gruppe erstellen</p>
+                    </button>
+
+                    {teams.map(t => (
+                        <div key={t.id} onClick={() => onSelectTeam(t)} className="bg-slate-900 border border-white/5 rounded-3xl p-6 hover:border-indigo-500/50 cursor-pointer transition-all active:scale-95 group shadow-xl relative">
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg" style={{ backgroundColor: t.color }}>
+                                    <Icon name="users" size={24} />
+                                </div>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setDeleteConfirm(t); }}
+                                    className="text-slate-700 hover:text-red-500 transition-colors p-2"
+                                >
+                                    <Icon name="trash-2" size={18} />
+                                </button>
+                            </div>
+                            <h3 className="text-xl font-black text-white uppercase italic mb-1">{t.name}</h3>
+                            <div className="flex items-center justify-between text-slate-500">
+                                <p className="text-xs font-bold tracking-widest">PIN: {t.pin}</p>
+                                <Icon name="chevron-right" className="group-hover:translate-x-1 transition-transform" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Sicherheits-Check für Löschvorgang */}
+                {deleteConfirm && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md">
+                        <div className="bg-slate-900 border border-red-500/30 w-full max-w-sm rounded-3xl p-8 shadow-2xl shadow-red-500/10">
+                            <div className="flex justify-center mb-6">
+                                <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500">
+                                    <Icon name="alert-triangle" size={32} />
+                                </div>
+                            </div>
+                            <h3 className="text-xl font-black text-white mb-2 text-center uppercase italic">Sicherheitsprüfung</h3>
+                            <p className="text-slate-400 text-center text-xs font-bold mb-6 uppercase">Gib den Code <span className="text-white">8852</span> ein, um "{deleteConfirm.name}" endgültig zu löschen:</p>
+                            <input
+                                type="password"
+                                placeholder="Admin-Code eingeben"
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-center text-xl font-black tracking-widest text-red-500 focus:border-red-500 outline-none mb-6"
+                                value={deleteCodeInput}
+                                onChange={e => setDeleteCodeInput(e.target.value)}
+                            />
+                            <div className="flex gap-3">
+                                <button onClick={() => { setDeleteConfirm(null); setDeleteCodeInput(""); }} className="flex-1 text-slate-500 font-bold hover:text-white transition-colors">ABBRECHEN</button>
+                                <button onClick={confirmDelete} className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-red-500/20 uppercase text-xs">GRUPPE LÖSCHEN</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isAdding && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm">
+                        <div className="bg-slate-900 border border-white/10 w-full max-w-sm rounded-3xl p-8 shadow-2xl">
+                            <h3 className="text-xl font-black text-white mb-6 uppercase italic">Neue Gruppe</h3>
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Team Name</label>
+                                    <input
+                                        type="text" placeholder="Zürich / Montage A"
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
+                                        value={newTeam.name} onChange={e => setNewTeam({...newTeam, name: e.target.value})}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Team PIN (4 Ziffern)</label>
+                                    <input
+                                        type="text" placeholder="1234" maxLength={4}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
+                                        value={newTeam.pin} onChange={e => setNewTeam({...newTeam, pin: e.target.value})}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Farbe</label>
+                                    <input
+                                        type="color" className="w-full h-12 bg-transparent border-none cursor-pointer"
+                                        value={newTeam.color} onChange={e => setNewTeam({...newTeam, color: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-3 mt-8">
+                                <button onClick={() => setIsAdding(false)} className="flex-1 text-slate-500 font-bold hover:text-white transition-colors">ABBRECHEN</button>
+                                <button onClick={handleAddTeam} className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/20">ERSTELLEN</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // --- MAIN APP COMPONENT ---
+    const App = () => {
+        const [authState, setAuthState] = useState(null);
+        const [teams, setTeams] = useState([]);
+        const [user, setUser] = useState(null);
+
+        useEffect(() => {
+            const init = async () => {
+                const { auth, db, collection, onSnapshot, signInAnonymously, onAuthStateChanged, signInWithCustomToken } = window.FirebaseSDK;
+
+                await signInAnonymously(auth);
+
+                onAuthStateChanged(auth, u => setUser(u));
+
+                onSnapshot(collection(db, `artifacts/${APP_ID}/public/data/teams_config`), (snap) => {
+                    setTeams(snap.docs.map(doc => ({ ...doc.data() })));
+                }, (err) => console.error("Firestore Error:", err));
+            };
+            init();
+        }, []);
+
+        if (!user) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-indigo-500 font-black animate-pulse uppercase tracking-[1em]">LADE SYSTEM...</div>;
+
+        if (!authState) {
+            return <LoginScreen teams={teams} onLogin={(role, team) => setAuthState({ role, team })} />;
+        }
+
+        if (authState.role === 'admin') {
+            if (authState.adminViewingTeam) {
+                return <CalendarView
+                    team={authState.adminViewingTeam}
+                    appId={APP_ID}
+                    isAdminAccess={true}
+                    onBack={() => setAuthState({ ...authState, adminViewingTeam: null })}
+                />;
+            }
+            return <AdminPanel
+                teams={teams}
+                appId={APP_ID}
+                onLogout={() => setAuthState(null)}
+                onSelectTeam={(team) => setAuthState({ ...authState, adminViewingTeam: team })}
+            />;
+        }
+
+        return <CalendarView team={authState.team} appId={APP_ID} onBack={() => setAuthState(null)} />;
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+</script>
+</body>
+</html>

@@ -10,167 +10,156 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <script>
-        // ── LOKALE DATENBANK — localStorage, funktioniert ohne Server/Firebase ──
         (function() {
             const _listeners = {};
-
-            function _getCol(col) {
-                try { return JSON.parse(localStorage.getItem('pe_' + col) || '{}'); }
-                catch(e) { return {}; }
-            }
-
-            function _setCol(col, data) {
-                try {
-                    localStorage.setItem('pe_' + col, JSON.stringify(data));
-                    _notify(col, data);
-                } catch(e) { throw new Error('Speicherfehler: ' + e.message); }
-            }
-
-            function _notify(col, data) {
-                const snap = _makeSnap(data);
-                (_listeners[col] || []).forEach(cb => { try { cb(snap); } catch(e) {} });
-            }
-
-            function _makeSnap(data) {
-                const docs = Object.entries(data).map(([id, d]) => ({
-                    id: id,
-                    data: () => ({ ...d })
-                }));
-                return { docs };
-            }
-
+            function _getCol(col) { try { return JSON.parse(localStorage.getItem('pe_' + col) || '{}'); } catch(e) { return {}; } }
+            function _setCol(col, data) { try { localStorage.setItem('pe_' + col, JSON.stringify(data)); _notify(col, data); } catch(e) { throw new Error('Speicherfehler: ' + e.message); } }
+            function _notify(col, data) { const snap = _makeSnap(data); (_listeners[col] || []).forEach(cb => { try { cb(snap); } catch(e) {} }); }
+            function _makeSnap(data) { const docs = Object.entries(data).map(([id, d]) => ({ id, data: () => ({ ...d }) })); return { docs }; }
             const db = {};
-
-            function collection(db, colName) {
-                return { _type: 'col', _col: colName };
-            }
-
-            function doc(db, colName, docId) {
-                return { _type: 'doc', _col: colName, _id: docId };
-            }
-
-            function setDoc(ref, data) {
-                return new Promise((resolve, reject) => {
-                    try {
-                        const all = _getCol(ref._col);
-                        all[ref._id] = { ...data, id: ref._id };
-                        _setCol(ref._col, all);
-                        resolve();
-                    } catch(e) { reject(e); }
-                });
-            }
-
-            function updateDoc(ref, data) {
-                return new Promise((resolve, reject) => {
-                    try {
-                        const all = _getCol(ref._col);
-                        all[ref._id] = { ...(all[ref._id] || {}), ...data, id: ref._id };
-                        _setCol(ref._col, all);
-                        resolve();
-                    } catch(e) { reject(e); }
-                });
-            }
-
-            function deleteDoc(ref) {
-                return new Promise((resolve, reject) => {
-                    try {
-                        const all = _getCol(ref._col);
-                        delete all[ref._id];
-                        _setCol(ref._col, all);
-                        resolve();
-                    } catch(e) { reject(e); }
-                });
-            }
-
+            function collection(db, colName) { return { _type: 'col', _col: colName }; }
+            function doc(db, colName, docId) { return { _type: 'doc', _col: colName, _id: docId }; }
+            function setDoc(ref, data) { return new Promise((resolve, reject) => { try { const all = _getCol(ref._col); all[ref._id] = { ...data, id: ref._id }; _setCol(ref._col, all); resolve(); } catch(e) { reject(e); } }); }
+            function updateDoc(ref, data) { return new Promise((resolve, reject) => { try { const all = _getCol(ref._col); all[ref._id] = { ...(all[ref._id] || {}), ...data, id: ref._id }; _setCol(ref._col, all); resolve(); } catch(e) { reject(e); } }); }
+            function deleteDoc(ref) { return new Promise((resolve, reject) => { try { const all = _getCol(ref._col); delete all[ref._id]; _setCol(ref._col, all); resolve(); } catch(e) { reject(e); } }); }
             function onSnapshot(ref, callback, errorCallback) {
                 if (ref._type !== 'col') return () => {};
                 const col = ref._col;
                 if (!_listeners[col]) _listeners[col] = [];
                 _listeners[col].push(callback);
-
-                try {
-                    const data = _getCol(col);
-                    callback(_makeSnap(data));
-                } catch(e) {
-                    if (errorCallback) errorCallback(e);
-                }
-
-                const handler = (e) => {
-                    if (e.key === 'pe_' + col) {
-                        try { callback(_makeSnap(_getCol(col))); } catch(ex) {}
-                    }
-                };
+                try { const data = _getCol(col); callback(_makeSnap(data)); } catch(e) { if (errorCallback) errorCallback(e); }
+                const handler = (e) => { if (e.key === 'pe_' + col) { try { callback(_makeSnap(_getCol(col))); } catch(ex) {} } };
                 window.addEventListener('storage', handler);
-
-                return () => {
-                    _listeners[col] = (_listeners[col] || []).filter(c => c !== callback);
-                    window.removeEventListener('storage', handler);
-                };
+                return () => { _listeners[col] = (_listeners[col] || []).filter(c => c !== callback); window.removeEventListener('storage', handler); };
             }
-
             window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot };
             window.FirebaseReady = true;
-            console.log("✓ Lokale Datenbank bereit (localStorage)");
         })();
     </script>
 
     <style>
         :root {
-            --primary: #60a5fa;
+            --primary: #3b82f6;
             --bg-main: #0f172a;
             --card-bg: #1e293b;
             --accent: #38bdf8;
         }
         body {
             overscroll-behavior-y: contain;
-            font-family: 'Inter', sans-serif;
+            font-family: 'DM Sans', 'Inter', sans-serif;
             background-color: var(--bg-main);
             color: #f8fafc;
             -webkit-font-smoothing: antialiased;
         }
         * { -webkit-tap-highlight-color: transparent; }
-        .glass { background: rgba(30,41,59,0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+
+        /* ── ADMIN LIGHT THEME ── */
+        .admin-theme {
+            background: linear-gradient(135deg, #f0f4ff 0%, #fafbff 40%, #f5f0ff 100%);
+            min-height: 100vh;
+            color: #1e293b;
+        }
+        .admin-card {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 20px;
+            box-shadow: 0 4px 24px rgba(59,130,246,0.08), 0 1px 3px rgba(0,0,0,0.06);
+            transition: all 0.25s cubic-bezier(.4,0,.2,1);
+        }
+        .admin-card:hover {
+            box-shadow: 0 12px 40px rgba(59,130,246,0.18), 0 2px 8px rgba(0,0,0,0.08);
+            transform: translateY(-3px);
+        }
+        .admin-header {
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.8);
+            box-shadow: 0 2px 20px rgba(59,130,246,0.06);
+        }
+        .admin-btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            box-shadow: 0 4px 14px rgba(59,130,246,0.3);
+            transition: all 0.2s;
+        }
+        .admin-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
+        .admin-btn-secondary {
+            background: rgba(241,245,249,0.8);
+            color: #475569;
+            border: 1px solid rgba(226,232,240,0.8);
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .admin-btn-secondary:hover { background: #e2e8f0; color: #1e293b; }
+        .admin-stat-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid rgba(226,232,240,0.8);
+        }
+
+        /* ── BILLING MODAL ── */
+        .billing-modal {
+            background: #141b2d;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .billing-modal-header {
+            background: linear-gradient(135deg, #1a2540, #1e2d45);
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+
+        /* ── CAL STYLES ── */
+        .glass { background: rgba(30,41,59,0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
         .page-transition { animation: slideUp 0.2s ease-out; }
         @keyframes slideUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 
         .cal-col { border-right: 1px solid #e2e8f0; min-height: 120px; padding: 4px; display: flex; flex-direction: column; gap: 4px; }
         .cal-col:last-child { border-right: none; }
-        .cal-card-item { border-radius: 4px; padding: 6px 7px; border-left: 2.5px solid; position: relative; font-size: 11px; transition: opacity 0.15s; }
-        .green-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+        .cal-card-item { border-radius: 6px; padding: 7px 8px; border-left: 3px solid; position: relative; font-size: 11px; transition: all 0.15s; }
+        .cal-card-item:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+        .green-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #10b981; animation: gd 2s infinite; }
         @keyframes gd { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.7);} 50%{box-shadow:0 0 6px 3px rgba(16,185,129,0.3);} }
-        .green-dot { animation: gd 2s infinite; }
-
         .done-card { opacity: 0.55; }
-        .done-stamp {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg);
-            font-size: 9px; font-weight: 900; color: #10b981; border: 1.5px solid #10b981;
-            padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 1px;
-            background: rgba(16,185,129,0.1); pointer-events: none; white-space: nowrap;
-        }
-        .billed-stamp {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg);
-            font-size: 9px; font-weight: 900; color: #a855f7; border: 1.5px solid #a855f7;
-            padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 1px;
-            background: rgba(168,85,247,0.1); pointer-events: none; white-space: nowrap;
-        }
-
-        .delete-mode-card:hover { opacity: 0.7 !important; outline: 2px solid #ef4444; }
+        .done-stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg); font-size: 9px; font-weight: 900; color: #10b981; border: 1.5px solid #10b981; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 1px; background: rgba(16,185,129,0.1); pointer-events: none; white-space: nowrap; }
+        .billed-stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg); font-size: 9px; font-weight: 900; color: #a855f7; border: 1.5px solid #a855f7; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 1px; background: rgba(168,85,247,0.1); pointer-events: none; white-space: nowrap; }
         .paste-target-col { background: rgba(245,158,11,0.08) !important; }
         .paste-target-col:hover { background: rgba(245,158,11,0.18) !important; cursor: copy; }
-
         ::-webkit-scrollbar { height: 8px; width: 8px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-
-        .live-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); } 70% { box-shadow: 0 0 0 10px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
-
         .type-tab { padding: 5px 14px; border-radius: 8px; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border: none; transition: all 0.15s; }
         .type-tab.active-montage { background: #2563eb; color: #fff; }
         .type-tab.active-beplankung { background: #059669; color: #fff; }
         .type-tab.inactive { background: #1e293b; color: #64748b; }
+
+        /* Multi-day card */
+        .multiday-card { border-radius: 6px; padding: 7px 8px; position: relative; font-size: 11px; transition: all 0.15s; }
+        .multiday-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+        .multiday-start { border-left: 3px solid; border-right: none; border-radius: 6px 0 0 6px; }
+        .multiday-mid { border-left: none; border-right: none; border-radius: 0; opacity: 0.75; }
+        .multiday-end { border-left: none; border-right: none; border-radius: 0 6px 6px 0; opacity: 0.75; }
+        .multiday-badge { display:inline-flex; align-items:center; gap:3px; background:rgba(0,0,0,0.12); border-radius:4px; padding:1px 6px; font-size:8px; font-weight:900; }
+
+        /* PDF print area */
+        @media print { body * { visibility: hidden; } #billing-pdf-content, #billing-pdf-content * { visibility: visible; } #billing-pdf-content { position: fixed; left: 0; top: 0; width: 100%; } }
+
+        /* Admin mesh background */
+        .admin-mesh {
+            background-color: #f0f4ff;
+            background-image:
+                radial-gradient(at 20% 10%, rgba(99,102,241,0.08) 0px, transparent 50%),
+                radial-gradient(at 80% 20%, rgba(59,130,246,0.06) 0px, transparent 50%),
+                radial-gradient(at 50% 90%, rgba(168,85,247,0.05) 0px, transparent 50%);
+        }
     </style>
 </head>
 <body>
@@ -237,6 +226,12 @@
         return `${y}-${m}-${d}`;
     };
 
+    const daysBetween = (startStr, endStr) => {
+        if (!startStr || !endStr) return 1;
+        const s = new Date(startStr), e = new Date(endStr);
+        return Math.max(1, Math.round((e - s) / 86400000) + 1);
+    };
+
     // ─────────────────────────────────────────────────────────────
     // LOGIN SCREEN
     // ─────────────────────────────────────────────────────────────
@@ -295,7 +290,6 @@
         const [text, setText] = useState('');
         const [saving, setSaving] = useState(false);
         const [preview, setPreview] = useState([]);
-
         const DAY_NAMES_IMPORT = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
 
         const parseImportText = (raw) => {
@@ -303,163 +297,379 @@
             const lines = raw.split(/\r?\n/);
             let currentDay = null;
             const result = [];
-
             const weekDayMap = {};
-            DAY_NAMES_IMPORT.forEach((name, i) => {
-                weekDayMap[name.toLowerCase()] = days[i];
-            });
+            DAY_NAMES_IMPORT.forEach((name, i) => { weekDayMap[name.toLowerCase()] = days[i]; });
             weekDayMap['sonntag'] = null;
-
             const dayRegex = /(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)\s*(\d{2}\.\d{2}\.\d{4})?/i;
-
             for (let line of lines) {
                 const trimmed = line.trim();
                 if (!trimmed) continue;
-
                 const dayMatch = trimmed.match(dayRegex);
                 if (dayMatch && !trimmed.includes('/')) {
                     const dayNameLower = dayMatch[1].toLowerCase();
-                    if (weekDayMap[dayNameLower] !== undefined) {
-                        currentDay = weekDayMap[dayNameLower];
-                    }
-                    if (dayMatch[2]) {
-                        const [d, m, y] = dayMatch[2].split('.');
-                        currentDay = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-                    }
+                    if (weekDayMap[dayNameLower] !== undefined) currentDay = weekDayMap[dayNameLower];
+                    if (dayMatch[2]) { const [d, m, y] = dayMatch[2].split('.'); currentDay = new Date(parseInt(y), parseInt(m) - 1, parseInt(d)); }
                     continue;
                 }
-
                 if (!currentDay && !trimmed.includes('/')) continue;
                 if (!currentDay) currentDay = days[0];
-
                 const rawParts = trimmed.split('/');
                 if (rawParts.length < 2) continue;
-
                 const p = rawParts.map(x => x.trim());
-
-                let entryType = 'LIEFERUNG';
-                let offset = 0;
+                let entryType = 'LIEFERUNG', offset = 0;
                 const knownTypes = ['LIEFERUNG','MONTAGE','DEMONTAGE','ABHOLUNG','BEPLANKUNG','GIPSER','SERVICE','ABNAHME','RETOURE'];
-                if (knownTypes.includes(p[0].toUpperCase())) {
-                    entryType = p[0].toUpperCase();
-                    offset = 1;
-                }
-
-                const customer   = p[offset]     || '';
-                const address    = p[offset + 1] || '';
-                const memo       = p[offset + 2] || '';
-                const auftragsNr = p.slice(offset + 3).join('/').trim();
-
+                if (knownTypes.includes(p[0].toUpperCase())) { entryType = p[0].toUpperCase(); offset = 1; }
+                const customer = p[offset] || '', address = p[offset+1] || '', memo = p[offset+2] || '';
+                const auftragsNr = p.slice(offset+3).join('/').trim();
                 if (!customer) continue;
-
-                const eleMatch = (memo + ' ' + auftragsNr).match(/(\d+)\s*ELE/i);
+                const eleMatch = (memo+' '+auftragsNr).match(/(\d+)\s*ELE/i);
                 const target = eleMatch ? parseInt(eleMatch[1]) : 0;
-
-                result.push({
-                    entryType, customer, address, memo, auftragsNr, target,
-                    deliveryDate: toLocalDateStr(currentDay),
-                    calType: activeCalType,
-                });
+                result.push({ entryType, customer, address, memo, auftragsNr, target, deliveryDate: toLocalDateStr(currentDay), calType: activeCalType });
             }
             return result;
         };
 
-        const handleTextChange = (val) => {
-            setText(val);
-            setPreview(parseImportText(val));
-        };
+        const handleTextChange = (val) => { setText(val); setPreview(parseImportText(val)); };
 
         const doImport = async () => {
             const entries = parseImportText(text);
-            if (entries.length === 0) {
-                alert('Keine Aufträge erkannt.\n\nFormat:\nMontag\nKunde AG / Adresse / Memo / AuftragsNr');
-                return;
-            }
+            if (entries.length === 0) { alert('Keine Aufträge erkannt.'); return; }
             setSaving(true);
             try {
                 const { db, doc, setDoc } = window.FirebaseSDK;
-                const path = `teams_cal_${team.id}`;
                 for (const e of entries) {
                     const id = `cal-${genId()}`;
-                    await setDoc(doc(db, path, id), {
-                        ...e, id, image: null,
-                        createdAt: new Date().toISOString(),
-                        isDone: false, isBilled: false,
-                    });
+                    await setDoc(doc(db, `teams_cal_${team.id}`, id), { ...e, id, image: null, createdAt: new Date().toISOString(), isDone: false, isBilled: false });
                 }
                 onDone(entries.length);
-            } catch(err) {
-                alert('Fehler: ' + err.message);
-                setSaving(false);
-            }
+            } catch(err) { alert('Fehler: ' + err.message); setSaving(false); }
         };
 
         return (
             <div style={{ position:'fixed', inset:0, zIndex:50, background:'rgba(15,23,42,0.99)', padding:'16px', display:'flex', flexDirection:'column', gap:12 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div>
-                        <div style={{ color:'#60a5fa', fontSize:11, fontWeight:900, textTransform:'uppercase', letterSpacing:1 }}>
-                            Import → KW {getWeekNumber(calWeek)} — {team.name} ({currentCalLabel})
-                        </div>
-                        <div style={{ color:'#94a3b8', fontSize:9, marginTop:3 }}>
-                            Tagname = Tagesheader · Felder mit <strong style={{color:'#fff'}}>/</strong> trennen · Typ optional
-                        </div>
+                        <div style={{ color:'#60a5fa', fontSize:11, fontWeight:900, textTransform:'uppercase', letterSpacing:1 }}>Import → KW {getWeekNumber(calWeek)} — {team.name} ({currentCalLabel})</div>
+                        <div style={{ color:'#94a3b8', fontSize:9, marginTop:3 }}>Tagname = Tagesheader · Felder mit / trennen</div>
                     </div>
                     <button onClick={onClose} style={{ background:'#334155', border:'none', borderRadius:8, width:32, height:32, cursor:'pointer', color:'#94a3b8', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
                 </div>
-
                 <div style={{ background:'#0f172a', borderRadius:10, padding:'10px 14px', border:'1px solid #1e293b' }}>
                     <div style={{ color:'#475569', fontSize:8, fontWeight:900, textTransform:'uppercase', marginBottom:4 }}>Format:</div>
-                    <pre style={{ margin:0, color:'#64748b', fontSize:9, lineHeight:1.8, fontFamily:'monospace' }}>{"Montag\nLIEFERUNG / Knecht AG / Segelhofstr. 5 / 47 ELE\nMueller GmbH / Bahnhofstrasse 10 Zuerich\n\nDienstag\nSchmidt AG / Hauptstrasse 3 / 12 ELE"}</pre>
+                    <pre style={{ margin:0, color:'#64748b', fontSize:9, lineHeight:1.8, fontFamily:'monospace' }}>{"Montag\nLIEFERUNG / Knecht AG / Segelhofstr. 5 / 47 ELE\n\nDienstag\nSchmidt AG / Hauptstrasse 3 / 12 ELE"}</pre>
                 </div>
-
                 <div style={{ flex:1, display:'flex', gap:12, minHeight:0 }}>
                     <div style={{ flex:1, display:'flex', flexDirection:'column', gap:6 }}>
                         <div style={{ color:'#64748b', fontSize:9, fontWeight:900, textTransform:'uppercase' }}>Eingabe</div>
-                        <textarea
-                            autoFocus
-                            style={{ flex:1, width:'100%', background:'#1e293b', border:'1px solid #334155', padding:'12px', borderRadius:10, fontSize:11, color:'#f8fafc', fontFamily:'monospace', resize:'none', boxSizing:'border-box', lineHeight:1.6 }}
-                            placeholder={"Montag\nKunde AG / Adresse / Memo / AuftragsNr\n\nDienstag\nNächster Kunde / Adresse"}
-                            value={text}
-                            onChange={e => handleTextChange(e.target.value)}
-                        />
+                        <textarea autoFocus style={{ flex:1, width:'100%', background:'#1e293b', border:'1px solid #334155', padding:'12px', borderRadius:10, fontSize:11, color:'#f8fafc', fontFamily:'monospace', resize:'none', boxSizing:'border-box', lineHeight:1.6 }}
+                            placeholder={"Montag\nKunde AG / Adresse / Memo / AuftragsNr"} value={text} onChange={e => handleTextChange(e.target.value)}/>
                     </div>
                     <div style={{ width:240, display:'flex', flexDirection:'column', gap:6 }}>
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                             <div style={{ color:'#64748b', fontSize:9, fontWeight:900, textTransform:'uppercase' }}>Vorschau</div>
-                            <div style={{ background: preview.length>0?'#10b981':'#334155', color:'#fff', fontSize:9, fontWeight:900, padding:'2px 8px', borderRadius:20 }}>
-                                {preview.length} Aufträge
-                            </div>
+                            <div style={{ background: preview.length>0?'#10b981':'#334155', color:'#fff', fontSize:9, fontWeight:900, padding:'2px 8px', borderRadius:20 }}>{preview.length} Aufträge</div>
                         </div>
                         <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:4 }}>
-                            {preview.length === 0 && (
-                                <div style={{ color:'#475569', fontSize:10, textAlign:'center', marginTop:20 }}>
-                                    Noch keine Aufträge erkannt.
-                                </div>
-                            )}
                             {preview.map((e,i) => (
                                 <div key={i} style={{ background:'#1e293b', border:'1px solid #334155', borderLeft:'3px solid #10b981', borderRadius:6, padding:'6px 8px' }}>
-                                    <div style={{ color:'#94a3b8', fontSize:7, fontWeight:900, marginBottom:2 }}>
-                                        {formatDate(e.deliveryDate)} · {e.entryType}
-                                    </div>
-                                    <div style={{ color:'#fff', fontSize:9, fontWeight:900, lineHeight:1.2 }}>{e.customer}</div>
+                                    <div style={{ color:'#94a3b8', fontSize:7, fontWeight:900, marginBottom:2 }}>{formatDate(e.deliveryDate)} · {e.entryType}</div>
+                                    <div style={{ color:'#fff', fontSize:9, fontWeight:900 }}>{e.customer}</div>
                                     {e.address && <div style={{ color:'#64748b', fontSize:8 }}>{e.address}</div>}
-                                    {e.target>0 && <div style={{ color:'#10b981', fontSize:7, marginTop:1 }}>{e.target} ELE</div>}
                                 </div>
                             ))}
                         </div>
                     </div>
                 </div>
-
                 <div style={{ display:'flex', gap:12 }}>
-                    <button onClick={onClose}
-                        style={{ flex:1, padding:'13px', background:'transparent', border:'1px solid #334155', borderRadius:12, color:'#64748b', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>
-                        Abbrechen
-                    </button>
-                    <button onClick={doImport} disabled={saving || preview.length===0}
-                        style={{ flex:2, padding:'13px', background: preview.length>0&&!saving ? '#3b82f6' : '#1e293b', border:'none', borderRadius:12, color: preview.length>0&&!saving ? '#fff' : '#475569', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor: preview.length>0&&!saving ? 'pointer' : 'not-allowed' }}>
+                    <button onClick={onClose} style={{ flex:1, padding:'13px', background:'transparent', border:'1px solid #334155', borderRadius:12, color:'#64748b', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>Abbrechen</button>
+                    <button onClick={doImport} disabled={saving || preview.length===0} style={{ flex:2, padding:'13px', background: preview.length>0&&!saving ? '#3b82f6' : '#1e293b', border:'none', borderRadius:12, color: preview.length>0&&!saving ? '#fff' : '#475569', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor: preview.length>0&&!saving ? 'pointer' : 'not-allowed' }}>
                         {saving ? '⏳ Wird gespeichert...' : preview.length>0 ? `✓ ${preview.length} Aufträge importieren` : 'Text eingeben...'}
                     </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // BILLING VIEW (new design based on screenshot)
+    // ─────────────────────────────────────────────────────────────
+    function BillingModal({ teams, appId, onClose }) {
+        const [allEntries, setAllEntries] = useState([]);
+        const [activeTeamTab, setActiveTeamTab] = useState(null);
+        const [selectedIds, setSelectedIds] = useState(new Set());
+        const [showPdfPreview, setShowPdfPreview] = useState(false);
+
+        useEffect(() => {
+            const { db, collection, onSnapshot } = window.FirebaseSDK;
+            const unsubs = [];
+            setAllEntries([]);
+            teams.forEach(team => {
+                const unsub = onSnapshot(collection(db, `teams_cal_${team.id}`), (snap) => {
+                    const entries = snap.docs.map(doc => ({ id: doc.id, ...doc.data(), teamId: team.id, teamName: team.name, teamColor: team.color }));
+                    setAllEntries(prev => [...prev.filter(e => e.teamId !== team.id), ...entries]);
+                });
+                unsubs.push(unsub);
+            });
+            // Set default tab
+            if (teams.length > 0 && !activeTeamTab) setActiveTeamTab(teams[0].id);
+            return () => unsubs.forEach(u => u());
+        }, [teams]);
+
+        // Done entries per team
+        const doneEntries = useMemo(() => allEntries.filter(e => e.isDone && !e.isBilled), [allEntries]);
+        const billedEntries = useMemo(() => allEntries.filter(e => e.isBilled), [allEntries]);
+
+        const doneForTeam = useCallback((teamId) => doneEntries.filter(e => e.teamId === teamId), [doneEntries]);
+        const billedForTeam = useCallback((teamId) => billedEntries.filter(e => e.teamId === teamId), [billedEntries]);
+
+        const currentTeamDone = activeTeamTab ? doneForTeam(activeTeamTab) : [];
+        const currentTeamBilled = activeTeamTab ? billedForTeam(activeTeamTab) : [];
+        const currentTeam = teams.find(t => t.id === activeTeamTab);
+
+        const toggleSelect = (id) => {
+            setSelectedIds(prev => {
+                const n = new Set(prev);
+                n.has(id) ? n.delete(id) : n.add(id);
+                return n;
+            });
+        };
+
+        const selectAll = () => {
+            if (selectedIds.size === currentTeamDone.length) setSelectedIds(new Set());
+            else setSelectedIds(new Set(currentTeamDone.map(e => e.id)));
+        };
+
+        const markSelectedBilled = async () => {
+            const { db, doc, updateDoc } = window.FirebaseSDK;
+            for (const entry of currentTeamDone.filter(e => selectedIds.has(e.id))) {
+                await updateDoc(doc(db, `teams_cal_${entry.teamId}`, entry.id), { isBilled: true, billedAt: new Date().toISOString() });
+            }
+            setSelectedIds(new Set());
+        };
+
+        const unmarkBilled = async (entry) => {
+            const { db, doc, updateDoc } = window.FirebaseSDK;
+            await updateDoc(doc(db, `teams_cal_${entry.teamId}`, entry.id), { isBilled: false, billedAt: null });
+        };
+
+        const deleteEntry = async (entry) => {
+            if (!confirm(`"${entry.customer}" aus der Liste löschen?`)) return;
+            const { db, doc, deleteDoc } = window.FirebaseSDK;
+            await deleteDoc(doc(db, `teams_cal_${entry.teamId}`, entry.id));
+        };
+
+        const exportPDF = () => {
+            const el = document.getElementById('billing-pdf-content');
+            if (!el) return;
+            html2pdf().set({
+                margin: 10,
+                filename: `Fertigmontage_${currentTeam?.name || 'Export'}_${new Date().toLocaleDateString('de-DE')}.pdf`,
+                image: { type:'jpeg', quality:0.98 },
+                html2canvas: { scale:2, useCORS:true, backgroundColor:'#ffffff' },
+                jsPDF: { unit:'mm', format:'a4', orientation:'portrait' }
+            }).from(el).save();
+        };
+
+        const pdfEntries = currentTeamDone.filter(e => selectedIds.size === 0 || selectedIds.has(e.id));
+        const today = new Date().toLocaleDateString('de-DE');
+
+        return (
+            <div style={{ position:'fixed', inset:0, zIndex:80, background:'rgba(10,15,30,0.97)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+
+                {/* Hidden PDF content */}
+                <div style={{ position:'absolute', left:'-9999px', top:0 }}>
+                    <div id="billing-pdf-content" style={{ background:'#fff', color:'#000', fontFamily:'Arial,sans-serif', width:'190mm', padding:'12mm 14mm' }}>
+                        {/* PDF Header */}
+                        <div style={{ background:'#2563eb', padding:'10mm 12mm', margin:'-12mm -14mm 8mm -14mm', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                            <div style={{ color:'#fff', fontSize:'9pt', fontWeight:'bold', textTransform:'uppercase', letterSpacing:2 }}>FERTIGMONTAGE ABRECHNUNG</div>
+                            <div style={{ color:'#fff', fontSize:'9pt', fontWeight:'bold' }}>{currentTeam?.name || ''}</div>
+                        </div>
+                        <h1 style={{ fontSize:'26pt', fontWeight:900, margin:'0 0 2mm 0', color:'#000', textTransform:'uppercase', letterSpacing:-1 }}>FERTIGMONTAGE</h1>
+                        <div style={{ color:'#2563eb', fontSize:'14pt', fontWeight:900, marginBottom:'2mm', textTransform:'uppercase' }}>{currentTeam?.name || ''}</div>
+                        <div style={{ color:'#666', fontSize:'9pt', marginBottom:'8mm' }}>Erstellt: {today} &nbsp;|&nbsp; Aufträge: {pdfEntries.length}</div>
+                        <hr style={{ border:'none', borderTop:'1.5pt solid #e2e8f0', marginBottom:'6mm' }}/>
+                        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'9pt' }}>
+                            <thead>
+                                <tr style={{ borderBottom:'1.5pt solid #000' }}>
+                                    <th style={{ textAlign:'left', padding:'2mm 3mm', fontWeight:900, color:'#475569', textTransform:'uppercase', fontSize:'7pt' }}>#</th>
+                                    <th style={{ textAlign:'left', padding:'2mm 3mm', fontWeight:900, color:'#475569', textTransform:'uppercase', fontSize:'7pt' }}>DATUM</th>
+                                    <th style={{ textAlign:'left', padding:'2mm 3mm', fontWeight:900, color:'#475569', textTransform:'uppercase', fontSize:'7pt' }}>GRUPPE</th>
+                                    <th style={{ textAlign:'left', padding:'2mm 3mm', fontWeight:900, color:'#475569', textTransform:'uppercase', fontSize:'7pt' }}>KUNDE</th>
+                                    <th style={{ textAlign:'left', padding:'2mm 3mm', fontWeight:900, color:'#475569', textTransform:'uppercase', fontSize:'7pt' }}>AUFTRAGSNR.</th>
+                                    <th style={{ textAlign:'left', padding:'2mm 3mm', fontWeight:900, color:'#475569', textTransform:'uppercase', fontSize:'7pt' }}>ADRESSE</th>
+                                    <th style={{ textAlign:'right', padding:'2mm 3mm', fontWeight:900, color:'#475569', textTransform:'uppercase', fontSize:'7pt' }}>STATUS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {pdfEntries.map((e, i) => (
+                                    <tr key={e.id} style={{ borderBottom:'0.5pt solid #e2e8f0', background: i%2===0 ? '#f8fafc' : '#fff' }}>
+                                        <td style={{ padding:'3mm', fontWeight:900, color:'#94a3b8', fontSize:'8pt' }}>{i+1}</td>
+                                        <td style={{ padding:'3mm', fontSize:'8pt', color:'#374151' }}>{formatDate(e.deliveryDate)}</td>
+                                        <td style={{ padding:'3mm', fontSize:'8pt', fontWeight:700, color:'#2563eb' }}>{e.teamName}</td>
+                                        <td style={{ padding:'3mm', fontWeight:700, fontSize:'9pt' }}>{e.customer}</td>
+                                        <td style={{ padding:'3mm' }}>
+                                            <span style={{ background:'#eff6ff', border:'1pt solid #bfdbfe', borderRadius:'4pt', padding:'1mm 3mm', fontWeight:900, fontSize:'9pt', color:'#1d4ed8', fontFamily:'monospace' }}>
+                                                {e.auftragsNr || '—'}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding:'3mm', color:'#6b7280', fontSize:'8pt' }}>{e.address}</td>
+                                        <td style={{ padding:'3mm', textAlign:'right' }}>
+                                            <span style={{ background:'#f0fdf4', border:'1pt solid #86efac', borderRadius:'4pt', padding:'1mm 3mm', color:'#15803d', fontWeight:900, fontSize:'7pt', textTransform:'uppercase', letterSpacing:1 }}>✓ FERTIG</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <hr style={{ border:'none', borderTop:'1.5pt solid #e2e8f0', marginTop:'6mm', marginBottom:'4mm' }}/>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                            <div style={{ fontWeight:900, fontSize:'10pt' }}>Gesamt Aufträge: {pdfEntries.length}</div>
+                            <div style={{ fontWeight:900, fontSize:'10pt', color:'#2563eb' }}>Abgerechnet: 0</div>
+                        </div>
+                        <div style={{ marginTop:'18mm', display:'flex', justifyContent:'space-between' }}>
+                            <div style={{ width:'70mm' }}>
+                                <div style={{ borderTop:'1pt solid #000', paddingTop:'2mm', fontSize:'8pt', color:'#666' }}>UNTERSCHRIFT</div>
+                            </div>
+                            <div style={{ width:'70mm' }}>
+                                <div style={{ borderTop:'1pt solid #000', paddingTop:'2mm', fontSize:'8pt', color:'#666' }}>DATUM</div>
+                            </div>
+                        </div>
+                        <div style={{ marginTop:'10mm', textAlign:'center', color:'#94a3b8', fontSize:'7pt' }}>
+                            Montage Manager Pro • {currentTeam?.name} • {today}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Modal */}
+                <div className="billing-modal" style={{ width:'100%', maxWidth:720, maxHeight:'90vh', display:'flex', flexDirection:'column', border:'1px solid rgba(255,255,255,0.08)', boxShadow:'0 40px 80px rgba(0,0,0,0.6)' }}>
+                    <div className="billing-modal-header">
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                            <div>
+                                <div style={{ color:'#94a3b8', fontSize:9, fontWeight:900, textTransform:'uppercase', letterSpacing:2, marginBottom:4 }}>ABRECHNUNGSLISTE</div>
+                                <h2 style={{ color:'#fff', fontSize:22, fontWeight:900, textTransform:'uppercase', margin:0, letterSpacing:-0.5 }}>FERTIG MONTIERT</h2>
+                                <div style={{ marginTop:6, display:'flex', gap:12, fontSize:9, fontWeight:700 }}>
+                                    <span style={{ color:'#64748b' }}>{doneEntries.length} Aufträge gesamt</span>
+                                    <span style={{ color:'#a855f7' }}>•&nbsp;{billedEntries.length} Abgerechnet</span>
+                                    <span style={{ color:'#10b981' }}>•&nbsp;{doneEntries.length} Offen</span>
+                                </div>
+                            </div>
+                            <button onClick={onClose} style={{ background:'rgba(255,255,255,0.08)', border:'none', borderRadius:10, width:36, height:36, cursor:'pointer', color:'#94a3b8', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                        </div>
+
+                        {/* Team Tabs */}
+                        <div style={{ display:'flex', gap:0, marginTop:16, borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+                            {teams.map(t => (
+                                <button key={t.id} onClick={() => { setActiveTeamTab(t.id); setSelectedIds(new Set()); }}
+                                    style={{ padding:'10px 20px', background:'transparent', border:'none', borderBottom: activeTeamTab===t.id ? '2px solid #3b82f6' : '2px solid transparent', color: activeTeamTab===t.id ? '#fff' : '#64748b', fontWeight:900, fontSize:11, cursor:'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.15s' }}>
+                                    <div style={{ width:8, height:8, borderRadius:'50%', background: activeTeamTab===t.id ? t.color : '#334155' }}></div>
+                                    {t.name}
+                                    {doneForTeam(t.id).length > 0 && <span style={{ background:'#ef4444', color:'#fff', fontSize:8, fontWeight:900, padding:'1px 5px', borderRadius:10 }}>{doneForTeam(t.id).length}</span>}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Team details */}
+                    <div style={{ flex:1, overflowY:'auto', padding:20 }}>
+                        {currentTeam && (
+                            <>
+                                {/* Team header info */}
+                                <div style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px', marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                                        <div style={{ width:36, height:36, borderRadius:10, background:currentTeam.color+'33', border:`1px solid ${currentTeam.color}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:900, color:currentTeam.color }}>
+                                            {currentTeam.name.substring(0,2).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <div style={{ color:'#fff', fontSize:13, fontWeight:900 }}>{currentTeam.name}</div>
+                                            <div style={{ color:'#64748b', fontSize:9, marginTop:2 }}>Unabhängige Abrechnung · {billedForTeam(currentTeam.id).length} abgerechnet</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display:'flex', gap:8 }}>
+                                        {selectedIds.size > 0 && (
+                                            <button onClick={markSelectedBilled} style={{ background:'#10b981', border:'none', borderRadius:8, padding:'7px 14px', color:'#fff', fontSize:9, fontWeight:900, cursor:'pointer' }}>
+                                                ✓ Als abgerechnet markieren ({selectedIds.size})
+                                            </button>
+                                        )}
+                                        <button onClick={exportPDF}
+                                            style={{ background:'rgba(59,130,246,0.15)', border:'1px solid rgba(59,130,246,0.3)', borderRadius:8, padding:'7px 14px', color:'#3b82f6', fontSize:9, fontWeight:900, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+                                            <Icon name="download" size={12}/>PDF EXPORT
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {currentTeamDone.length > 0 && (
+                                    <div style={{ marginBottom:8, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                                        <button onClick={selectAll} style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'6px 12px', color:'#cbd5e1', fontSize:9, fontWeight:900, cursor:'pointer' }}>
+                                            ALLE WÄHLEN ({currentTeamDone.length})
+                                        </button>
+                                        <span style={{ color:'#64748b', fontSize:9 }}>{selectedIds.size} ausgewählt</span>
+                                    </div>
+                                )}
+
+                                {/* Done entries */}
+                                {currentTeamDone.length === 0 && currentTeamBilled.length === 0 ? (
+                                    <div style={{ textAlign:'center', padding:40, color:'#475569' }}>
+                                        <div style={{ fontSize:32, marginBottom:8 }}>📋</div>
+                                        <div style={{ fontSize:12, fontWeight:700 }}>Keine erledigten Aufträge</div>
+                                    </div>
+                                ) : (
+                                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                                        {currentTeamDone.map(e => (
+                                            <div key={e.id}
+                                                style={{ background: selectedIds.has(e.id) ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)', border: selectedIds.has(e.id) ? '1px solid rgba(59,130,246,0.4)' : '1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px', display:'flex', alignItems:'center', gap:12, cursor:'pointer', transition:'all 0.15s' }}
+                                                onClick={() => toggleSelect(e.id)}>
+                                                <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${selectedIds.has(e.id)?'#3b82f6':'rgba(255,255,255,0.15)'}`, background: selectedIds.has(e.id)?'#3b82f6':'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.15s' }}>
+                                                    {selectedIds.has(e.id) && <span style={{ color:'#fff', fontSize:11, fontWeight:900 }}>✓</span>}
+                                                </div>
+                                                <div style={{ flex:1, minWidth:0 }}>
+                                                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                                                        <span style={{ color:'#fff', fontSize:12, fontWeight:900, textTransform:'uppercase' }}>{e.customer}</span>
+                                                        <span style={{ color:'#10b981', fontSize:9, fontWeight:900, background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.25)', borderRadius:5, padding:'1px 7px' }}>✓ FERTIG</span>
+                                                    </div>
+                                                    <div style={{ color:'#64748b', fontSize:10 }}>{e.address}</div>
+                                                    <div style={{ color:'#94a3b8', fontSize:9, marginTop:2 }}>{formatDate(e.deliveryDate)}</div>
+                                                </div>
+                                                {e.auftragsNr && (
+                                                    <div style={{ background:'rgba(59,130,246,0.12)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:8, padding:'4px 10px' }}>
+                                                        <span style={{ color:'#3b82f6', fontSize:11, fontWeight:900, fontFamily:'monospace' }}>#{e.auftragsNr}</span>
+                                                    </div>
+                                                )}
+                                                <button onClick={(ev) => { ev.stopPropagation(); deleteEntry(e); }}
+                                                    style={{ background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:8, padding:'6px 10px', cursor:'pointer', color:'#ef4444', fontSize:9, fontWeight:900, display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>
+                                                    <Icon name="trash-2" size={12}/>LÖSCHEN
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Billed section */}
+                                {currentTeamBilled.length > 0 && (
+                                    <div style={{ marginTop:20 }}>
+                                        <div style={{ color:'#a855f7', fontSize:9, fontWeight:900, textTransform:'uppercase', letterSpacing:2, marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+                                            <div style={{ flex:1, height:1, background:'rgba(168,85,247,0.2)' }}></div>
+                                            Bereits Abgerechnet ({currentTeamBilled.length})
+                                            <div style={{ flex:1, height:1, background:'rgba(168,85,247,0.2)' }}></div>
+                                        </div>
+                                        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                                            {currentTeamBilled.map(e => (
+                                                <div key={e.id} onClick={() => unmarkBilled(e)}
+                                                    style={{ background:'rgba(168,85,247,0.05)', border:'1px solid rgba(168,85,247,0.15)', borderRadius:10, padding:'10px 14px', display:'flex', alignItems:'center', gap:12, cursor:'pointer', opacity:0.7, transition:'opacity 0.15s' }}
+                                                    onMouseEnter={ev => ev.currentTarget.style.opacity='1'}
+                                                    onMouseLeave={ev => ev.currentTarget.style.opacity='0.7'}>
+                                                    <div style={{ flex:1 }}>
+                                                        <div style={{ color:'#cbd5e1', fontSize:11, fontWeight:900, textTransform:'uppercase' }}>{e.customer}</div>
+                                                        <div style={{ color:'#64748b', fontSize:9 }}>{e.address} · {formatDate(e.deliveryDate)}</div>
+                                                    </div>
+                                                    {e.auftragsNr && <span style={{ color:'#a855f7', fontSize:10, fontWeight:900, fontFamily:'monospace' }}>#{e.auftragsNr}</span>}
+                                                    <span style={{ color:'#a855f7', fontSize:8, fontWeight:900, background:'rgba(168,85,247,0.1)', padding:'2px 8px', borderRadius:5 }}>✓ ABGR.</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
         );
@@ -475,7 +685,6 @@
         const [showCalImport, setShowCalImport] = useState(false);
         const [calImportResult, setCalImportResult] = useState(null);
         const [showCalPdfModal, setShowCalPdfModal] = useState(null);
-        const [deleteMode, setDeleteMode] = useState(false);
         const [copyEntry, setCopyEntry] = useState(null);
         const [showStandbyPicker, setShowStandbyPicker] = useState(null);
         const [standbyItems, setStandbyItems] = useState([]);
@@ -490,12 +699,11 @@
 
         useEffect(() => {
             const { db, collection, onSnapshot } = window.FirebaseSDK;
-            const path = `teams_cal_${team.id}`;
-            const unsub = onSnapshot(collection(db, path), (snap) => {
+            const unsub = onSnapshot(collection(db, `teams_cal_${team.id}`), (snap) => {
                 setCalEntries(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            }, err => console.error("Error:", err));
+            });
             return unsub;
-        }, [team.id, appId]);
+        }, [team.id]);
 
         useEffect(() => {
             const { db, collection, onSnapshot } = window.FirebaseSDK;
@@ -509,9 +717,16 @@
             calEntries.filter(e => (e.calType || 'montage') === activeCalType),
         [calEntries, activeCalType]);
 
-        const entriesForDay = useCallback((dayStr) =>
-            filteredEntries.filter(e => e.deliveryDate && e.deliveryDate.substring(0,10) === dayStr),
-        [filteredEntries]);
+        // Build day rendering: for multi-day entries, show full span
+        const entriesForDay = useCallback((dayStr) => {
+            return filteredEntries.filter(e => {
+                if (e.isMultiDay && e.endDate) {
+                    // Show in every day of its range
+                    return dayStr >= e.deliveryDate.substring(0,10) && dayStr <= e.endDate.substring(0,10);
+                }
+                return e.deliveryDate && e.deliveryDate.substring(0,10) === dayStr;
+            });
+        }, [filteredEntries]);
 
         const colorIndex = useMemo(() => {
             const map = {};
@@ -560,38 +775,29 @@
                     auftragsNr: entry.auftragsNr || '',
                     target: parseInt(entry.target) || 0,
                     deliveryDate: entry.deliveryDate,
+                    endDate: entry.endDate || null,
+                    isMultiDay: !!(entry.endDate && entry.endDate > entry.deliveryDate),
                     image: entry.image || null,
                     calType: entry.calType || 'montage',
                 });
                 setEditCalEntry(null);
-            } catch(err) {
-                alert('Fehler: ' + err.message);
-            }
+            } catch(err) { alert('Fehler: ' + err.message); }
         };
 
         const saveNewCalEntry = async (entry) => {
             try {
                 const { db, doc, setDoc } = window.FirebaseSDK;
-                const path = `teams_cal_${team.id}`;
                 const id = `cal-${genId()}`;
-                const payload = {
-                    ...entry, id,
-                    createdAt: new Date().toISOString(),
-                    isDone: false, isBilled: false,
-                    entryType: entry.entryType || 'LIEFERUNG',
-                    calType: entry.calType || activeCalType,
-                    target: parseInt(entry.target) || 0,
-                    image: entry.image || null,
-                    memo: entry.memo || '',
-                    address: entry.address || '',
-                    auftragsNr: entry.auftragsNr || '',
-                };
-                delete payload.isNew;
-                await setDoc(doc(db, path, id), payload);
+                const isMultiDay = !!(entry.endDate && entry.endDate > entry.deliveryDate);
+                await setDoc(doc(db, `teams_cal_${team.id}`, id), {
+                    ...entry, id, createdAt: new Date().toISOString(), isDone: false, isBilled: false,
+                    entryType: entry.entryType || 'LIEFERUNG', calType: entry.calType || activeCalType,
+                    target: parseInt(entry.target) || 0, image: entry.image || null,
+                    isMultiDay, endDate: entry.endDate || null,
+                    isNew: undefined,
+                });
                 setEditCalEntry(null);
-            } catch(err) {
-                alert('Fehler: ' + err.message);
-            }
+            } catch(err) { alert('Fehler: ' + err.message); }
         };
 
         const triggerEntryPDF = (entry) => {
@@ -599,11 +805,7 @@
             setTimeout(() => {
                 const el = document.getElementById('cal-single-pdf-content');
                 if (!el) return;
-                html2pdf().set({
-                    margin:10, filename:`Auftrag_${(entry.auftragsNr||'export').replace(/\//g,'_')}.pdf`,
-                    image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},
-                    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-                }).from(el).save().then(() => setShowCalPdfModal(null));
+                html2pdf().set({ margin:10, filename:`Auftrag_${(entry.auftragsNr||'export').replace(/\//g,'_')}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} }).from(el).save().then(() => setShowCalPdfModal(null));
             }, 300);
         };
 
@@ -611,55 +813,61 @@
             setTimeout(() => {
                 const el = document.getElementById('cal-week-pdf-content');
                 if (!el) return;
-                html2pdf().set({
-                    margin:5, filename:`Kalender_KW${getWeekNumber(calWeek)}.pdf`,
-                    image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},
-                    jsPDF:{unit:'mm',format:'a3',orientation:'landscape'},
-                }).from(el).save();
+                html2pdf().set({ margin:5, filename:`Kalender_KW${getWeekNumber(calWeek)}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'}, jsPDF:{unit:'mm',format:'a3',orientation:'landscape'} }).from(el).save();
             }, 200);
         };
 
         const pasteCopyToDay = async (dayStr) => {
             if (!copyEntry) return;
             const { db, doc, setDoc } = window.FirebaseSDK;
-            const path = `teams_cal_${team.id}`;
             const id = `cal-${genId()}`;
-            await setDoc(doc(db, path, id), { ...copyEntry, id, deliveryDate:dayStr, createdAt:new Date().toISOString(), isDone:false, isBilled:false });
+            await setDoc(doc(db, `teams_cal_${team.id}`, id), { ...copyEntry, id, deliveryDate:dayStr, endDate:null, isMultiDay:false, createdAt:new Date().toISOString(), isDone:false, isBilled:false });
             setCopyEntry(null);
         };
 
+        // For standby: insert as single multi-day entry instead of multiple entries
         const insertStandbyItem = async (item, startDateStr, endDateStr) => {
             const { db, doc, setDoc } = window.FirebaseSDK;
-            const start = new Date(startDateStr);
-            const end = new Date(endDateStr);
-            const d = new Date(start);
-            while (d <= end) {
-                const dayStr = toLocalDateStr(d);
-                const dow = d.getDay();
-                if (dow !== 0) {
-                    const id = `cal-${genId()}`;
-                    await setDoc(doc(db, `teams_cal_${team.id}`, id), {
-                        id, entryType: 'LIEFERUNG',
-                        customer: item.customer, address: item.address,
-                        memo: item.memo, auftragsNr: item.auftragsNr,
-                        target: item.target || 0, deliveryDate: dayStr,
-                        image: null, calType: activeCalType,
-                        createdAt: new Date().toISOString(),
-                        isDone: false, isBilled: false, fromStandby: item.id,
-                    });
-                }
-                d.setDate(d.getDate() + 1);
-            }
+            const isMultiDay = endDateStr > startDateStr;
+            const id = `cal-${genId()}`;
+            await setDoc(doc(db, `teams_cal_${team.id}`, id), {
+                id, entryType: 'LIEFERUNG',
+                customer: item.customer, address: item.address,
+                memo: item.memo, auftragsNr: item.auftragsNr,
+                target: item.target || 0,
+                deliveryDate: startDateStr,
+                endDate: isMultiDay ? endDateStr : null,
+                isMultiDay,
+                image: null, calType: activeCalType,
+                createdAt: new Date().toISOString(),
+                isDone: false, isBilled: false, fromStandby: item.id,
+            });
             setStandbyDateModal(null);
             setShowStandbyPicker(null);
         };
 
         const defaultNewDate = toLocalDateStr(days[0]);
-        const emptyEntry = { isNew:true, customer:'', address:'', memo:'', auftragsNr:'',
-            target:'', image:null, entryType:'LIEFERUNG', deliveryDate:defaultNewDate, calType:activeCalType };
-
+        const emptyEntry = { isNew:true, customer:'', address:'', memo:'', auftragsNr:'', target:'', image:null, entryType:'LIEFERUNG', deliveryDate:defaultNewDate, endDate:'', calType:activeCalType };
         const calTypeBg = activeCalType === 'beplankung' ? '#059669' : '#2563eb';
         const calTypeLabel = activeCalType === 'beplankung' ? '🏗 BEPLANKUNG / GIPSER' : '🔧 MONTAGE';
+
+        // Determine if entry is at start/mid/end for multi-day display
+        const getMultiDayPosition = (entry, dayStr) => {
+            if (!entry.isMultiDay || !entry.endDate) return 'single';
+            const start = entry.deliveryDate.substring(0,10);
+            const end = entry.endDate.substring(0,10);
+            if (dayStr === start) return 'start';
+            if (dayStr === end) return 'end';
+            return 'mid';
+        };
+
+        // Monteur can only mark done on start date of multi-day entries
+        const canMarkDone = (entry, dayStr) => {
+            if (!isAdminAccess && entry.isMultiDay && entry.endDate) {
+                return dayStr === entry.deliveryDate.substring(0,10);
+            }
+            return true;
+        };
 
         return (
             <div style={{ minHeight:'100vh', background:'#f1f5f9', display:'flex', flexDirection:'column' }}>
@@ -674,16 +882,12 @@
                                     <tr><td style={{ color:'#888', fontWeight:'bold', width:'35mm', paddingBottom:'3mm' }}>Auftragsnr.</td><td style={{ fontWeight:900 }}>{showCalPdfModal.auftragsNr||'—'}</td></tr>
                                     <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Kunde</td><td style={{ fontWeight:'bold' }}>{showCalPdfModal.customer}</td></tr>
                                     <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Adresse</td><td>{showCalPdfModal.address}</td></tr>
-                                    <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Datum</td><td>{formatDate(showCalPdfModal.deliveryDate)}</td></tr>
+                                    <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Datum</td><td>{formatDate(showCalPdfModal.deliveryDate)}{showCalPdfModal.endDate ? ` – ${formatDate(showCalPdfModal.endDate)}` : ''}</td></tr>
                                     <tr><td style={{ color:'#888', fontWeight:'bold', paddingBottom:'3mm' }}>Memo</td><td>{showCalPdfModal.memo}</td></tr>
                                     {showCalPdfModal.target>0&&<tr><td style={{ color:'#888', fontWeight:'bold' }}>ELE</td><td style={{ fontWeight:900 }}>{showCalPdfModal.target} ELE</td></tr>}
                                 </tbody>
                             </table>
-                            {showCalPdfModal.image && (
-                                <div style={{ textAlign:'center', marginTop:'8mm' }}>
-                                    <img src={showCalPdfModal.image} style={{ maxWidth:'100%', maxHeight:'160mm', objectFit:'contain', display:'block', margin:'0 auto' }}/>
-                                </div>
-                            )}
+                            {showCalPdfModal.image && <div style={{ textAlign:'center', marginTop:'8mm' }}><img src={showCalPdfModal.image} style={{ maxWidth:'100%', maxHeight:'160mm', objectFit:'contain', display:'block', margin:'0 auto' }}/></div>}
                         </div>
                     )}
                     <div id="cal-week-pdf-content" style={{ padding:'8mm', background:'#fff', fontFamily:'Inter,Arial,sans-serif', width:'420mm' }}>
@@ -702,18 +906,14 @@
                                         <div style={{ background:'#f1f5f9', borderRadius:'4pt', padding:'3mm', marginBottom:'2mm', textAlign:'center' }}>
                                             <div style={{ fontSize:'9pt', fontWeight:900, textTransform:'uppercase', color:'#1e293b' }}>{DAY_NAMES[di]}</div>
                                             <div style={{ fontSize:'7pt', color:'#64748b' }}>{formatDate(dayStr)}</div>
-                                            <div style={{ fontSize:'6pt', color:'#3b82f6', fontWeight:'bold' }}>{dayEnt.length} Aufträge</div>
                                         </div>
                                         {dayEnt.map((e,ei) => {
                                             const ci=colorIndex[e.id]||0;
                                             return (
-                                                <div key={ei} style={{ background:CARD_COLORS[ci], borderLeft:`2pt solid ${CARD_BORDER[ci]}`, borderRadius:'4pt', padding:'2mm 3mm', marginBottom:'2mm', opacity: e.isDone ? 0.5 : 1 }}>
-                                                    {e.auftragsNr&&<div style={{ fontSize:'5.5pt', color:CARD_TEXT[ci], fontWeight:900, opacity:0.7, marginBottom:'1mm' }}>{e.auftragsNr}</div>}
-                                                    <div style={{ fontSize:'7pt', fontWeight:900, color:CARD_TEXT[ci], lineHeight:1.2, marginBottom:'1mm' }}>{e.customer}</div>
-                                                    <div style={{ fontSize:'6pt', color:CARD_TEXT[ci], opacity:0.8, lineHeight:1.2, marginBottom:'1mm' }}>{e.address}</div>
-                                                    <div style={{ fontSize:'6pt', color:CARD_TEXT[ci], opacity:0.7, lineHeight:1.2 }}>{e.memo}</div>
-                                                    {e.target>0&&<div style={{ display:'inline-block', background:CARD_BORDER[ci], color:'#fff', fontSize:'5.5pt', fontWeight:900, padding:'0.5mm 2mm', borderRadius:'3pt', marginTop:'1mm' }}>{e.target} ELE</div>}
-                                                    {e.isDone&&<div style={{ fontSize:'5.5pt', color:'#10b981', fontWeight:900, marginTop:'1mm' }}>✓ ERLEDIGT</div>}
+                                                <div key={ei} style={{ background:CARD_COLORS[ci], borderLeft:`2pt solid ${CARD_BORDER[ci]}`, borderRadius:'4pt', padding:'2mm 3mm', marginBottom:'2mm' }}>
+                                                    <div style={{ fontSize:'7pt', fontWeight:900, color:CARD_TEXT[ci] }}>{e.customer}</div>
+                                                    <div style={{ fontSize:'6pt', color:CARD_TEXT[ci], opacity:0.8 }}>{e.address}</div>
+                                                    {e.isMultiDay && e.endDate && <div style={{ fontSize:'5.5pt', color:CARD_TEXT[ci], opacity:0.7, marginTop:'1mm' }}>📅 {formatDate(e.deliveryDate)} – {formatDate(e.endDate)}</div>}
                                                 </div>
                                             );
                                         })}
@@ -742,18 +942,8 @@
 
                     {/* CAL TYPE TABS */}
                     <div style={{ display:'flex', gap:6, alignItems:'center', flex:'1 1 auto', justifyContent:'center' }}>
-                        <button
-                            className={`type-tab ${activeCalType==='montage'?'active-montage':'inactive'}`}
-                            onClick={() => setActiveCalType('montage')}
-                            style={{ fontSize:11, padding:'7px 20px' }}>
-                            🔧 Montage
-                        </button>
-                        <button
-                            className={`type-tab ${activeCalType==='beplankung'?'active-beplankung':'inactive'}`}
-                            onClick={() => setActiveCalType('beplankung')}
-                            style={{ fontSize:11, padding:'7px 20px' }}>
-                            🏗 Beplankung
-                        </button>
+                        <button className={`type-tab ${activeCalType==='montage'?'active-montage':'inactive'}`} onClick={() => setActiveCalType('montage')} style={{ fontSize:11, padding:'7px 20px' }}>🔧 Montage</button>
+                        <button className={`type-tab ${activeCalType==='beplankung'?'active-beplankung':'inactive'}`} onClick={() => setActiveCalType('beplankung')} style={{ fontSize:11, padding:'7px 20px' }}>🏗 Beplankung</button>
                     </div>
 
                     <div style={{ display:'flex', gap:6, alignItems:'center', flex:'0 0 auto', flexWrap:'wrap', justifyContent:'flex-end' }}>
@@ -764,22 +954,24 @@
                         <button onClick={() => { const d=new Date(calWeek); d.setDate(d.getDate()+7); setCalWeek(d); }} style={{ background:'#334155', border:'none', borderRadius:8, width:30, height:30, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
                             <Icon name="chevron-right" size={14} className="text-blue-400"/>
                         </button>
-                        <button onClick={() => setEditCalEntry({...emptyEntry})} style={{ background:'#10b981', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
-                            <Icon name="plus" size={12}/>Neu
-                        </button>
-                        <button onClick={() => setShowStandbyPicker({ dayStr: toLocalDateStr(days[0]) })} style={{ background:'#f59e0b', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
-                            <Icon name="archive" size={12}/>Standby
-                        </button>
-                        <button onClick={() => setShowCalImport(true)} style={{ background:'#3b82f6', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
-                            <Icon name="upload" size={12}/>Import
-                        </button>
-                        <button onClick={triggerWeekPDF} style={{ background:'#475569', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
-                            <Icon name="download" size={12}/>A3 PDF
-                        </button>
-                        <button onClick={() => { setDeleteMode(!deleteMode); setCopyEntry(null); }}
-                            style={{ background:deleteMode?'#ef4444':'#334155', border:deleteMode?'2px solid #fca5a5':'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
-                            <Icon name={deleteMode?"x":"trash-2"} size={12}/>{deleteMode?'Fertig':'Löschen'}
-                        </button>
+
+                        {/* Admin-only buttons */}
+                        {isAdminAccess && <>
+                            <button onClick={() => setEditCalEntry({...emptyEntry})} style={{ background:'#10b981', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                                <Icon name="plus" size={12}/>Neu
+                            </button>
+                            <button onClick={() => setShowStandbyPicker({ dayStr: toLocalDateStr(days[0]) })} style={{ background:'#f59e0b', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                                <Icon name="archive" size={12}/>Standby
+                            </button>
+                            <button onClick={() => setShowCalImport(true)} style={{ background:'#3b82f6', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                                <Icon name="upload" size={12}/>Import
+                            </button>
+                            <button onClick={triggerWeekPDF} style={{ background:'#475569', border:'none', borderRadius:8, padding:'5px 12px', color:'#fff', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                                <Icon name="download" size={12}/>A3 PDF
+                            </button>
+                        </>}
+
+                        {/* Monteur: only copy button visible via card UI, nothing in toolbar */}
                     </div>
                 </div>
 
@@ -788,11 +980,6 @@
                     {calTypeLabel} — KW {getWeekNumber(calWeek)} — {formatDate(toLocalDateStr(days[0]))} bis {formatDate(toLocalDateStr(days[5]))}
                 </div>
 
-                {deleteMode && (
-                    <div style={{ background:'#ef4444', padding:'8px 16px', textAlign:'center', fontSize:10, fontWeight:900, color:'#fff', textTransform:'uppercase', letterSpacing:1 }}>
-                        🗑 LÖSCHMODUS — Auftrag anklicken zum Löschen
-                    </div>
-                )}
                 {copyEntry && (
                     <div style={{ background:'#f59e0b', padding:'8px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:10, fontWeight:900, color:'#fff' }}>
                         <span>📋 KOPIEREN: „{copyEntry.customer}" — Tag-Spalte anklicken</span>
@@ -816,7 +1003,7 @@
                         <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', background:'#fff', alignItems:'start' }}>
                             {days.map((day,di) => {
                                 const dayStr=toLocalDateStr(day), dayEnt=entriesForDay(dayStr);
-                                const isPasteTarget = copyEntry && !deleteMode;
+                                const isPasteTarget = copyEntry && isAdminAccess;
                                 return (
                                     <div key={di} className={`cal-col${isPasteTarget?' paste-target-col':''}`}
                                         onClick={() => { if(isPasteTarget) pasteCopyToDay(dayStr); }}
@@ -831,41 +1018,81 @@
                                         )}
                                         {dayEnt.map((e) => {
                                             const ci=colorIndex[e.id]||0;
+                                            const pos = getMultiDayPosition(e, dayStr);
+                                            const isStart = pos === 'start' || pos === 'single';
+                                            const totalDays = e.isMultiDay && e.endDate ? daysBetween(e.deliveryDate.substring(0,10), e.endDate.substring(0,10)) : 1;
+
                                             return (
-                                                <div key={e.id}
-                                                    className={`cal-card-item${deleteMode?' delete-mode-card':''} ${e.isDone?'done-card':''}`}
-                                                    style={{ background:CARD_COLORS[ci], borderLeftColor:CARD_BORDER[ci], color:CARD_TEXT[ci], cursor:'pointer' }}
+                                                <div key={`${e.id}-${dayStr}`}
+                                                    className={`cal-card-item ${e.isDone?'done-card':''}`}
+                                                    style={{
+                                                        background: CARD_COLORS[ci],
+                                                        borderLeftColor: isStart ? CARD_BORDER[ci] : 'transparent',
+                                                        color: CARD_TEXT[ci],
+                                                        cursor:'pointer',
+                                                        opacity: !isStart && e.isMultiDay ? 0.7 : 1,
+                                                        borderTop: `1.5px solid ${CARD_BORDER[ci]}44`,
+                                                        borderBottom: `1.5px solid ${CARD_BORDER[ci]}44`,
+                                                    }}
                                                     onClick={(ev) => {
                                                         ev.stopPropagation();
-                                                        if(deleteMode) { if(confirm(`"${e.customer}" löschen?`)) deleteCalEntry(e.id); }
-                                                        else if(copyEntry) { pasteCopyToDay(dayStr); }
-                                                        else { setEditCalEntry({...e}); }
+                                                        if(copyEntry && isAdminAccess) { pasteCopyToDay(dayStr); }
+                                                        else if(isAdminAccess) { setEditCalEntry({...e}); }
+                                                        // Monteur: no click action on card body
                                                     }}>
                                                     {e.image && <div className="green-dot"></div>}
-                                                    {deleteMode && <div style={{ position:'absolute', top:3, left:3, background:'#ef4444', borderRadius:'50%', width:14, height:14, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff', fontWeight:900 }}>✕</div>}
                                                     {e.isDone && <div className="done-stamp">✓ Erledigt</div>}
                                                     {e.isBilled && <div className="billed-stamp">✓ Abgerechnet</div>}
 
-                                                    <div style={{ fontSize:8, fontWeight:900, letterSpacing:1, textTransform:'uppercase', marginBottom:3, padding:'1px 5px', background:CARD_BORDER[ci], color:'#fff', borderRadius:2, display:'inline-block', marginLeft:deleteMode?16:0 }}>
-                                                        {e.entryType||'LIEFERUNG'}
-                                                    </div>
-                                                    {e.auftragsNr && <div style={{ fontSize:8, fontWeight:900, opacity:0.75, marginBottom:2, textTransform:'uppercase', paddingRight:e.image?10:0 }}>{e.auftragsNr}</div>}
-                                                    <div style={{ fontSize:10, fontWeight:900, lineHeight:1.3, marginBottom:2, textTransform:'uppercase' }}>{e.customer}</div>
-                                                    <div style={{ fontSize:9, fontWeight:700, lineHeight:1.3, marginBottom:2, opacity:0.85 }}>{e.address}</div>
-                                                    {e.memo && <div style={{ fontSize:8, lineHeight:1.3, opacity:0.75 }}>{e.memo}</div>}
-                                                    {e.target>0 && <div style={{ marginTop:3, display:'inline-block', background:CARD_BORDER[ci], color:'#fff', fontSize:8, fontWeight:900, padding:'1px 5px', borderRadius:3 }}>{e.target} ELE</div>}
+                                                    {/* Only show full info on start day */}
+                                                    {isStart ? (
+                                                        <>
+                                                            <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:3, flexWrap:'wrap' }}>
+                                                                <div style={{ fontSize:8, fontWeight:900, letterSpacing:1, textTransform:'uppercase', padding:'1px 5px', background:CARD_BORDER[ci], color:'#fff', borderRadius:2, display:'inline-block' }}>
+                                                                    {e.entryType||'LIEFERUNG'}
+                                                                </div>
+                                                                {e.isMultiDay && e.endDate && (
+                                                                    <div className="multiday-badge" style={{ background:CARD_BORDER[ci]+'33', color:CARD_BORDER[ci] }}>
+                                                                        📅 {totalDays} Tage
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {e.auftragsNr && <div style={{ fontSize:8, fontWeight:900, opacity:0.75, marginBottom:2, textTransform:'uppercase', paddingRight:e.image?10:0 }}>{e.auftragsNr}</div>}
+                                                            <div style={{ fontSize:10, fontWeight:900, lineHeight:1.3, marginBottom:2, textTransform:'uppercase' }}>{e.customer}</div>
+                                                            <div style={{ fontSize:9, fontWeight:700, lineHeight:1.3, marginBottom:2, opacity:0.85 }}>{e.address}</div>
+                                                            {e.memo && <div style={{ fontSize:8, lineHeight:1.3, opacity:0.75 }}>{e.memo}</div>}
+                                                            {e.isMultiDay && e.endDate && (
+                                                                <div style={{ fontSize:8, color:CARD_BORDER[ci], fontWeight:700, marginTop:3 }}>
+                                                                    {formatDate(e.deliveryDate)} – {formatDate(e.endDate)}
+                                                                </div>
+                                                            )}
+                                                            {e.target>0 && <div style={{ marginTop:3, display:'inline-block', background:CARD_BORDER[ci], color:'#fff', fontSize:8, fontWeight:900, padding:'1px 5px', borderRadius:3 }}>{e.target} ELE</div>}
 
-                                                    {!deleteMode && !copyEntry && (
-                                                        <div style={{ display:'flex', gap:3, marginTop:5, justifyContent:'flex-end' }}>
-                                                            <button onClick={(ev) => { ev.stopPropagation(); toggleDone(e); }}
-                                                                title={e.isDone?"Als offen markieren":"Als erledigt markieren"}
-                                                                style={{ background: e.isDone ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.1)', border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.3)'}`, borderRadius:3, padding:'2px 5px', cursor:'pointer', fontSize:8, color:'#10b981', lineHeight:1, fontWeight:900, display:'flex', alignItems:'center', gap:2 }}>
-                                                                {e.isDone ? '✓ Erledigt' : '○ Erledigen'}
-                                                            </button>
-                                                            <button onClick={(ev) => { ev.stopPropagation(); setCopyEntry({...e}); }}
-                                                                style={{ background:'rgba(37,99,235,0.15)', border:'none', borderRadius:3, padding:'2px 4px', cursor:'pointer', fontSize:9, color:'#2563eb', lineHeight:1 }}>⧉</button>
-                                                            <button onClick={(ev) => { ev.stopPropagation(); if(confirm(`"${e.customer}" löschen?`)) deleteCalEntry(e.id); }}
-                                                                style={{ background:'rgba(220,38,38,0.15)', border:'none', borderRadius:3, padding:'2px 4px', cursor:'pointer', fontSize:9, color:'#dc2626', lineHeight:1 }}>✕</button>
+                                                            {/* Action buttons */}
+                                                            <div style={{ display:'flex', gap:3, marginTop:5, justifyContent:'flex-end' }}>
+                                                                {/* Erledigt - monteur can only mark on start day */}
+                                                                {canMarkDone(e, dayStr) && (
+                                                                    <button onClick={(ev) => { ev.stopPropagation(); toggleDone(e); }}
+                                                                        title={e.isDone?"Als offen markieren":"Als erledigt markieren"}
+                                                                        style={{ background: e.isDone ? 'rgba(16,185,129,0.25)' : 'rgba(16,185,129,0.1)', border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.3)'}`, borderRadius:3, padding:'2px 5px', cursor:'pointer', fontSize:8, color:'#10b981', lineHeight:1, fontWeight:900, display:'flex', alignItems:'center', gap:2 }}>
+                                                                        {e.isDone ? '✓ Erledigt' : '○ Erledigen'}
+                                                                    </button>
+                                                                )}
+                                                                {/* Copy - visible to all */}
+                                                                <button onClick={(ev) => { ev.stopPropagation(); setCopyEntry({...e}); }}
+                                                                    style={{ background:'rgba(37,99,235,0.15)', border:'none', borderRadius:3, padding:'2px 4px', cursor:'pointer', fontSize:9, color:'#2563eb', lineHeight:1 }}>⧉</button>
+                                                                {/* Delete - ADMIN ONLY */}
+                                                                {isAdminAccess && (
+                                                                    <button onClick={(ev) => { ev.stopPropagation(); if(confirm(`"${e.customer}" löschen?`)) deleteCalEntry(e.id); }}
+                                                                        style={{ background:'rgba(220,38,38,0.15)', border:'none', borderRadius:3, padding:'2px 4px', cursor:'pointer', fontSize:9, color:'#dc2626', lineHeight:1 }}>✕</button>
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        // Continuation day: minimal display
+                                                        <div style={{ display:'flex', alignItems:'center', gap:4, opacity:0.8 }}>
+                                                            <div style={{ width:3, height:3, borderRadius:'50%', background:CARD_BORDER[ci] }}></div>
+                                                            <div style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.customer}</div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -881,10 +1108,10 @@
                     </div>
                 </div>
 
-                {/* EDIT / NEU MODAL */}
-                {editCalEntry && (
+                {/* EDIT / NEU MODAL (Admin only) */}
+                {editCalEntry && isAdminAccess && (
                     <div style={{ position:'fixed', inset:0, zIndex:50, background:'rgba(15,23,42,0.96)', display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto' }}>
-                        <div style={{ width:'100%', maxWidth:400, background:'rgba(51,65,85,0.98)', backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:24, padding:24, display:'flex', flexDirection:'column', gap:12 }}>
+                        <div style={{ width:'100%', maxWidth:420, background:'rgba(51,65,85,0.98)', backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:24, padding:24, display:'flex', flexDirection:'column', gap:12 }}>
                             <h3 style={{ color:'#fff', fontSize:11, fontWeight:900, textTransform:'uppercase', fontStyle:'italic', margin:0 }}>
                                 {editCalEntry.isNew ? 'Neuer Eintrag' : 'Auftrag bearbeiten'}
                             </h3>
@@ -894,14 +1121,8 @@
                                 </button>
                             )}
                             <div style={{ display:'flex', gap:6 }}>
-                                <button onClick={() => setEditCalEntry({...editCalEntry, calType:'montage'})}
-                                    style={{ flex:1, padding:'8px', borderRadius:8, border:'none', fontSize:9, fontWeight:900, textTransform:'uppercase', cursor:'pointer', background: editCalEntry.calType==='beplankung' ? '#1e293b' : '#2563eb', color: editCalEntry.calType==='beplankung' ? '#64748b' : '#fff' }}>
-                                    🔧 Montage
-                                </button>
-                                <button onClick={() => setEditCalEntry({...editCalEntry, calType:'beplankung'})}
-                                    style={{ flex:1, padding:'8px', borderRadius:8, border:'none', fontSize:9, fontWeight:900, textTransform:'uppercase', cursor:'pointer', background: editCalEntry.calType==='beplankung' ? '#059669' : '#1e293b', color: editCalEntry.calType==='beplankung' ? '#fff' : '#64748b' }}>
-                                    🏗 Beplankung
-                                </button>
+                                <button onClick={() => setEditCalEntry({...editCalEntry, calType:'montage'})} style={{ flex:1, padding:'8px', borderRadius:8, border:'none', fontSize:9, fontWeight:900, textTransform:'uppercase', cursor:'pointer', background: editCalEntry.calType==='beplankung' ? '#1e293b' : '#2563eb', color: editCalEntry.calType==='beplankung' ? '#64748b' : '#fff' }}>🔧 Montage</button>
+                                <button onClick={() => setEditCalEntry({...editCalEntry, calType:'beplankung'})} style={{ flex:1, padding:'8px', borderRadius:8, border:'none', fontSize:9, fontWeight:900, textTransform:'uppercase', cursor:'pointer', background: editCalEntry.calType==='beplankung' ? '#059669' : '#1e293b', color: editCalEntry.calType==='beplankung' ? '#fff' : '#64748b' }}>🏗 Beplankung</button>
                             </div>
                             <input style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#0f172a', border:'2px solid #3b82f6', color:'#60a5fa', fontSize:12, fontWeight:900, textTransform:'uppercase', letterSpacing:1, boxSizing:'border-box' }}
                                 placeholder="Typ (z.B. LIEFERUNG)" value={editCalEntry.entryType||'LIEFERUNG'}
@@ -918,22 +1139,33 @@
                             <input style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
                                 placeholder="Auftragsnr." value={editCalEntry.auftragsNr}
                                 onChange={e => setEditCalEntry({...editCalEntry, auftragsNr:e.target.value})}/>
-                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8 }}>
                                 <input type="number" style={{ padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
-                                    placeholder="ELE" value={editCalEntry.target||''}
-                                    onChange={e => setEditCalEntry({...editCalEntry, target:e.target.value})}/>
-                                <input type="date" style={{ padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
-                                    value={editCalEntry.deliveryDate?.substring(0,10)||''}
-                                    onChange={e => setEditCalEntry({...editCalEntry, deliveryDate:e.target.value})}/>
+                                    placeholder="ELE" value={editCalEntry.target||''} onChange={e => setEditCalEntry({...editCalEntry, target:e.target.value})}/>
                             </div>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                                <div>
+                                    <div style={{ color:'#64748b', fontSize:8, fontWeight:900, textTransform:'uppercase', marginBottom:4 }}>Start-Datum</div>
+                                    <input type="date" style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
+                                        value={editCalEntry.deliveryDate?.substring(0,10)||''}
+                                        onChange={e => setEditCalEntry({...editCalEntry, deliveryDate:e.target.value})}/>
+                                </div>
+                                <div>
+                                    <div style={{ color:'#f59e0b', fontSize:8, fontWeight:900, textTransform:'uppercase', marginBottom:4 }}>End-Datum (optional)</div>
+                                    <input type="date" style={{ width:'100%', padding:'10px 12px', borderRadius:10, background:'#1e293b', border:'1px solid rgba(245,158,11,0.3)', color:'#fff', fontSize:11, boxSizing:'border-box' }}
+                                        value={editCalEntry.endDate?.substring(0,10)||''}
+                                        min={editCalEntry.deliveryDate?.substring(0,10)||''}
+                                        onChange={e => setEditCalEntry({...editCalEntry, endDate:e.target.value})}/>
+                                </div>
+                            </div>
+                            {editCalEntry.endDate && editCalEntry.endDate > editCalEntry.deliveryDate && (
+                                <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:8, padding:'8px 12px', fontSize:9, color:'#f59e0b', fontWeight:700 }}>
+                                    📅 Mehrtägiger Auftrag: {formatDate(editCalEntry.deliveryDate)} – {formatDate(editCalEntry.endDate)} ({daysBetween(editCalEntry.deliveryDate, editCalEntry.endDate)} Tage)
+                                </div>
+                            )}
                             <div>
                                 <input type="file" accept="image/*" className="hidden" id="cal-img-upload-modal"
-                                    onChange={async(ev) => {
-                                        if(!ev.target.files[0]) return;
-                                        const b64 = await compressCalImage(ev.target.files[0]);
-                                        setEditCalEntry(prev => ({...prev, image:b64}));
-                                        ev.target.value='';
-                                    }}/>
+                                    onChange={async(ev) => { if(!ev.target.files[0]) return; const b64 = await compressCalImage(ev.target.files[0]); setEditCalEntry(prev => ({...prev, image:b64})); ev.target.value=''; }}/>
                                 <label htmlFor="cal-img-upload-modal" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'10px', border:'1px dashed rgba(255,255,255,0.2)', borderRadius:10, color:'#94a3b8', cursor:'pointer', fontSize:9, fontWeight:700, textTransform:'uppercase' }}>
                                     <Icon name="camera" size={14}/>{editCalEntry.image?'Foto ersetzen':'Foto anhängen'}
                                 </label>
@@ -953,50 +1185,29 @@
                     </div>
                 )}
 
-                {/* STANDBY PICKER MODAL */}
-                {showStandbyPicker && (
+                {/* STANDBY PICKER MODAL (Admin only) */}
+                {showStandbyPicker && isAdminAccess && (
                     <div style={{ position:'fixed', inset:0, zIndex:55, background:'rgba(15,23,42,0.99)', display:'flex', flexDirection:'column', padding:0 }}>
                         <div style={{ background:'#1e293b', padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #f59e0b44' }}>
                             <div>
                                 <div style={{ color:'#f59e0b', fontSize:10, fontWeight:900, textTransform:'uppercase', letterSpacing:1 }}>📦 Standby — Auftrag auswählen</div>
-                                <div style={{ color:'#94a3b8', fontSize:9, marginTop:2 }}>Auftrag wählen → Zeitraum festlegen → In Kalender einfügen</div>
+                                <div style={{ color:'#94a3b8', fontSize:9, marginTop:2 }}>Auftrag wählen → Zeitraum als EINEN Eintrag einfügen</div>
                             </div>
                             <button onClick={() => { setShowStandbyPicker(null); setStandbySearch(''); }} style={{ background:'#334155', border:'none', borderRadius:8, width:32, height:32, cursor:'pointer', color:'#94a3b8', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
                         </div>
                         <div style={{ padding:'10px 16px', background:'#0f172a', borderBottom:'1px solid #1e293b' }}>
-                            <input value={standbySearch} onChange={e => setStandbySearch(e.target.value)}
-                                placeholder="🔍 Suchen..."
-                                autoFocus
+                            <input value={standbySearch} onChange={e => setStandbySearch(e.target.value)} placeholder="🔍 Suchen..." autoFocus
                                 style={{ width:'100%', background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:'9px 12px', color:'#fff', fontSize:11, boxSizing:'border-box' }}/>
                         </div>
                         <div style={{ flex:1, overflowY:'auto', padding:'10px 16px', display:'flex', flexDirection:'column', gap:8 }}>
-                            {standbyItems.length === 0 && (
-                                <div style={{ textAlign:'center', color:'#475569', padding:40 }}>
-                                    <div style={{ fontSize:32, marginBottom:8 }}>📦</div>
-                                    <div style={{ fontSize:12, fontWeight:700 }}>Standby ist leer</div>
-                                    <div style={{ fontSize:10, marginTop:4 }}>Zuerst Aufträge im Admin → Standby erfassen</div>
-                                </div>
-                            )}
-                            {standbyItems
-                                .filter(s => !standbySearch ||
-                                    s.customer?.toLowerCase().includes(standbySearch.toLowerCase()) ||
-                                    s.address?.toLowerCase().includes(standbySearch.toLowerCase()) ||
-                                    s.auftragsNr?.toLowerCase().includes(standbySearch.toLowerCase()))
-                                .map(item => (
-                                <div key={item.id}
-                                    onClick={() => setStandbyDateModal({ item, startDate: showStandbyPicker.dayStr, endDate: showStandbyPicker.dayStr })}
+                            {standbyItems.filter(s => !standbySearch || s.customer?.toLowerCase().includes(standbySearch.toLowerCase()) || s.address?.toLowerCase().includes(standbySearch.toLowerCase())).map(item => (
+                                <div key={item.id} onClick={() => setStandbyDateModal({ item, startDate: showStandbyPicker.dayStr, endDate: showStandbyPicker.dayStr })}
                                     style={{ background:'#1e293b', border:'1px solid #334155', borderLeft:'3px solid #f59e0b', borderRadius:10, padding:'12px 14px', cursor:'pointer' }}
-                                    onMouseEnter={e => e.currentTarget.style.background='#263348'}
-                                    onMouseLeave={e => e.currentTarget.style.background='#1e293b'}>
+                                    onMouseEnter={e => e.currentTarget.style.background='#263348'} onMouseLeave={e => e.currentTarget.style.background='#1e293b'}>
                                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                                         <div>
-                                            <div style={{ display:'flex', gap:6, marginBottom:4, flexWrap:'wrap' }}>
-                                                {item.auftragsNr && <span style={{ fontSize:8, color:'#3b82f6', fontWeight:700 }}>{item.auftragsNr}</span>}
-                                                {item.target > 0 && <span style={{ fontSize:8, color:'#10b981', fontWeight:900 }}>{item.target} ELE</span>}
-                                            </div>
                                             <div style={{ color:'#fff', fontSize:12, fontWeight:900, textTransform:'uppercase' }}>{item.customer}</div>
                                             {item.address && <div style={{ color:'#94a3b8', fontSize:10, marginTop:2 }}>{item.address}</div>}
-                                            {item.memo && <div style={{ color:'#64748b', fontSize:9, marginTop:2 }}>{item.memo}</div>}
                                         </div>
                                         <div style={{ background:'#f59e0b', color:'#fff', fontSize:8, fontWeight:900, padding:'4px 8px', borderRadius:6, textTransform:'uppercase', flexShrink:0, marginLeft:8 }}>Auswählen →</div>
                                     </div>
@@ -1015,32 +1226,29 @@
                                 <div style={{ color:'#fff', fontSize:14, fontWeight:900, textTransform:'uppercase' }}>{standbyDateModal.item.customer}</div>
                                 {standbyDateModal.item.address && <div style={{ color:'#94a3b8', fontSize:10, marginTop:2 }}>{standbyDateModal.item.address}</div>}
                             </div>
+                            <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:10, padding:'10px 12px', fontSize:9, color:'#f59e0b', fontWeight:700 }}>
+                                ℹ️ Der Auftrag wird als <strong>einzelner Eintrag</strong> im Kalender angelegt, der den gesamten Zeitraum überspannt.
+                            </div>
                             <div style={{ background:'#0f172a', borderRadius:12, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
                                 <div>
                                     <div style={{ color:'#94a3b8', fontSize:9, fontWeight:900, textTransform:'uppercase', marginBottom:6 }}>Von (Startdatum)</div>
-                                    <input type="date"
-                                        value={standbyDateModal.startDate}
-                                        onChange={e => setStandbyDateModal({...standbyDateModal, startDate: e.target.value, endDate: e.target.value})}
+                                    <input type="date" value={standbyDateModal.startDate} onChange={e => setStandbyDateModal({...standbyDateModal, startDate: e.target.value, endDate: e.target.value})}
                                         style={{ width:'100%', background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:'10px 12px', color:'#fff', fontSize:12, boxSizing:'border-box' }}/>
                                 </div>
                                 <div>
                                     <div style={{ color:'#94a3b8', fontSize:9, fontWeight:900, textTransform:'uppercase', marginBottom:6 }}>Bis (Enddatum)</div>
-                                    <input type="date"
-                                        value={standbyDateModal.endDate}
-                                        onChange={e => setStandbyDateModal({...standbyDateModal, endDate: e.target.value})}
+                                    <input type="date" value={standbyDateModal.endDate} onChange={e => setStandbyDateModal({...standbyDateModal, endDate: e.target.value})} min={standbyDateModal.startDate}
                                         style={{ width:'100%', background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:'10px 12px', color:'#fff', fontSize:12, boxSizing:'border-box' }}/>
                                 </div>
                                 {standbyDateModal.startDate && standbyDateModal.endDate && standbyDateModal.endDate >= standbyDateModal.startDate && (
                                     <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:8, padding:'8px 12px', fontSize:9, color:'#f59e0b', fontWeight:700 }}>
-                                        ✓ {formatDate(standbyDateModal.startDate)} bis {formatDate(standbyDateModal.endDate)} (Mo–Sa)
+                                        ✓ {formatDate(standbyDateModal.startDate)} bis {formatDate(standbyDateModal.endDate)} — {daysBetween(standbyDateModal.startDate, standbyDateModal.endDate)} Tage
                                     </div>
                                 )}
                             </div>
                             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                                <button onClick={() => setStandbyDateModal(null)}
-                                    style={{ padding:'12px', background:'transparent', border:'1px solid #334155', borderRadius:10, color:'#64748b', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>Zurück</button>
-                                <button
-                                    disabled={!standbyDateModal.endDate || standbyDateModal.endDate < standbyDateModal.startDate}
+                                <button onClick={() => setStandbyDateModal(null)} style={{ padding:'12px', background:'transparent', border:'1px solid #334155', borderRadius:10, color:'#64748b', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>Zurück</button>
+                                <button disabled={!standbyDateModal.endDate || standbyDateModal.endDate < standbyDateModal.startDate}
                                     onClick={() => insertStandbyItem(standbyDateModal.item, standbyDateModal.startDate, standbyDateModal.endDate)}
                                     style={{ padding:'12px', background: standbyDateModal.endDate >= standbyDateModal.startDate ? '#f59e0b' : '#334155', border:'none', borderRadius:10, color:'#fff', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>
                                     ✓ In Kalender einfügen
@@ -1050,27 +1258,16 @@
                     </div>
                 )}
 
-                {showCalImport && (
-                    <ImportModal
-                        calWeek={calWeek}
-                        team={team}
-                        currentCalLabel={currentCalLabel}
-                        activeCalType={activeCalType}
-                        appId={appId}
-                        days={days}
-                        onClose={() => setShowCalImport(false)}
-                        onDone={(count) => { setShowCalImport(false); setCalImportResult(count); }}
-                    />
+                {showCalImport && isAdminAccess && (
+                    <ImportModal calWeek={calWeek} team={team} currentCalLabel={currentCalLabel} activeCalType={activeCalType} appId={appId} days={days}
+                        onClose={() => setShowCalImport(false)} onDone={(count) => { setShowCalImport(false); setCalImportResult(count); }}/>
                 )}
 
                 {calImportResult !== null && (
                     <div style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(15,23,42,0.95)', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
                         <div style={{ background:'rgba(51,65,85,0.98)', backdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:24, padding:32, width:'100%', maxWidth:300, display:'flex', flexDirection:'column', alignItems:'center', gap:20 }}>
-                            <div style={{ width:64, height:64, background:'#10b981', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                <Icon name="check" size={32} className="text-white"/>
-                            </div>
+                            <div style={{ width:64, height:64, background:'#10b981', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center' }}><Icon name="check" size={32} className="text-white"/></div>
                             <div style={{ textAlign:'center' }}>
-                                <div style={{ color:'#94a3b8', fontSize:9, fontWeight:900, textTransform:'uppercase', marginBottom:4 }}>Import KW {getWeekNumber(calWeek)}</div>
                                 <div style={{ color:'#fff', fontSize:48, fontWeight:900, fontStyle:'italic', lineHeight:1 }}>{calImportResult}</div>
                                 <div style={{ color:'#10b981', fontSize:11, fontWeight:900, textTransform:'uppercase', marginTop:4 }}>Aufträge erfasst</div>
                             </div>
@@ -1078,209 +1275,6 @@
                         </div>
                     </div>
                 )}
-            </div>
-        );
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // ADMIN BILLING VIEW
-    // ─────────────────────────────────────────────────────────────
-    function AdminBillingView({ teams, appId, onBack }) {
-        const [allEntries, setAllEntries] = useState([]);
-        const [billingWeek, setBillingWeek] = useState(new Date());
-        const [filterCalType, setFilterCalType] = useState('all');
-
-        const days = getCalWeekDays(billingWeek);
-
-        useEffect(() => {
-            const { db, collection, onSnapshot } = window.FirebaseSDK;
-            const unsubs = [];
-            setAllEntries([]);
-            teams.forEach(team => {
-                const path = `teams_cal_${team.id}`;
-                const unsub = onSnapshot(collection(db, path), (snap) => {
-                    const entries = snap.docs.map(doc => ({
-                        id: doc.id, ...doc.data(), teamId: team.id, teamName: team.name, teamColor: team.color
-                    }));
-                    setAllEntries(prev => {
-                        const filtered = prev.filter(e => e.teamId !== team.id);
-                        return [...filtered, ...entries];
-                    });
-                });
-                unsubs.push(unsub);
-            });
-            return () => unsubs.forEach(u => u());
-        }, [teams, appId]);
-
-        const doneEntries = useMemo(() =>
-            allEntries.filter(e => e.isDone && !e.isBilled &&
-                (filterCalType === 'all' || (e.calType||'montage') === filterCalType)),
-        [allEntries, filterCalType]);
-
-        const doneEntriesForDay = useCallback((dayStr) =>
-            doneEntries.filter(e => e.deliveryDate && e.deliveryDate.substring(0,10) === dayStr),
-        [doneEntries]);
-
-        const billedEntries = useMemo(() =>
-            allEntries.filter(e => e.isBilled &&
-                (filterCalType === 'all' || (e.calType||'montage') === filterCalType)),
-        [allEntries, filterCalType]);
-
-        const billedEntriesForDay = useCallback((dayStr) =>
-            billedEntries.filter(e => e.deliveryDate && e.deliveryDate.substring(0,10) === dayStr),
-        [billedEntries]);
-
-        const markBilled = async (entry) => {
-            const { db, doc, updateDoc } = window.FirebaseSDK;
-            await updateDoc(doc(db, `teams_cal_${entry.teamId}`, entry.id), {
-                isBilled: !entry.isBilled,
-                billedAt: !entry.isBilled ? new Date().toISOString() : null
-            });
-        };
-
-        const totalDone = doneEntries.length;
-        const totalBilled = billedEntries.length;
-
-        return (
-            <div style={{ minHeight:'100vh', background:'#0f172a', display:'flex', flexDirection:'column' }}>
-                <div style={{ background:'#1e293b', padding:'12px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #334155', position:'sticky', top:0, zIndex:40 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                        <button onClick={onBack} style={{ background:'#334155', border:'none', borderRadius:10, width:34, height:34, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-                            <Icon name="arrow-left" size={16} className="text-blue-400"/>
-                        </button>
-                        <div>
-                            <div style={{ color:'#94a3b8', fontSize:8, fontWeight:900, textTransform:'uppercase', letterSpacing:1 }}>ADMIN — Abrechnung</div>
-                            <div style={{ color:'#fff', fontSize:14, fontWeight:900, fontStyle:'italic' }}>
-                                KW {getWeekNumber(billingWeek)} — {formatDate(toLocalDateStr(days[0]))} bis {formatDate(toLocalDateStr(days[5]))}
-                            </div>
-                        </div>
-                    </div>
-                    <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                        <button onClick={() => setFilterCalType('all')} style={{ background:filterCalType==='all'?'#475569':'#1e293b', border:'none', borderRadius:8, padding:'5px 10px', color:filterCalType==='all'?'#fff':'#64748b', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>Alle</button>
-                        <button onClick={() => setFilterCalType('montage')} style={{ background:filterCalType==='montage'?'#2563eb':'#1e293b', border:'none', borderRadius:8, padding:'5px 10px', color:filterCalType==='montage'?'#fff':'#64748b', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>🔧 Montage</button>
-                        <button onClick={() => setFilterCalType('beplankung')} style={{ background:filterCalType==='beplankung'?'#059669':'#1e293b', border:'none', borderRadius:8, padding:'5px 10px', color:filterCalType==='beplankung'?'#fff':'#64748b', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>🏗 Beplankung</button>
-                        <div style={{ width:1, height:20, background:'#334155' }}></div>
-                        <button onClick={() => { const d=new Date(billingWeek); d.setDate(d.getDate()-7); setBillingWeek(d); }} style={{ background:'#334155', border:'none', borderRadius:8, width:30, height:30, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            <Icon name="chevron-left" size={14} className="text-blue-400"/>
-                        </button>
-                        <button onClick={() => setBillingWeek(new Date())} style={{ background:'#334155', border:'none', borderRadius:8, padding:'4px 10px', color:'#cbd5e1', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>Heute</button>
-                        <button onClick={() => { const d=new Date(billingWeek); d.setDate(d.getDate()+7); setBillingWeek(d); }} style={{ background:'#334155', border:'none', borderRadius:8, width:30, height:30, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            <Icon name="chevron-right" size={14} className="text-blue-400"/>
-                        </button>
-                    </div>
-                </div>
-
-                <div style={{ display:'flex', gap:0, borderBottom:'1px solid #1e293b' }}>
-                    <div style={{ flex:1, padding:'12px 20px', background:'rgba(16,185,129,0.1)', borderRight:'1px solid #1e293b', textAlign:'center' }}>
-                        <div style={{ color:'#10b981', fontSize:24, fontWeight:900 }}>{totalDone}</div>
-                        <div style={{ color:'#94a3b8', fontSize:8, fontWeight:900, textTransform:'uppercase' }}>Zu Verrechnen</div>
-                    </div>
-                    <div style={{ flex:1, padding:'12px 20px', background:'rgba(168,85,247,0.1)', textAlign:'center' }}>
-                        <div style={{ color:'#a855f7', fontSize:24, fontWeight:900 }}>{totalBilled}</div>
-                        <div style={{ color:'#94a3b8', fontSize:8, fontWeight:900, textTransform:'uppercase' }}>Bereits Abgerechnet</div>
-                    </div>
-                </div>
-
-                <div style={{ flex:1, overflowX:'auto', overflowY:'auto' }}>
-                    <div style={{ background:'rgba(16,185,129,0.08)', borderBottom:'2px solid rgba(16,185,129,0.2)', padding:'8px 16px' }}>
-                        <div style={{ color:'#10b981', fontSize:10, fontWeight:900, textTransform:'uppercase', letterSpacing:2 }}>
-                            ✓ Erledigt — Bereit zur Abrechnung ({totalDone} Aufträge)
-                        </div>
-                        <div style={{ color:'#6b7280', fontSize:9, marginTop:2 }}>Klick auf einen Auftrag → als Abgerechnet markieren</div>
-                    </div>
-
-                    {totalDone === 0 ? (
-                        <div style={{ padding:40, textAlign:'center', color:'#475569' }}>
-                            <div style={{ fontSize:32, marginBottom:8 }}>📋</div>
-                            <div style={{ fontSize:12, fontWeight:700 }}>Keine offenen Aufträge zur Abrechnung</div>
-                        </div>
-                    ) : (
-                        <div style={{ minWidth:760 }}>
-                            <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', background:'#0f172a', borderBottom:'1px solid #1e293b' }}>
-                                {DAY_NAMES.map((name,di) => (
-                                    <div key={di} style={{ textAlign:'center', padding:'6px 4px', borderRight:di<5?'1px solid #1e293b':'none' }}>
-                                        <div style={{ fontSize:9, fontWeight:900, color:'#fff', textTransform:'uppercase' }}>{name}</div>
-                                        <div style={{ fontSize:8, color:'#64748b' }}>{formatDate(toLocalDateStr(days[di]))}</div>
-                                        <div style={{ fontSize:8, color:'#10b981', fontWeight:900 }}>{doneEntriesForDay(toLocalDateStr(days[di])).length} offen</div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', background:'#0a0f1e', alignItems:'start' }}>
-                                {days.map((day,di) => {
-                                    const dayStr=toLocalDateStr(day), dayEnt=doneEntriesForDay(dayStr);
-                                    return (
-                                        <div key={di} style={{ borderRight:di<5?'1px solid #1e293b':'none', padding:4, minHeight:60, display:'flex', flexDirection:'column', gap:4 }}>
-                                            {dayEnt.length===0 && <div style={{ height:30, display:'flex', alignItems:'center', justifyContent:'center' }}><span style={{ fontSize:9, color:'#334155', fontStyle:'italic' }}>—</span></div>}
-                                            {dayEnt.map((e) => (
-                                                <div key={e.id}
-                                                    onClick={() => markBilled(e)}
-                                                    style={{ background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.25)', borderLeft:'3px solid #10b981', borderRadius:6, padding:'6px 8px', cursor:'pointer', position:'relative' }}
-                                                    onMouseEnter={ev => ev.currentTarget.style.background='rgba(16,185,129,0.18)'}
-                                                    onMouseLeave={ev => ev.currentTarget.style.background='rgba(16,185,129,0.08)'}>
-                                                    <div style={{ fontSize:7, color:'#10b981', fontWeight:900, marginBottom:2, display:'flex', justifyContent:'space-between' }}>
-                                                        <span>{e.calType==='beplankung'?'🏗':'🔧'} {e.teamName}</span>
-                                                        <span style={{ background:'rgba(16,185,129,0.2)', padding:'0 4px', borderRadius:2 }}>✓ Abrechnen</span>
-                                                    </div>
-                                                    {e.auftragsNr&&<div style={{ fontSize:7, color:'#6ee7b7', opacity:0.8, marginBottom:1 }}>{e.auftragsNr}</div>}
-                                                    <div style={{ fontSize:9, fontWeight:900, color:'#fff', lineHeight:1.2, marginBottom:1, textTransform:'uppercase' }}>{e.customer}</div>
-                                                    <div style={{ fontSize:8, color:'#94a3b8', lineHeight:1.2 }}>{e.address}</div>
-                                                    {e.target>0&&<div style={{ fontSize:7, color:'#10b981', fontWeight:900, marginTop:2 }}>{e.target} ELE</div>}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {totalBilled > 0 && (
-                        <>
-                            <div style={{ background:'rgba(168,85,247,0.08)', borderTop:'2px solid rgba(168,85,247,0.2)', borderBottom:'2px solid rgba(168,85,247,0.2)', padding:'8px 16px', marginTop:12 }}>
-                                <div style={{ color:'#a855f7', fontSize:10, fontWeight:900, textTransform:'uppercase', letterSpacing:2 }}>
-                                    ✓ Abgerechnet ({totalBilled} Aufträge)
-                                </div>
-                                <div style={{ color:'#6b7280', fontSize:9, marginTop:2 }}>Klick → Abrechnung rückgängig</div>
-                            </div>
-                            <div style={{ minWidth:760 }}>
-                                <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', background:'#0f172a', borderBottom:'1px solid #1e293b' }}>
-                                    {DAY_NAMES.map((name,di) => (
-                                        <div key={di} style={{ textAlign:'center', padding:'6px 4px', borderRight:di<5?'1px solid #1e293b':'none' }}>
-                                            <div style={{ fontSize:9, fontWeight:900, color:'#fff', textTransform:'uppercase' }}>{name}</div>
-                                            <div style={{ fontSize:8, color:'#64748b' }}>{formatDate(toLocalDateStr(days[di]))}</div>
-                                            <div style={{ fontSize:8, color:'#a855f7', fontWeight:900 }}>{billedEntriesForDay(toLocalDateStr(days[di])).length} abgr.</div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', background:'#0a0f1e', alignItems:'start' }}>
-                                    {days.map((day,di) => {
-                                        const dayStr=toLocalDateStr(day), dayEnt=billedEntriesForDay(dayStr);
-                                        return (
-                                            <div key={di} style={{ borderRight:di<5?'1px solid #1e293b':'none', padding:4, minHeight:40, display:'flex', flexDirection:'column', gap:4 }}>
-                                                {dayEnt.length===0 && <div style={{ height:24 }}></div>}
-                                                {dayEnt.map((e) => (
-                                                    <div key={e.id}
-                                                        onClick={() => markBilled(e)}
-                                                        style={{ background:'rgba(168,85,247,0.05)', border:'1px solid rgba(168,85,247,0.2)', borderLeft:'3px solid #a855f7', borderRadius:6, padding:'5px 8px', cursor:'pointer', opacity:0.65 }}
-                                                        onMouseEnter={ev => ev.currentTarget.style.opacity='1'}
-                                                        onMouseLeave={ev => ev.currentTarget.style.opacity='0.65'}>
-                                                        <div style={{ fontSize:7, color:'#a855f7', fontWeight:900, marginBottom:2, display:'flex', justifyContent:'space-between' }}>
-                                                            <span>{e.calType==='beplankung'?'🏗':'🔧'} {e.teamName}</span>
-                                                            <span>✓ Abgr.</span>
-                                                        </div>
-                                                        {e.auftragsNr&&<div style={{ fontSize:7, color:'#c4b5fd', opacity:0.8, marginBottom:1 }}>{e.auftragsNr}</div>}
-                                                        <div style={{ fontSize:9, fontWeight:900, color:'#cbd5e1', lineHeight:1.2, textTransform:'uppercase' }}>{e.customer}</div>
-                                                        <div style={{ fontSize:8, color:'#64748b', lineHeight:1.2 }}>{e.address}</div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
             </div>
         );
     }
@@ -1299,11 +1293,10 @@
         useEffect(() => {
             const { db, collection, onSnapshot } = window.FirebaseSDK;
             const unsub = onSnapshot(collection(db, 'standby_items'), snap => {
-                setStandbyItems(snap.docs.map(d => ({ id: d.id, ...d.data() }))
-                    .sort((a,b) => (a.createdAt||'') < (b.createdAt||'') ? 1 : -1));
+                setStandbyItems(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.createdAt||'') < (b.createdAt||'') ? 1 : -1));
             });
             return unsub;
-        }, [appId]);
+        }, []);
 
         const deleteItem = async (id) => {
             if (!confirm('Auftrag aus Standby entfernen?')) return;
@@ -1315,16 +1308,11 @@
             if (!newItem.customer) return;
             const { db, doc, setDoc } = window.FirebaseSDK;
             const id = 'sb-' + genId();
-            await setDoc(doc(db, 'standby_items', id), {
-                ...newItem, id,
-                target: parseInt(newItem.target) || 0,
-                createdAt: new Date().toISOString()
-            });
+            await setDoc(doc(db, 'standby_items', id), { ...newItem, id, target: parseInt(newItem.target) || 0, createdAt: new Date().toISOString() });
             setNewItem({ customer:'', address:'', memo:'', auftragsNr:'', target:'' });
             setShowAdd(false);
         };
 
-        // ✅ FIXED: was broken raw-newline regex — now uses proper \r?\n
         const processImport = async () => {
             if (!importText.trim()) return;
             const lines = importText.split(/\r?\n/);
@@ -1338,31 +1326,19 @@
                 if (KNOWN_TYPES.includes(p[0].toUpperCase())) offset = 1;
                 const customer = p[offset] || '';
                 if (!customer) continue;
-                const address = p[offset+1] || '';
-                const memo = p[offset+2] || '';
+                const address = p[offset+1] || '', memo = p[offset+2] || '';
                 const auftragsNr = p.slice(offset+3).join('/').trim();
                 const ele = (memo+' '+auftragsNr).match(/(\d+)\s*ELE/i);
                 entries.push({ customer, address, memo, auftragsNr, target: ele ? parseInt(ele[1]) : 0 });
             }
-            if (entries.length === 0) {
-                alert('Keine Aufträge erkannt. Format: Kunde / Adresse / Memo / Nr');
-                return;
-            }
+            if (entries.length === 0) { alert('Keine Aufträge erkannt.'); return; }
             const { db, doc, setDoc } = window.FirebaseSDK;
-            for (const e of entries) {
-                const id = 'sb-' + genId();
-                await setDoc(doc(db, 'standby_items', id), { ...e, id, createdAt: new Date().toISOString() });
-            }
-            setImportText('');
-            setShowImport(false);
+            for (const e of entries) { const id = 'sb-' + genId(); await setDoc(doc(db, 'standby_items', id), { ...e, id, createdAt: new Date().toISOString() }); }
+            setImportText(''); setShowImport(false);
             alert(entries.length + ' Aufträge in Standby importiert!');
         };
 
-        const filtered = standbyItems.filter(s =>
-            !search || s.customer?.toLowerCase().includes(search.toLowerCase()) ||
-            s.address?.toLowerCase().includes(search.toLowerCase()) ||
-            s.auftragsNr?.toLowerCase().includes(search.toLowerCase())
-        );
+        const filtered = standbyItems.filter(s => !search || s.customer?.toLowerCase().includes(search.toLowerCase()) || s.address?.toLowerCase().includes(search.toLowerCase()));
 
         return (
             <div style={{ minHeight:'100vh', background:'#0f172a', display:'flex', flexDirection:'column' }}>
@@ -1385,54 +1361,34 @@
                         </button>
                     </div>
                 </div>
-
                 <div style={{ padding:'12px 16px', background:'#0f172a', borderBottom:'1px solid #1e293b' }}>
-                    <input
-                        value={search} onChange={e => setSearch(e.target.value)}
-                        placeholder="🔍 Suchen nach Kunde, Adresse, Auftragsnr..."
-                        style={{ width:'100%', background:'#1e293b', border:'1px solid #334155', borderRadius:10, padding:'10px 14px', color:'#fff', fontSize:11, boxSizing:'border-box' }}
-                    />
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Suchen..."
+                        style={{ width:'100%', background:'#1e293b', border:'1px solid #334155', borderRadius:10, padding:'10px 14px', color:'#fff', fontSize:11, boxSizing:'border-box' }}/>
                 </div>
-
                 <div style={{ flex:1, overflowY:'auto', padding:'12px 16px', display:'flex', flexDirection:'column', gap:8 }}>
-                    {filtered.length === 0 && (
-                        <div style={{ textAlign:'center', color:'#475569', padding:40 }}>
-                            <div style={{ fontSize:40, marginBottom:12 }}>📦</div>
-                            <div style={{ fontSize:13, fontWeight:700 }}>Standby ist leer</div>
-                            <div style={{ fontSize:10, color:'#334155', marginTop:4 }}>Aufträge importieren oder manuell hinzufügen</div>
-                        </div>
-                    )}
                     {filtered.map(item => (
                         <div key={item.id} style={{ background:'#1e293b', border:'1px solid #334155', borderLeft:'3px solid #f59e0b', borderRadius:10, padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                            <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4 }}>
-                                    <span style={{ background:'#f59e0b22', border:'1px solid #f59e0b44', borderRadius:4, padding:'1px 6px', fontSize:7, fontWeight:900, color:'#f59e0b', textTransform:'uppercase' }}>STANDBY</span>
-                                    {item.auftragsNr && <span style={{ fontSize:8, color:'#3b82f6', fontWeight:700 }}>{item.auftragsNr}</span>}
-                                    {item.target > 0 && <span style={{ fontSize:8, color:'#10b981', fontWeight:900 }}>{item.target} ELE</span>}
-                                </div>
+                            <div style={{ flex:1 }}>
                                 <div style={{ color:'#fff', fontSize:12, fontWeight:900, textTransform:'uppercase', marginBottom:2 }}>{item.customer}</div>
                                 {item.address && <div style={{ color:'#94a3b8', fontSize:10 }}>{item.address}</div>}
                                 {item.memo && <div style={{ color:'#64748b', fontSize:9, marginTop:2 }}>{item.memo}</div>}
+                                {item.auftragsNr && <div style={{ color:'#3b82f6', fontSize:9, marginTop:2 }}>#{item.auftragsNr}</div>}
                             </div>
-                            <button onClick={() => deleteItem(item.id)}
-                                style={{ background:'rgba(239,68,68,0.15)', border:'none', borderRadius:6, padding:'6px 8px', cursor:'pointer', color:'#ef4444', marginLeft:8, flexShrink:0 }}>
+                            <button onClick={() => deleteItem(item.id)} style={{ background:'rgba(239,68,68,0.15)', border:'none', borderRadius:6, padding:'6px 8px', cursor:'pointer', color:'#ef4444', marginLeft:8 }}>
                                 <Icon name="trash-2" size={14}/>
                             </button>
                         </div>
                     ))}
                 </div>
-
                 {showAdd && (
                     <div style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(15,23,42,0.97)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
                         <div style={{ width:'100%', maxWidth:400, background:'#1e293b', border:'1px solid #334155', borderRadius:20, padding:24, display:'flex', flexDirection:'column', gap:10 }}>
                             <h3 style={{ color:'#f59e0b', fontSize:12, fontWeight:900, textTransform:'uppercase', margin:0 }}>Auftrag in Standby</h3>
-                            {[['customer','Kunde *'],['address','Adresse'],['memo','Memo / Hausinfo'],['auftragsNr','Auftragsnr.']].map(([field, ph]) => (
-                                <input key={field} placeholder={ph}
-                                    value={newItem[field]} onChange={e => setNewItem({...newItem, [field]: e.target.value})}
+                            {[['customer','Kunde *'],['address','Adresse'],['memo','Memo'],['auftragsNr','Auftragsnr.']].map(([field, ph]) => (
+                                <input key={field} placeholder={ph} value={newItem[field]} onChange={e => setNewItem({...newItem, [field]: e.target.value})}
                                     style={{ width:'100%', background:'#0f172a', border:'1px solid #334155', borderRadius:8, padding:'10px 12px', color:'#fff', fontSize:11, boxSizing:'border-box' }}/>
                             ))}
-                            <input type="number" placeholder="ELE Anzahl"
-                                value={newItem.target} onChange={e => setNewItem({...newItem, target: e.target.value})}
+                            <input type="number" placeholder="ELE" value={newItem.target} onChange={e => setNewItem({...newItem, target: e.target.value})}
                                 style={{ width:'100%', background:'#0f172a', border:'1px solid #334155', borderRadius:8, padding:'10px 12px', color:'#fff', fontSize:11, boxSizing:'border-box' }}/>
                             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:4 }}>
                                 <button onClick={() => setShowAdd(false)} style={{ padding:'11px', background:'transparent', border:'none', color:'#64748b', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>Abbrechen</button>
@@ -1441,25 +1397,14 @@
                         </div>
                     </div>
                 )}
-
                 {showImport && (
                     <div style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(15,23,42,0.99)', padding:20, display:'flex', flexDirection:'column', gap:12 }}>
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                            <div>
-                                <div style={{ color:'#f59e0b', fontSize:11, fontWeight:900, textTransform:'uppercase' }}>Import → Standby Pool</div>
-                                <div style={{ color:'#94a3b8', fontSize:9, marginTop:2 }}>Felder mit / trennen: Kunde / Adresse / Memo / AuftragsNr</div>
-                            </div>
+                            <div style={{ color:'#f59e0b', fontSize:11, fontWeight:900, textTransform:'uppercase' }}>Import → Standby Pool</div>
                             <button onClick={() => setShowImport(false)} style={{ background:'#334155', border:'none', borderRadius:8, width:32, height:32, cursor:'pointer', color:'#94a3b8', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
                         </div>
-                        <div style={{ background:'#0f172a', borderRadius:10, padding:'10px 14px', border:'1px solid #1e293b', fontSize:9, color:'#475569', lineHeight:1.8, fontFamily:'monospace' }}>
-                            Knecht AG / Segelhofstr. 5 Dättwil / 47 ELE / 251266654/SLI<br/>
-                            Müller GmbH / Bahnhofstrasse 10 Zürich
-                        </div>
-                        <textarea autoFocus
-                            style={{ flex:1, background:'#1e293b', border:'1px solid #334155', padding:14, borderRadius:10, fontSize:11, color:'#fff', fontFamily:'monospace', resize:'none', boxSizing:'border-box', lineHeight:1.6 }}
-                            placeholder={"Kunde AG / Adresse / Memo / AuftragsNr\nNächster Kunde / Adresse"}
-                            value={importText} onChange={e => setImportText(e.target.value)}
-                        />
+                        <textarea autoFocus style={{ flex:1, background:'#1e293b', border:'1px solid #334155', padding:14, borderRadius:10, fontSize:11, color:'#fff', fontFamily:'monospace', resize:'none', boxSizing:'border-box', lineHeight:1.6 }}
+                            placeholder={"Kunde AG / Adresse / Memo / AuftragsNr"} value={importText} onChange={e => setImportText(e.target.value)}/>
                         <div style={{ display:'flex', gap:12 }}>
                             <button onClick={() => setShowImport(false)} style={{ flex:1, padding:'13px', background:'transparent', border:'1px solid #334155', borderRadius:12, color:'#64748b', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>Abbrechen</button>
                             <button onClick={processImport} style={{ flex:2, padding:'13px', background:'#f59e0b', border:'none', borderRadius:12, color:'#fff', fontWeight:900, fontSize:10, textTransform:'uppercase', cursor:'pointer' }}>In Standby importieren</button>
@@ -1471,7 +1416,7 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // ADMIN PANEL
+    // ADMIN PANEL — light, modern, wow effect
     // ─────────────────────────────────────────────────────────────
     const AdminPanel = ({ teams, onLogout, onSelectTeam, onOpenBilling, onOpenStandby, appId }) => {
         const [isAdding, setIsAdding] = useState(false);
@@ -1479,34 +1424,25 @@
         const [deleteCodeInput, setDeleteCodeInput] = useState("");
         const [editTeam, setEditTeam] = useState(null);
         const [newTeam, setNewTeam] = useState({ name:'', pin:'', color:'#3b82f6', calType:'montage' });
+        const [showBilling, setShowBilling] = useState(false);
 
         const handleAddTeam = async () => {
             if (!newTeam.name || !newTeam.pin) { alert('Bitte Name und PIN eingeben!'); return; }
             try {
                 const { db, doc, setDoc } = window.FirebaseSDK;
-                let teamId = newTeam.name
-                    .toLowerCase()
-                    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue')
-                    .replace(/\s+/g,'-')
-                    .replace(/[^a-z0-9-]/g,'')
-                    .substring(0, 30);
+                let teamId = newTeam.name.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').substring(0, 30);
                 if (!teamId) teamId = 'team-' + Date.now();
                 await setDoc(doc(db, 'teams_config', teamId), { ...newTeam, id: teamId });
                 setIsAdding(false);
                 setNewTeam({ name:'', pin:'', color:'#3b82f6', calType:'montage' });
-            } catch(err) {
-                alert('Fehler: ' + err.message);
-            }
+            } catch(err) { alert('Fehler: ' + err.message); }
         };
 
         const handleSaveEditTeam = async () => {
             if (!editTeam) return;
             try {
                 const { db, doc, updateDoc } = window.FirebaseSDK;
-                await updateDoc(doc(db, 'teams_config', editTeam.id), {
-                    name: editTeam.name, pin: editTeam.pin,
-                    color: editTeam.color, calType: editTeam.calType || 'montage',
-                });
+                await updateDoc(doc(db, 'teams_config', editTeam.id), { name: editTeam.name, pin: editTeam.pin, color: editTeam.color, calType: editTeam.calType || 'montage' });
                 setEditTeam(null);
             } catch(err) { alert('Fehler: ' + err.message); }
         };
@@ -1521,186 +1457,247 @@
         };
 
         const calTypeLabel = (ct) => ct==='both'?'Montage + Beplankung':ct==='beplankung'?'Beplankung':'Montage';
-        const calTypeBadgeColor = (ct) => ct==='both'?'#7c3aed':ct==='beplankung'?'#059669':'#2563eb';
+        const calTypeBadgeStyle = (ct) => ({
+            both: { bg:'#f3e8ff', color:'#7c3aed', border:'1px solid #d8b4fe' },
+            beplankung: { bg:'#d1fae5', color:'#059669', border:'1px solid #6ee7b7' },
+            montage: { bg:'#dbeafe', color:'#2563eb', border:'1px solid #93c5fd' },
+        }[ct] || { bg:'#dbeafe', color:'#2563eb', border:'1px solid #93c5fd' });
 
         return (
-            <div className="min-h-screen bg-slate-950 flex flex-col p-8 page-transition">
-                <header className="flex justify-between items-center mb-10">
-                    <div>
-                        <h1 className="text-3xl font-black text-white italic uppercase tracking-tight">Gruppen Verwalter</h1>
-                        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">Management Zentrale</p>
+            <div className="admin-mesh" style={{ minHeight:'100vh', padding:0, display:'flex', flexDirection:'column' }}>
+                {/* Admin Header */}
+                <div className="admin-header" style={{ padding:'16px 32px', display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, zIndex:40 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                        <div style={{ width:44, height:44, background:'linear-gradient(135deg,#3b82f6,#6366f1)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 14px rgba(59,130,246,0.35)' }}>
+                            <Icon name="calendar" size={22} className="text-white"/>
+                        </div>
+                        <div>
+                            <div style={{ color:'#1e293b', fontSize:18, fontWeight:900, letterSpacing:-0.5 }}>PE-MONTAGE</div>
+                            <div style={{ color:'#64748b', fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:2 }}>Admin-Zentrale · {teams.length} Gruppen</div>
+                        </div>
                     </div>
-                    <div className="flex gap-3 items-center">
+                    <div style={{ display:'flex', gap:10, alignItems:'center' }}>
                         <button onClick={onOpenStandby}
-                            className="bg-amber-900/40 border border-amber-500/30 text-amber-400 px-5 py-2 rounded-xl text-xs font-bold uppercase active:scale-95 transition-all flex items-center gap-2 hover:bg-amber-900/60">
-                            <Icon name="archive" size={16}/>Standby
+                            style={{ background:'linear-gradient(135deg,#fef3c7,#fffbeb)', border:'1px solid #fde68a', borderRadius:12, padding:'9px 18px', color:'#92400e', fontSize:10, fontWeight:800, cursor:'pointer', display:'flex', alignItems:'center', gap:6, boxShadow:'0 2px 8px rgba(245,158,11,0.15)', transition:'all 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.boxShadow='0 4px 14px rgba(245,158,11,0.3)'}
+                            onMouseLeave={e => e.currentTarget.style.boxShadow='0 2px 8px rgba(245,158,11,0.15)'}>
+                            <Icon name="archive" size={14}/>📦 Standby
                         </button>
-                        <button onClick={onOpenBilling}
-                            className="bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 px-5 py-2 rounded-xl text-xs font-bold uppercase active:scale-95 transition-all flex items-center gap-2 hover:bg-emerald-900/60">
-                            <Icon name="receipt" size={16}/>Abrechnung
+                        <button onClick={() => setShowBilling(true)}
+                            style={{ background:'linear-gradient(135deg,#f0fdf4,#dcfce7)', border:'1px solid #86efac', borderRadius:12, padding:'9px 18px', color:'#15803d', fontSize:10, fontWeight:800, cursor:'pointer', display:'flex', alignItems:'center', gap:6, boxShadow:'0 2px 8px rgba(16,185,129,0.15)', transition:'all 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.boxShadow='0 4px 14px rgba(16,185,129,0.3)'}
+                            onMouseLeave={e => e.currentTarget.style.boxShadow='0 2px 8px rgba(16,185,129,0.15)'}>
+                            <Icon name="receipt" size={14}/>💰 Abrechnung
                         </button>
                         <button onClick={onLogout}
-                            className="bg-slate-900 border border-slate-800 text-slate-400 px-6 py-2 rounded-xl text-xs font-bold uppercase active:scale-95 transition-all">Logout</button>
+                            style={{ background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:12, padding:'9px 16px', color:'#64748b', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all 0.2s' }}>
+                            Logout
+                        </button>
                     </div>
-                </header>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <button onClick={() => setIsAdding(true)} className="border-2 border-dashed border-slate-800 hover:border-indigo-500 hover:bg-indigo-500/5 rounded-3xl p-8 flex flex-col items-center justify-center gap-4 transition-all group">
-                        <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <Icon name="plus" className="text-indigo-400" size={24}/>
-                        </div>
-                        <p className="font-black text-slate-500 group-hover:text-white uppercase italic">Neue Gruppe erstellen</p>
-                    </button>
-
-                    {teams.map(t => (
-                        <div key={t.id} className="bg-slate-900 border border-white/5 rounded-3xl p-6 hover:border-indigo-500/50 transition-all shadow-xl relative group">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg" style={{ backgroundColor:t.color }}>
-                                    <Icon name="users" size={24}/>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => setEditTeam({...t})} className="text-slate-600 hover:text-blue-400 transition-colors p-2">
-                                        <Icon name="pencil" size={16}/>
-                                    </button>
-                                    <button onClick={() => setDeleteConfirm(t)} className="text-slate-700 hover:text-red-500 transition-colors p-2">
-                                        <Icon name="trash-2" size={18}/>
-                                    </button>
-                                </div>
-                            </div>
-                            <h3 onClick={() => onSelectTeam(t, t.calType==='beplankung'?'beplankung':'montage')}
-                                className="text-xl font-black text-white uppercase italic mb-1 cursor-pointer hover:text-blue-400 transition-colors">
-                                {t.name} <span style={{ fontSize:10, color:'#3b82f6', verticalAlign:'middle' }}>↗</span>
-                            </h3>
-                            <p className="text-xs font-bold text-slate-500 tracking-widest mb-3">PIN: {t.pin}</p>
-                            <div style={{ display:'inline-block', background:calTypeBadgeColor(t.calType||'montage')+'22', border:`1px solid ${calTypeBadgeColor(t.calType||'montage')}55`, borderRadius:6, padding:'2px 8px', marginBottom:10 }}>
-                                <span style={{ fontSize:9, fontWeight:900, color:calTypeBadgeColor(t.calType||'montage'), textTransform:'uppercase' }}>{calTypeLabel(t.calType||'montage')}</span>
-                            </div>
-                            <div className="flex gap-2 mt-2">
-                                {(t.calType==='montage'||t.calType==='both') && (
-                                    <button onClick={() => onSelectTeam(t,'montage')}
-                                        style={{ flex:1, background:'#2563eb22', border:'1px solid #2563eb55', borderRadius:8, padding:'6px 4px', color:'#60a5fa', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>
-                                        🔧 Montage
-                                    </button>
-                                )}
-                                {(t.calType==='beplankung'||t.calType==='both') && (
-                                    <button onClick={() => onSelectTeam(t,'beplankung')}
-                                        style={{ flex:1, background:'#05966922', border:'1px solid #05966955', borderRadius:8, padding:'6px 4px', color:'#34d399', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>
-                                        🏗 Beplankung
-                                    </button>
-                                )}
-                                {(t.calType !== 'montage' && t.calType !== 'beplankung' && t.calType !== 'both') && (
-                                    <button onClick={() => onSelectTeam(t,'montage')}
-                                        style={{ flex:1, background:'#2563eb22', border:'1px solid #2563eb55', borderRadius:8, padding:'6px 4px', color:'#60a5fa', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer' }}>
-                                        🔧 Montage
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
                 </div>
 
+                {/* Content */}
+                <div style={{ flex:1, padding:'32px 32px 48px', maxWidth:1400, width:'100%', margin:'0 auto', boxSizing:'border-box' }}>
+                    {/* Stats row */}
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:32 }}>
+                        {[
+                            { label:'Gruppen', value:teams.length, color:'#3b82f6', bg:'#eff6ff', icon:'users' },
+                            { label:'Montage Teams', value:teams.filter(t=>t.calType!=='beplankung').length, color:'#2563eb', bg:'#dbeafe', icon:'wrench' },
+                            { label:'Beplankung Teams', value:teams.filter(t=>t.calType==='beplankung'||t.calType==='both').length, color:'#059669', bg:'#d1fae5', icon:'building-2' },
+                        ].map(s => (
+                            <div key={s.label} className="admin-stat-card" style={{ padding:'20px 24px', display:'flex', alignItems:'center', gap:16 }}>
+                                <div style={{ width:48, height:48, background:s.bg, borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                    <Icon name={s.icon} size={22} style={{ color:s.color }}/>
+                                </div>
+                                <div>
+                                    <div style={{ color:'#1e293b', fontSize:28, fontWeight:900, lineHeight:1 }}>{s.value}</div>
+                                    <div style={{ color:'#64748b', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:1, marginTop:2 }}>{s.label}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+                        <h2 style={{ color:'#1e293b', fontSize:16, fontWeight:900, margin:0 }}>Gruppen Übersicht</h2>
+                        <button onClick={() => setIsAdding(true)}
+                            style={{ background:'linear-gradient(135deg,#3b82f6,#6366f1)', border:'none', borderRadius:12, padding:'10px 20px', color:'#fff', fontSize:10, fontWeight:800, cursor:'pointer', display:'flex', alignItems:'center', gap:6, boxShadow:'0 4px 14px rgba(59,130,246,0.35)', transition:'all 0.2s' }}>
+                            <Icon name="plus" size={14}/>Neue Gruppe
+                        </button>
+                    </div>
+
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:20 }}>
+                        {teams.map(t => {
+                            const badgeStyle = calTypeBadgeStyle(t.calType||'montage');
+                            return (
+                                <div key={t.id} className="admin-card" style={{ padding:'24px' }}>
+                                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+                                        <div style={{ width:50, height:50, borderRadius:16, background:t.color+'22', border:`2px solid ${t.color}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                            <Icon name="users" size={22} style={{ color:t.color }}/>
+                                        </div>
+                                        <div style={{ display:'flex', gap:6 }}>
+                                            <button onClick={() => setEditTeam({...t})}
+                                                style={{ background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:8, width:32, height:32, cursor:'pointer', color:'#64748b', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
+                                                onMouseEnter={e => { e.currentTarget.style.background='#dbeafe'; e.currentTarget.style.color='#2563eb'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background='#f1f5f9'; e.currentTarget.style.color='#64748b'; }}>
+                                                <Icon name="pencil" size={14}/>
+                                            </button>
+                                            <button onClick={() => setDeleteConfirm(t)}
+                                                style={{ background:'#f1f5f9', border:'1px solid #e2e8f0', borderRadius:8, width:32, height:32, cursor:'pointer', color:'#64748b', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
+                                                onMouseEnter={e => { e.currentTarget.style.background='#fee2e2'; e.currentTarget.style.color='#ef4444'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background='#f1f5f9'; e.currentTarget.style.color='#64748b'; }}>
+                                                <Icon name="trash-2" size={14}/>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ marginBottom:8 }}>
+                                        <div style={{ color:'#1e293b', fontSize:18, fontWeight:900, letterSpacing:-0.3, cursor:'pointer' }}
+                                            onClick={() => onSelectTeam(t, t.calType==='beplankung'?'beplankung':'montage')}>
+                                            {t.name}
+                                        </div>
+                                        <div style={{ color:'#94a3b8', fontSize:11, fontWeight:600, marginTop:2 }}>PIN: {t.pin}</div>
+                                    </div>
+
+                                    <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:badgeStyle.bg, border:badgeStyle.border, borderRadius:8, padding:'4px 10px', marginBottom:14 }}>
+                                        <div style={{ width:6, height:6, borderRadius:'50%', background:badgeStyle.color }}></div>
+                                        <span style={{ fontSize:9, fontWeight:800, color:badgeStyle.color, textTransform:'uppercase', letterSpacing:1 }}>{calTypeLabel(t.calType||'montage')}</span>
+                                    </div>
+
+                                    <div style={{ display:'flex', gap:8 }}>
+                                        {(t.calType==='montage'||t.calType==='both'||(!t.calType)) && (
+                                            <button onClick={() => onSelectTeam(t,'montage')}
+                                                style={{ flex:1, background:'linear-gradient(135deg,#dbeafe,#eff6ff)', border:'1px solid #93c5fd', borderRadius:10, padding:'8px', color:'#1d4ed8', fontSize:9, fontWeight:800, textTransform:'uppercase', cursor:'pointer', transition:'all 0.15s', letterSpacing:0.5 }}
+                                                onMouseEnter={e => e.currentTarget.style.background='linear-gradient(135deg,#bfdbfe,#dbeafe)'}
+                                                onMouseLeave={e => e.currentTarget.style.background='linear-gradient(135deg,#dbeafe,#eff6ff)'}>
+                                                🔧 Montage ↗
+                                            </button>
+                                        )}
+                                        {(t.calType==='beplankung'||t.calType==='both') && (
+                                            <button onClick={() => onSelectTeam(t,'beplankung')}
+                                                style={{ flex:1, background:'linear-gradient(135deg,#d1fae5,#ecfdf5)', border:'1px solid #6ee7b7', borderRadius:10, padding:'8px', color:'#065f46', fontSize:9, fontWeight:800, textTransform:'uppercase', cursor:'pointer', transition:'all 0.15s', letterSpacing:0.5 }}
+                                                onMouseEnter={e => e.currentTarget.style.background='linear-gradient(135deg,#a7f3d0,#d1fae5)'}
+                                                onMouseLeave={e => e.currentTarget.style.background='linear-gradient(135deg,#d1fae5,#ecfdf5)'}>
+                                                🏗 Beplankung ↗
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Add new card */}
+                        <div onClick={() => setIsAdding(true)}
+                            style={{ border:'2px dashed #cbd5e1', borderRadius:20, padding:24, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, cursor:'pointer', transition:'all 0.2s', minHeight:200, background:'rgba(255,255,255,0.4)' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor='#3b82f6'; e.currentTarget.style.background='rgba(59,130,246,0.04)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor='#cbd5e1'; e.currentTarget.style.background='rgba(255,255,255,0.4)'; }}>
+                            <div style={{ width:52, height:52, background:'#f1f5f9', borderRadius:16, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                <Icon name="plus" size={24} style={{ color:'#3b82f6' }}/>
+                            </div>
+                            <div style={{ color:'#94a3b8', fontSize:12, fontWeight:700 }}>Neue Gruppe erstellen</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* BILLING MODAL */}
+                {showBilling && <BillingModal teams={teams} appId={appId} onClose={() => setShowBilling(false)}/>}
+
+                {/* EDIT TEAM MODAL */}
                 {editTeam && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm">
-                        <div className="bg-slate-900 border border-white/10 w-full max-w-sm rounded-3xl p-8 shadow-2xl">
-                            <h3 className="text-xl font-black text-white mb-6 uppercase italic">Gruppe bearbeiten</h3>
-                            <div className="space-y-4">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Gruppen Name</label>
-                                    <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
-                                        value={editTeam.name} onChange={e => setEditTeam({...editTeam, name:e.target.value})}/>
+                    <div style={{ position:'fixed', inset:0, zIndex:50, background:'rgba(15,23,42,0.6)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+                        <div style={{ background:'#fff', borderRadius:24, padding:32, width:'100%', maxWidth:400, boxShadow:'0 40px 80px rgba(0,0,0,0.2)' }}>
+                            <h3 style={{ color:'#1e293b', fontSize:16, fontWeight:900, margin:'0 0 24px 0' }}>Gruppe bearbeiten</h3>
+                            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                                {[['name','Gruppen Name'],['pin','PIN (4 Ziffern)']].map(([field, label]) => (
+                                    <div key={field}>
+                                        <div style={{ color:'#64748b', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>{label}</div>
+                                        <input maxLength={field==='pin'?4:undefined} value={editTeam[field]} onChange={e => setEditTeam({...editTeam, [field]:e.target.value})}
+                                            style={{ width:'100%', background:'#f8fafc', border:'1.5px solid #e2e8f0', borderRadius:12, padding:'12px', color:'#1e293b', fontSize:13, boxSizing:'border-box', outline:'none' }}/>
+                                    </div>
+                                ))}
+                                <div>
+                                    <div style={{ color:'#64748b', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Farbe</div>
+                                    <input type="color" value={editTeam.color} onChange={e => setEditTeam({...editTeam, color:e.target.value})}
+                                        style={{ width:'100%', height:48, background:'transparent', border:'none', cursor:'pointer', borderRadius:8 }}/>
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">PIN (4 Ziffern)</label>
-                                    <input type="text" maxLength={4} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
-                                        value={editTeam.pin} onChange={e => setEditTeam({...editTeam, pin:e.target.value})}/>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Farbe</label>
-                                    <input type="color" className="w-full h-12 bg-transparent border-none cursor-pointer"
-                                        value={editTeam.color} onChange={e => setEditTeam({...editTeam, color:e.target.value})}/>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Kalender-Typ</label>
-                                    <div className="flex gap-2">
-                                        {['montage','beplankung','both'].map(ct => (
+                                <div>
+                                    <div style={{ color:'#64748b', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Kalender-Typ</div>
+                                    <div style={{ display:'flex', gap:8 }}>
+                                        {[['montage','🔧 Montage'],['beplankung','🏗 Beplankung'],['both','⚡ Beide']].map(([ct,label]) => (
                                             <button key={ct} onClick={() => setEditTeam({...editTeam, calType:ct})}
-                                                style={{ flex:1, padding:'8px 4px', borderRadius:8, border:'none', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer',
-                                                    background: editTeam.calType===ct ? (ct==='montage'?'#2563eb':ct==='beplankung'?'#059669':'#7c3aed') : '#1e293b',
-                                                    color: editTeam.calType===ct ? '#fff' : '#64748b' }}>
-                                                {ct==='montage'?'🔧 Montage':ct==='beplankung'?'🏗 Beplankung':'⚡ Beide'}
+                                                style={{ flex:1, padding:'10px 4px', borderRadius:10, border: editTeam.calType===ct ? 'none' : '1.5px solid #e2e8f0', fontSize:8, fontWeight:800, textTransform:'uppercase', cursor:'pointer',
+                                                    background: editTeam.calType===ct ? (ct==='montage'?'#3b82f6':ct==='beplankung'?'#059669':'#7c3aed') : '#f8fafc',
+                                                    color: editTeam.calType===ct ? '#fff' : '#94a3b8' }}>
+                                                {label}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex gap-3 mt-8">
-                                <button onClick={() => setEditTeam(null)} className="flex-1 text-slate-500 font-bold hover:text-white transition-colors">ABBRECHEN</button>
-                                <button onClick={handleSaveEditTeam} className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/20">SPEICHERN</button>
+                            <div style={{ display:'flex', gap:12, marginTop:24 }}>
+                                <button onClick={() => setEditTeam(null)} style={{ flex:1, padding:'13px', background:'#f1f5f9', border:'none', borderRadius:12, color:'#64748b', fontWeight:800, fontSize:11, cursor:'pointer' }}>Abbrechen</button>
+                                <button onClick={handleSaveEditTeam} style={{ flex:1, padding:'13px', background:'linear-gradient(135deg,#3b82f6,#6366f1)', border:'none', borderRadius:12, color:'#fff', fontWeight:800, fontSize:11, cursor:'pointer' }}>Speichern</button>
                             </div>
                         </div>
                     </div>
                 )}
 
+                {/* DELETE CONFIRM */}
                 {deleteConfirm && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md">
-                        <div className="bg-slate-900 border border-red-500/30 w-full max-w-sm rounded-3xl p-8 shadow-2xl shadow-red-500/10">
-                            <div className="flex justify-center mb-6">
-                                <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500">
-                                    <Icon name="alert-triangle" size={32}/>
+                    <div style={{ position:'fixed', inset:0, zIndex:100, background:'rgba(15,23,42,0.7)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+                        <div style={{ background:'#fff', border:'2px solid #fee2e2', borderRadius:24, padding:32, width:'100%', maxWidth:360, boxShadow:'0 40px 80px rgba(239,68,68,0.2)' }}>
+                            <div style={{ display:'flex', justifyContent:'center', marginBottom:20 }}>
+                                <div style={{ width:64, height:64, background:'#fee2e2', borderRadius:20, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                    <Icon name="alert-triangle" size={30} style={{ color:'#ef4444' }}/>
                                 </div>
                             </div>
-                            <h3 className="text-xl font-black text-white mb-2 text-center uppercase italic">Sicherheitsprüfung</h3>
-                            <p className="text-slate-400 text-center text-xs font-bold mb-6 uppercase">Code <span className="text-white">8852</span> eingeben um "{deleteConfirm.name}" zu löschen:</p>
+                            <h3 style={{ color:'#1e293b', fontSize:16, fontWeight:900, textAlign:'center', margin:'0 0 8px 0' }}>Gruppe löschen?</h3>
+                            <p style={{ color:'#64748b', textAlign:'center', fontSize:12, margin:'0 0 20px 0' }}>Code <strong style={{ color:'#ef4444' }}>8852</strong> eingeben um „{deleteConfirm.name}" zu löschen</p>
                             <input type="password" placeholder="Admin-Code"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-center text-xl font-black tracking-widest text-red-500 focus:border-red-500 outline-none mb-6"
+                                style={{ width:'100%', background:'#f8fafc', border:'1.5px solid #fecaca', borderRadius:12, padding:'14px', textAlign:'center', fontSize:18, fontWeight:900, letterSpacing:4, color:'#ef4444', outline:'none', boxSizing:'border-box', marginBottom:20 }}
                                 value={deleteCodeInput} onChange={e => setDeleteCodeInput(e.target.value)}/>
-                            <div className="flex gap-3">
-                                <button onClick={() => { setDeleteConfirm(null); setDeleteCodeInput(""); }} className="flex-1 text-slate-500 font-bold hover:text-white transition-colors">ABBRECHEN</button>
-                                <button onClick={confirmDelete} className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-red-500/20 uppercase text-xs">GRUPPE LÖSCHEN</button>
+                            <div style={{ display:'flex', gap:12 }}>
+                                <button onClick={() => { setDeleteConfirm(null); setDeleteCodeInput(""); }} style={{ flex:1, padding:'12px', background:'#f1f5f9', border:'none', borderRadius:12, color:'#64748b', fontWeight:800, fontSize:11, cursor:'pointer' }}>Abbrechen</button>
+                                <button onClick={confirmDelete} style={{ flex:1, padding:'12px', background:'#ef4444', border:'none', borderRadius:12, color:'#fff', fontWeight:800, fontSize:11, cursor:'pointer' }}>Löschen</button>
                             </div>
                         </div>
                     </div>
                 )}
 
+                {/* ADD TEAM MODAL */}
                 {isAdding && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm">
-                        <div className="bg-slate-900 border border-white/10 w-full max-w-sm rounded-3xl p-8 shadow-2xl">
-                            <h3 className="text-xl font-black text-white mb-6 uppercase italic">Neue Gruppe</h3>
-                            <div className="space-y-4">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Team Name</label>
-                                    <input type="text" placeholder="Zürich / Montage A"
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
-                                        value={newTeam.name} onChange={e => setNewTeam({...newTeam, name:e.target.value})}/>
+                    <div style={{ position:'fixed', inset:0, zIndex:50, background:'rgba(15,23,42,0.6)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+                        <div style={{ background:'#fff', borderRadius:24, padding:32, width:'100%', maxWidth:400, boxShadow:'0 40px 80px rgba(0,0,0,0.2)' }}>
+                            <h3 style={{ color:'#1e293b', fontSize:16, fontWeight:900, margin:'0 0 24px 0' }}>Neue Gruppe erstellen</h3>
+                            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                                {[['name','Team Name','Zürich / Montage A'],['pin','PIN (4 Ziffern)','1234']].map(([field,label,ph]) => (
+                                    <div key={field}>
+                                        <div style={{ color:'#64748b', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>{label}</div>
+                                        <input placeholder={ph} maxLength={field==='pin'?4:undefined} value={newTeam[field]} onChange={e => setNewTeam({...newTeam, [field]:e.target.value})}
+                                            style={{ width:'100%', background:'#f8fafc', border:'1.5px solid #e2e8f0', borderRadius:12, padding:'12px', color:'#1e293b', fontSize:13, boxSizing:'border-box', outline:'none' }}/>
+                                    </div>
+                                ))}
+                                <div>
+                                    <div style={{ color:'#64748b', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Farbe</div>
+                                    <input type="color" value={newTeam.color} onChange={e => setNewTeam({...newTeam, color:e.target.value})}
+                                        style={{ width:'100%', height:48, background:'transparent', border:'none', cursor:'pointer' }}/>
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Team PIN (4 Ziffern)</label>
-                                    <input type="text" placeholder="1234" maxLength={4}
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 outline-none"
-                                        value={newTeam.pin} onChange={e => setNewTeam({...newTeam, pin:e.target.value})}/>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Farbe</label>
-                                    <input type="color" className="w-full h-12 bg-transparent border-none cursor-pointer"
-                                        value={newTeam.color} onChange={e => setNewTeam({...newTeam, color:e.target.value})}/>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Kalender-Typ</label>
-                                    <div className="flex gap-2">
-                                        {['montage','beplankung','both'].map(ct => (
+                                <div>
+                                    <div style={{ color:'#64748b', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Kalender-Typ</div>
+                                    <div style={{ display:'flex', gap:8 }}>
+                                        {[['montage','🔧 Montage'],['beplankung','🏗 Beplankung'],['both','⚡ Beide']].map(([ct,label]) => (
                                             <button key={ct} onClick={() => setNewTeam({...newTeam, calType:ct})}
-                                                style={{ flex:1, padding:'8px 4px', borderRadius:8, border:'none', fontSize:8, fontWeight:900, textTransform:'uppercase', cursor:'pointer',
-                                                    background: newTeam.calType===ct ? (ct==='montage'?'#2563eb':ct==='beplankung'?'#059669':'#7c3aed') : '#1e293b',
-                                                    color: newTeam.calType===ct ? '#fff' : '#64748b' }}>
-                                                {ct==='montage'?'🔧 Montage':ct==='beplankung'?'🏗 Beplankung':'⚡ Beide'}
+                                                style={{ flex:1, padding:'10px 4px', borderRadius:10, border: newTeam.calType===ct ? 'none' : '1.5px solid #e2e8f0', fontSize:8, fontWeight:800, textTransform:'uppercase', cursor:'pointer',
+                                                    background: newTeam.calType===ct ? (ct==='montage'?'#3b82f6':ct==='beplankung'?'#059669':'#7c3aed') : '#f8fafc',
+                                                    color: newTeam.calType===ct ? '#fff' : '#94a3b8' }}>
+                                                {label}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex gap-3 mt-8">
-                                <button onClick={() => setIsAdding(false)} className="flex-1 text-slate-500 font-bold hover:text-white transition-colors">ABBRECHEN</button>
-                                <button onClick={handleAddTeam} className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/20">ERSTELLEN</button>
+                            <div style={{ display:'flex', gap:12, marginTop:24 }}>
+                                <button onClick={() => setIsAdding(false)} style={{ flex:1, padding:'13px', background:'#f1f5f9', border:'none', borderRadius:12, color:'#64748b', fontWeight:800, fontSize:11, cursor:'pointer' }}>Abbrechen</button>
+                                <button onClick={handleAddTeam} style={{ flex:1, padding:'13px', background:'linear-gradient(135deg,#3b82f6,#6366f1)', border:'none', borderRadius:12, color:'#fff', fontWeight:800, fontSize:11, cursor:'pointer' }}>Erstellen</button>
                             </div>
                         </div>
                     </div>
@@ -1721,14 +1718,10 @@
             const waitAndInit = () => {
                 if (!window.FirebaseSDK) { setTimeout(waitAndInit, 100); return; }
                 const { db, collection, onSnapshot } = window.FirebaseSDK;
-                const unsub = onSnapshot(collection(db, 'teams_config'), (snap) => {
+                onSnapshot(collection(db, 'teams_config'), (snap) => {
                     setTeams(snap.docs.map(d => ({ ...d.data() })));
                     setUser(true);
-                }, err => {
-                    console.error("Error:", err);
-                    setUser('error_' + err.message);
-                });
-                return unsub;
+                }, err => setUser('error_' + err.message));
             };
             waitAndInit();
         }, []);
@@ -1738,40 +1731,19 @@
         if (!authState) return <LoginScreen teams={teams} onLogin={(role,team) => setAuthState({role,team})}/>;
 
         if (authState.role === 'admin') {
-            if (authState.showStandby) {
-                return <StandbyView appId={APP_ID} onBack={() => setAuthState({...authState, showStandby:false})}/>;
-            }
-            if (authState.showBilling) {
-                return <AdminBillingView teams={teams} appId={APP_ID} onBack={() => setAuthState({...authState, showBilling:false})}/>;
-            }
-            if (authState.adminViewingTeam) {
-                return <CalendarView
-                    team={authState.adminViewingTeam}
-                    appId={APP_ID}
-                    isAdminAccess={true}
-                    activeCalType={authState.adminCalType || 'montage'}
-                    onBack={() => setAuthState({...authState, adminViewingTeam:null, adminCalType:null})}
-                />;
-            }
-            return <AdminPanel
-                teams={teams}
-                appId={APP_ID}
-                onLogout={() => setAuthState(null)}
+            if (authState.showStandby) return <StandbyView appId={APP_ID} onBack={() => setAuthState({...authState, showStandby:false})}/>;
+            if (authState.adminViewingTeam) return <CalendarView team={authState.adminViewingTeam} appId={APP_ID} isAdminAccess={true} activeCalType={authState.adminCalType || 'montage'} onBack={() => setAuthState({...authState, adminViewingTeam:null, adminCalType:null})}/>;
+            return <AdminPanel teams={teams} appId={APP_ID} onLogout={() => setAuthState(null)}
                 onSelectTeam={(team, calType) => setAuthState({...authState, adminViewingTeam:team, adminCalType:calType})}
                 onOpenBilling={() => setAuthState({...authState, showBilling:true})}
-                onOpenStandby={() => setAuthState({...authState, showStandby:true})}
-            />;
+                onOpenStandby={() => setAuthState({...authState, showStandby:true})}/>;
         }
 
         const team = authState.team;
         const calType = team.calType || 'montage';
-
-        return <CalendarView
-            team={team}
-            appId={APP_ID}
+        return <CalendarView team={team} appId={APP_ID} isAdminAccess={false}
             activeCalType={authState.activeCalType || (calType==='beplankung'?'beplankung':'montage')}
-            onBack={() => setAuthState(null)}
-        />;
+            onBack={() => setAuthState(null)}/>;
     };
 
     const root = ReactDOM.createRoot(document.getElementById('root'));

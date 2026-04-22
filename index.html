@@ -10,6 +10,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- jsPDF standalone — for direct base64-safe PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <!-- Firebase SDK v9 compat -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -28,7 +30,6 @@
         appId: "1:993655186874:web:068a06ce160cd611e1e983"
       };
 
-      // Initialize Firebase
       try {
         firebase.initializeApp(firebaseConfig);
         window._db = firebase.firestore();
@@ -39,21 +40,14 @@
         window.FirebaseReady = false;
       }
 
-      // ── UNIFIED SDK WRAPPER ──
       (function() {
         if (window.FirebaseReady && window._db) {
           const db = window._db;
           function collection(db, colName) { return { _col: colName, _type: 'col' }; }
           function doc(db, colName, docId) { return { _col: colName, _id: docId, _type: 'doc' }; }
-          function setDoc(ref, data) {
-            return db.collection(ref._col).doc(ref._id).set(data);
-          }
-          function updateDoc(ref, data) {
-            return db.collection(ref._col).doc(ref._id).update(data);
-          }
-          function deleteDoc(ref) {
-            return db.collection(ref._col).doc(ref._id).delete();
-          }
+          function setDoc(ref, data) { return db.collection(ref._col).doc(ref._id).set(data); }
+          function updateDoc(ref, data) { return db.collection(ref._col).doc(ref._id).update(data); }
+          function deleteDoc(ref) { return db.collection(ref._col).doc(ref._id).delete(); }
           function onSnapshot(ref, callback, errorCallback) {
             const unsub = db.collection(ref._col).onSnapshot(snap => {
               const docs = snap.docs.map(d => ({ id: d.id, data: () => ({ ...d.data() }) }));
@@ -63,7 +57,6 @@
           }
           window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot };
         } else {
-          // localStorage fallback
           const _listeners = {};
           function _getCol(col) { try { return JSON.parse(localStorage.getItem('pe_' + col) || '{}'); } catch(e) { return {}; } }
           function _setCol(col, data) { try { localStorage.setItem('pe_' + col, JSON.stringify(data)); _notify(col, data); } catch(e) { throw new Error('Speicherfehler: ' + e.message); } }
@@ -92,7 +85,9 @@
 
     <style>
         :root { --primary:#3b82f6; --bg-main:#0f172a; }
-        body { overscroll-behavior-y:contain; font-family:'DM Sans','Inter',sans-serif; background-color:var(--bg-main); color:#f8fafc; -webkit-font-smoothing:antialiased; }
+        /* FIX: ensure body is always dark, not white */
+        body { overscroll-behavior-y:contain; font-family:'DM Sans','Inter',sans-serif; background-color:#0f172a !important; color:#f8fafc; -webkit-font-smoothing:antialiased; }
+        #root { background-color:#0f172a; min-height:100vh; }
         * { -webkit-tap-highlight-color:transparent; }
 
         .admin-card { background:rgba(255,255,255,0.85); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.9); border-radius:20px; box-shadow:0 4px 24px rgba(59,130,246,0.08),0 1px 3px rgba(0,0,0,0.06); transition:all 0.25s cubic-bezier(.4,0,.2,1); }
@@ -139,6 +134,10 @@
         .live-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:2px 8px; font-size:8px; font-weight:900; color:#10b981; text-transform:uppercase; letter-spacing:1px; }
         .live-dot { width:5px; height:5px; border-radius:50%; background:#10b981; animation:gd 1.5s infinite; }
 
+        /* KW display - larger */
+        .kw-display { font-size:22px !important; font-weight:900 !important; color:#60a5fa !important; line-height:1; }
+        .kw-label { font-size:10px !important; font-weight:700 !important; color:#94a3b8 !important; text-transform:uppercase; letter-spacing:2px; }
+
         @media print { body * { visibility:hidden; } #billing-pdf-content, #billing-pdf-content * { visibility:visible; } #billing-pdf-content { position:fixed; left:0; top:0; width:100%; } }
         @keyframes slideUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
     </style>
@@ -162,35 +161,34 @@ const PROV_TEXT   = '#713f12';
 const DAY_NAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
 
 const genId = () => {
-  try {
-    const uuid = crypto.randomUUID();
-    if (uuid) return uuid;
-  } catch(e) {}
+  try { const uuid = crypto.randomUUID(); if (uuid) return uuid; } catch(e) {}
   return Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2);
 };
 
 const genTeamId = (name) => {
-  const sanitized = (name || '')
-    .toLowerCase()
-    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
-    .replace(/\s+/g,'-')
-    .replace(/[^a-z0-9-]/g,'')
-    .substring(0, 30);
+  const sanitized = (name || '').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').substring(0,30);
   const suffix = Date.now().toString(36);
   return sanitized ? `${sanitized}-${suffix}` : `team-${suffix}`;
 };
 
 const cleanAuftragsNr = (nr) => { if (!nr) return nr; return nr.replace(/\s*\/\s*SLI\s*/gi,'').trim(); };
-
 const formatDate = (s) => { if (!s) return 'N/A'; const d=new Date(s); return isNaN(d.getTime())?'N/A':d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}); };
-
 const getWeekNumber = (d) => { d=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7)); const ys=new Date(Date.UTC(d.getUTCFullYear(),0,1)); return Math.ceil((((d-ys)/86400000)+1)/7); };
-
 const getCalWeekDays = (base) => { const d=new Date(base); const day=d.getDay(); const diff=(day===0)?-6:1-day; const mon=new Date(d.getFullYear(),d.getMonth(),d.getDate()+diff); return Array.from({length:6},(_,i)=>new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i)); };
-
 const toLocalDateStr = (dateObj) => { const y=dateObj.getFullYear(),m=String(dateObj.getMonth()+1).padStart(2,'0'),d=String(dateObj.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; };
-
 const daysBetween = (s,e) => { if(!s||!e) return 1; return Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1); };
+
+const parseCalTypes = (calType) => {
+  if (!calType || calType === 'montage') return ['montage'];
+  if (calType === 'both' || calType === 'all') return ['montage','beplankung','ausflocken'];
+  if (calType === 'beplankung') return ['beplankung'];
+  if (calType === 'ausflocken') return ['ausflocken'];
+  try {
+    const arr = JSON.parse(calType);
+    if (Array.isArray(arr)) return arr;
+  } catch(e) {}
+  return ['montage'];
+};
 
 const Icon = memo(({ name, size=18, className="" }) => {
     const ref = useRef(null);
@@ -204,26 +202,206 @@ const Icon = memo(({ name, size=18, className="" }) => {
     return <span ref={ref} className={`inline-flex items-center justify-center ${className}`}></span>;
 });
 
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// downloadEntryPDF — DIRECT jsPDF (no html2canvas, no DOM tricks)
+// This is the only 100% reliable way to embed base64 images in PDFs.
+// jsPDF is already bundled inside html2pdf.js as window.jspdf.jsPDF
+// ═══════════════════════════════════════════════════════
 function downloadEntryPDF(entry) {
     return new Promise(resolve => {
-        const el = document.createElement('div');
-        el.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:15mm;width:190mm;font-family:Arial,sans-serif;color:#000;';
-        el.innerHTML = `
-            <h1 style="font-size:22pt;font-weight:900;border-bottom:2pt solid #000;padding-bottom:4mm;margin-bottom:6mm;text-transform:uppercase">Auftrag</h1>
-            <table style="width:100%;font-size:11pt;border-collapse:collapse;margin-bottom:8mm">
-                <tr><td style="color:#888;font-weight:bold;width:35mm;padding-bottom:3mm">Auftragsnr.</td><td style="font-weight:900">${cleanAuftragsNr(entry.auftragsNr)||'—'}</td></tr>
-                <tr><td style="color:#888;font-weight:bold;padding-bottom:3mm">Kunde</td><td style="font-weight:bold">${entry.customer||''}</td></tr>
-                <tr><td style="color:#888;font-weight:bold;padding-bottom:3mm">Adresse</td><td>${entry.address||''}</td></tr>
-                <tr><td style="color:#888;font-weight:bold;padding-bottom:3mm">Datum</td><td>${formatDate(entry.deliveryDate)}${entry.endDate?' – '+formatDate(entry.endDate):''}</td></tr>
-                <tr><td style="color:#888;font-weight:bold;padding-bottom:3mm">Memo</td><td style="font-weight:800;font-size:13pt">${entry.memo||'—'}</td></tr>
-                ${entry.target>0?`<tr><td style="color:#888;font-weight:bold">ELE</td><td style="font-weight:900">${entry.target} ELE</td></tr>`:''}
-                ${entry.isProv?'<tr><td style="color:#888;font-weight:bold;padding-top:4mm">Status</td><td style="background:#fef9c3;padding:2mm 4mm;font-weight:900;color:#713f12;border-radius:4pt">⚠ PROVISORISCH</td></tr>':''}
-            </table>
-            ${entry.image?`<div style="text-align:center;margin-top:8mm"><img src="${entry.image}" style="max-width:100%;max-height:160mm;object-fit:contain;display:block;margin:0 auto"></div>`:''}
-        `;
-        document.body.appendChild(el);
-        html2pdf().set({ margin:10, filename:`Auftrag_${(cleanAuftragsNr(entry.auftragsNr)||entry.customer||'export').replace(/[^a-zA-Z0-9]/g,'_')}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} })
-            .from(el).save().then(() => { document.body.removeChild(el); resolve(); });
+        try {
+            // jsPDF is bundled inside html2pdf — access it directly
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+            const pageW = 210;
+            const margin = 15;
+            const contentW = pageW - margin * 2;
+            let y = margin;
+
+            // ── Helper functions ──
+            const setFont = (size, style = 'normal', color = [0,0,0]) => {
+                doc.setFontSize(size);
+                doc.setFont('helvetica', style);
+                doc.setTextColor(color[0], color[1], color[2]);
+            };
+            const drawLine = (x1, y1, x2, y2, color = [0,0,0], w = 0.5) => {
+                doc.setDrawColor(color[0], color[1], color[2]);
+                doc.setLineWidth(w);
+                doc.line(x1, y1, x2, y2);
+            };
+            const row = (label, value, yPos) => {
+                setFont(9, 'bold', [80,80,80]);
+                doc.text(label, margin, yPos);
+                setFont(10, 'normal', [0,0,0]);
+                const lines = doc.splitTextToSize(String(value || '—'), contentW - 38);
+                doc.text(lines, margin + 38, yPos);
+                return yPos + (lines.length * 5.5) + 2;
+            };
+
+            // ── HEADER ──
+            doc.setFillColor(37, 99, 235);
+            doc.rect(0, 0, pageW, 18, 'F');
+            setFont(13, 'bold', [255,255,255]);
+            doc.text('AUFTRAG', margin, 12);
+            setFont(9, 'normal', [180,210,255]);
+            doc.text('PE-MONTAGE', pageW - margin, 12, { align: 'right' });
+            y = 26;
+
+            // ── TITLE (Kunde) ──
+            setFont(16, 'bold', [0,0,0]);
+            const customerLines = doc.splitTextToSize((entry.customer || '').toUpperCase(), contentW);
+            doc.text(customerLines, margin, y);
+            y += customerLines.length * 8 + 3;
+
+            // ── Divider ──
+            drawLine(margin, y, pageW - margin, y, [37,99,235], 0.8);
+            y += 6;
+
+            // ── DATA ROWS ──
+            const nr = cleanAuftragsNr(entry.auftragsNr);
+            if (nr) {
+                setFont(9, 'bold', [80,80,80]);
+                doc.text('AUFTRAGSNR.', margin, y);
+                setFont(11, 'bold', [37,99,235]);
+                doc.text(nr, margin + 38, y);
+                y += 8;
+            }
+
+            y = row('ADRESSE', entry.address, y);
+            y = row('DATUM', formatDate(entry.deliveryDate) + (entry.endDate ? ' – ' + formatDate(entry.endDate) : ''), y);
+
+            if (entry.target > 0) {
+                y = row('ELE', entry.target + ' ELE', y);
+            }
+
+            if (entry.isProv) {
+                y += 2;
+                doc.setFillColor(254, 249, 195);
+                doc.setDrawColor(234, 179, 8);
+                doc.setLineWidth(0.5);
+                doc.roundedRect(margin, y, contentW, 10, 2, 2, 'FD');
+                setFont(10, 'bold', [113, 63, 18]);
+                doc.text('⚠  PROVISORISCH', margin + 4, y + 7);
+                y += 15;
+            }
+
+            // ── MEMO ──
+            if (entry.memo) {
+                y += 2;
+                drawLine(margin, y, pageW - margin, y, [200,200,200], 0.3);
+                y += 5;
+                doc.setFillColor(255, 251, 235);
+                doc.setDrawColor(245, 158, 11);
+                doc.setLineWidth(0.8);
+                doc.rect(margin, y, 1.5, 999, 'F'); // left accent bar placeholder
+                setFont(7, 'bold', [120,80,0]);
+                doc.text('MEMO', margin, y + 4);
+                y += 6;
+                setFont(12, 'bold', [0,0,0]);
+                const memoLines = doc.splitTextToSize(entry.memo, contentW - 4);
+                // Draw memo background
+                const memoH = memoLines.length * 6 + 6;
+                doc.setFillColor(255, 251, 235);
+                doc.setDrawColor(245, 158, 11);
+                doc.setLineWidth(0.5);
+                doc.roundedRect(margin, y - 1, contentW, memoH, 2, 2, 'FD');
+                // Left accent
+                doc.setFillColor(245, 158, 11);
+                doc.rect(margin, y - 1, 2, memoH, 'F');
+                doc.text(memoLines, margin + 5, y + 4);
+                y += memoH + 5;
+            }
+
+            // ── IMAGE ──
+            if (entry.image) {
+                y += 3;
+                drawLine(margin, y, pageW - margin, y, [200,200,200], 0.3);
+                y += 6;
+                setFont(7, 'bold', [120,120,120]);
+                doc.text('FOTO', margin, y);
+                y += 4;
+
+                try {
+                    // Detect image format from base64 header
+                    const b64 = entry.image;
+                    let imgFormat = 'JPEG';
+                    if (b64.includes('data:image/png')) imgFormat = 'PNG';
+                    else if (b64.includes('data:image/webp')) imgFormat = 'WEBP';
+
+                    // Calculate dimensions to fit in page
+                    const maxImgW = contentW;
+                    const maxImgH = 120;
+
+                    // Load image to get natural dimensions
+                    const img = new Image();
+                    img.onload = () => {
+                        const ratio = Math.min(maxImgW / img.naturalWidth, maxImgH / img.naturalHeight, 1);
+                        const imgW = img.naturalWidth * ratio;
+                        const imgH = img.naturalHeight * ratio;
+                        const imgX = margin + (contentW - imgW) / 2;
+
+                        // Check if we need a new page
+                        if (y + imgH > 280) { doc.addPage(); y = margin; }
+
+                        doc.addImage(b64, imgFormat, imgX, y, imgW, imgH);
+
+                        // ── FOOTER ──
+                        const totalPages = doc.internal.getNumberOfPages();
+                        for (let i = 1; i <= totalPages; i++) {
+                            doc.setPage(i);
+                            doc.setFillColor(245, 248, 255);
+                            doc.rect(0, 288, pageW, 10, 'F');
+                            setFont(7, 'normal', [150,150,150]);
+                            doc.text('PE-MONTAGE Tourendisposition', margin, 294);
+                            doc.text(`${new Date().toLocaleDateString('de-DE')}`, pageW - margin, 294, { align: 'right' });
+                        }
+
+                        const filename = `Auftrag_${(nr || entry.customer || 'export').replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
+                        doc.save(filename);
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        // Image failed to load, save without it
+                        const filename = `Auftrag_${(nr || entry.customer || 'export').replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
+                        doc.save(filename);
+                        resolve();
+                    };
+                    img.src = b64;
+                    return; // wait for img.onload
+                } catch(imgErr) {
+                    console.warn('Image insert failed:', imgErr);
+                }
+            }
+
+            // ── FOOTER (no image path) ──
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPages; i++) {
+                doc.setPage(i);
+                doc.setFillColor(245, 248, 255);
+                doc.rect(0, 288, pageW, 10, 'F');
+                setFont(7, 'normal', [150,150,150]);
+                doc.text('PE-MONTAGE Tourendisposition', margin, 294);
+                doc.text(`${new Date().toLocaleDateString('de-DE')}`, pageW - margin, 294, { align: 'right' });
+            }
+
+            const filename = `Auftrag_${(cleanAuftragsNr(entry.auftragsNr) || entry.customer || 'export').replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
+            doc.save(filename);
+            resolve();
+
+        } catch(err) {
+            console.error('jsPDF error:', err);
+            // Fallback: try html2pdf if jsPDF direct fails
+            const el = document.createElement('div');
+            el.style.cssText = 'position:fixed;top:0;left:0;width:210mm;background:#fff;padding:15mm;font-family:Arial;color:#000;z-index:99999;opacity:0;pointer-events:none;';
+            el.innerHTML = `<h2 style="color:#000">${entry.customer||''}</h2><p style="color:#000">${entry.address||''}</p><p style="color:#000">${entry.memo||''}</p>`;
+            document.body.appendChild(el);
+            setTimeout(() => {
+                html2pdf().set({ margin:10, filename:'Auftrag.pdf', html2canvas:{ scale:2, allowTaint:true, backgroundColor:'#fff' }, jsPDF:{ format:'a4' } })
+                    .from(el).save().then(() => { document.body.removeChild(el); resolve(); });
+            }, 150);
+        }
     });
 }
 
@@ -249,31 +427,33 @@ function LoginScreen({ onLogin, teams }) {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
-            <div className="w-full max-w-sm text-center">
-                <div className="mb-12">
-                    <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-indigo-500/20">
+        <div style={{ minHeight:'100vh',background:'#030712',display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
+            <div style={{ width:'100%',maxWidth:340,textAlign:'center' }}>
+                <div style={{ marginBottom:48 }}>
+                    <div style={{ width:80,height:80,background:'linear-gradient(135deg,#3b82f6,#6366f1)',borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',boxShadow:'0 20px 40px rgba(99,102,241,0.3)' }}>
                         <Icon name="calendar" size={40} className="text-white"/>
                     </div>
-                    <h1 className="text-3xl font-black tracking-tight text-white uppercase italic">PE-MONTAGE</h1>
-                    <p className="text-slate-500 mt-2 font-medium tracking-widest uppercase text-[10px]">Tourendisposition</p>
-                    <div className="mt-3 flex justify-center">
+                    <h1 style={{ fontSize:28,fontWeight:900,letterSpacing:-1,color:'#fff',fontStyle:'italic',textTransform:'uppercase',margin:'0 0 8px' }}>PE-MONTAGE</h1>
+                    <p style={{ color:'#475569',margin:'0 0 12px',fontWeight:700,letterSpacing:'0.2em',fontSize:10,textTransform:'uppercase' }}>Tourendisposition</p>
+                    <div style={{ display:'flex',justifyContent:'center' }}>
                         <span className="live-badge">
                             <span className="live-dot"></span>
                             {isFirebase ? '🔥 Firestore Live' : 'Lokal (Offline)'}
                         </span>
                     </div>
                 </div>
-                <div className="mb-8">
-                    <div className="flex justify-center gap-4 mb-4">
-                        {[0,1,2,3].map(i => <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${pin.length>i?'bg-indigo-500 border-indigo-500 scale-125':'border-slate-700'}`}></div>)}
+                <div style={{ marginBottom:32 }}>
+                    <div style={{ display:'flex',justifyContent:'center',gap:16,marginBottom:16 }}>
+                        {[0,1,2,3].map(i => <div key={i} style={{ width:16,height:16,borderRadius:'50%',border:`2px solid ${pin.length>i?'#6366f1':'#1e293b'}`,background:pin.length>i?'#6366f1':'transparent',transition:'all 0.2s',transform:pin.length>i?'scale(1.2)':'scale(1)' }}></div>)}
                     </div>
-                    {error && <p className="text-red-500 text-sm font-bold uppercase tracking-widest">{error}</p>}
+                    {error && <p style={{ color:'#ef4444',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em' }}>{error}</p>}
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12 }}>
                     {[1,2,3,4,5,6,7,8,9,'C',0].map(n => (
                         <button key={n} onClick={() => handleAction(n)}
-                            className={`h-16 rounded-2xl text-xl font-bold transition-all active:scale-90 flex items-center justify-center ${n==='C'?'bg-slate-800 text-slate-400':'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                            style={{ height:64,borderRadius:16,fontSize:20,fontWeight:700,border:'none',cursor:'pointer',transition:'all 0.1s',display:'flex',alignItems:'center',justifyContent:'center',background:n==='C'?'#1e293b':'#0f172a',color:n==='C'?'#94a3b8':'#fff',border:n==='C'?'1px solid #334155':'1px solid #1e293b' }}
+                            onMouseDown={e => e.currentTarget.style.transform='scale(0.9)'}
+                            onMouseUp={e => e.currentTarget.style.transform='scale(1)'}>
                             {n}
                         </button>
                     ))}
@@ -321,7 +501,6 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
     };
 
     const handleTextChange = (val) => { setText(val); setPreview(parse(val)); setProvIds(new Set()); };
-
     const toggleProv = (i) => setProvIds(prev => { const n=new Set(prev); n.has(i)?n.delete(i):n.add(i); return n; });
 
     const doImport = async () => {
@@ -367,8 +546,7 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
                                     <div style={{ color:provIds.has(i)?'#713f12':'#fff',fontSize:9,fontWeight:900 }}>{e.customer}</div>
                                     {e.address&&<div style={{ color:'#64748b',fontSize:8 }}>{e.address}</div>}
                                 </div>
-                                <button onClick={()=>toggleProv(i)}
-                                    style={{ background:provIds.has(i)?'#eab308':'#334155',border:'none',borderRadius:5,padding:'3px 7px',color:'#fff',fontSize:8,fontWeight:900,cursor:'pointer',flexShrink:0 }}>
+                                <button onClick={()=>toggleProv(i)} style={{ background:provIds.has(i)?'#eab308':'#334155',border:'none',borderRadius:5,padding:'3px 7px',color:'#fff',fontSize:8,fontWeight:900,cursor:'pointer',flexShrink:0 }}>
                                     {provIds.has(i)?'⚠ PROV':'PROV?'}
                                 </button>
                             </div>
@@ -475,8 +653,10 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
                         {e.isDone?'✓ Erledigt':'○ Erledigen'}
                     </button>
                 )}
-                <button onClick={(ev)=>{ ev.stopPropagation(); setCopyEntry({...e}); }}
-                    style={{ background:'rgba(37,99,235,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#2563eb',lineHeight:1 }}>⧉</button>
+                {isAdminAccess && (
+                    <button onClick={(ev)=>{ ev.stopPropagation(); setCopyEntry({...e}); }}
+                        style={{ background:'rgba(37,99,235,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#2563eb',lineHeight:1 }}>⧉</button>
+                )}
                 {isAdminAccess && (
                     <button onClick={(ev)=>{ ev.stopPropagation(); if(confirm(`"${e.customer}" löschen?`)) deleteCalEntry(e.id); }}
                         style={{ background:'rgba(220,38,38,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#dc2626',lineHeight:1,fontWeight:900 }}>✕</button>
@@ -531,7 +711,7 @@ function BillingModal({ teams, onClose }) {
     const exportPDF = () => {
         const el = document.getElementById('billing-pdf-content');
         if (!el) return;
-        html2pdf().set({ margin:8, filename:`Fertigmontage_${currentTeam?.name||'Export'}_${new Date().toLocaleDateString('de-DE')}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'}, jsPDF:{unit:'mm',format:'a4',orientation:'landscape'} }).from(el).save();
+        html2pdf().set({ margin:8, filename:`Fertigmontage_${currentTeam?.name||'Export'}_${new Date().toLocaleDateString('de-DE')}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff'}, jsPDF:{unit:'mm',format:'a4',orientation:'landscape'} }).from(el).save();
     };
 
     const pdfEntries = currentTeamDone.filter(e=>selectedIds.size===0||selectedIds.has(e.id));
@@ -545,25 +725,25 @@ function BillingModal({ teams, onClose }) {
                         <div style={{ color:'#fff',fontSize:'9pt',fontWeight:'bold',textTransform:'uppercase',letterSpacing:2 }}>FERTIGMONTAGE ABRECHNUNG</div>
                         <div style={{ color:'#fff',fontSize:'9pt',fontWeight:'bold' }}>{currentTeam?.name||''}</div>
                     </div>
-                    <h1 style={{ fontSize:'18pt',fontWeight:900,margin:'0 0 2mm 0' }}>FERTIGMONTAGE — {currentTeam?.name}</h1>
-                    <div style={{ color:'#666',fontSize:'8pt',marginBottom:'5mm' }}>Erstellt: {today} · Aufträge: {pdfEntries.length}</div>
+                    <h1 style={{ fontSize:'18pt',fontWeight:900,margin:'0 0 2mm 0',color:'#000' }}>FERTIGMONTAGE — {currentTeam?.name}</h1>
+                    <div style={{ color:'#444',fontSize:'8pt',marginBottom:'5mm' }}>Erstellt: {today} · Aufträge: {pdfEntries.length}</div>
                     <table style={{ width:'100%',borderCollapse:'collapse',fontSize:'8.5pt' }}>
                         <thead><tr style={{ borderBottom:'1.5pt solid #000',background:'#f8fafc' }}>
-                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#475569',fontSize:'7pt',width:'8mm' }}>#</th>
-                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#475569',fontSize:'7pt',width:'22mm' }}>DATUM</th>
-                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#475569',fontSize:'7pt',width:'52mm' }}>KUNDE</th>
-                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#475569',fontSize:'7pt',width:'35mm' }}>AUFTRAGSNR.</th>
-                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#475569',fontSize:'7pt' }}>ADRESSE</th>
-                            <th style={{ textAlign:'right',padding:'2mm 3mm',fontWeight:900,color:'#475569',fontSize:'7pt',width:'22mm' }}>STATUS</th>
+                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'8mm' }}>#</th>
+                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'22mm' }}>DATUM</th>
+                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'52mm' }}>KUNDE</th>
+                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'35mm' }}>AUFTRAGSNR.</th>
+                            <th style={{ textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt' }}>ADRESSE</th>
+                            <th style={{ textAlign:'right',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'22mm' }}>STATUS</th>
                         </tr></thead>
                         <tbody>
                             {pdfEntries.map((e,i)=>(
                                 <tr key={e.id} style={{ borderBottom:'0.5pt solid #e2e8f0',background:i%2===0?'#f8fafc':'#fff' }}>
-                                    <td style={{ padding:'2.5mm 3mm',fontWeight:900,color:'#94a3b8',fontSize:'8pt' }}>{i+1}</td>
-                                    <td style={{ padding:'2.5mm 3mm',fontSize:'8pt' }}>{formatDate(e.deliveryDate)}</td>
-                                    <td style={{ padding:'2.5mm 3mm',fontWeight:700,fontSize:'9pt' }}>{e.customer}</td>
+                                    <td style={{ padding:'2.5mm 3mm',fontWeight:900,color:'#555',fontSize:'8pt' }}>{i+1}</td>
+                                    <td style={{ padding:'2.5mm 3mm',fontSize:'8pt',color:'#000' }}>{formatDate(e.deliveryDate)}</td>
+                                    <td style={{ padding:'2.5mm 3mm',fontWeight:700,fontSize:'9pt',color:'#000' }}>{e.customer}</td>
                                     <td style={{ padding:'2.5mm 3mm' }}><span style={{ background:'#eff6ff',border:'1pt solid #bfdbfe',borderRadius:'4pt',padding:'1mm 3mm',fontWeight:900,fontSize:'8pt',color:'#1d4ed8',fontFamily:'monospace' }}>{cleanAuftragsNr(e.auftragsNr)||'—'}</span></td>
-                                    <td style={{ padding:'2.5mm 3mm',color:'#6b7280',fontSize:'8pt' }}>{e.address}</td>
+                                    <td style={{ padding:'2.5mm 3mm',color:'#333',fontSize:'8pt' }}>{e.address}</td>
                                     <td style={{ padding:'2.5mm 3mm',textAlign:'right' }}><span style={{ background:'#f0fdf4',border:'1pt solid #86efac',borderRadius:'4pt',padding:'1mm 3mm',color:'#15803d',fontWeight:900,fontSize:'7pt',textTransform:'uppercase' }}>✓ FERTIG</span></td>
                                 </tr>
                             ))}
@@ -660,7 +840,9 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     const [standbyItems, setStandbyItems] = useState([]);
     const [standbySearch, setStandbySearch] = useState('');
     const [standbyDateModal, setStandbyDateModal] = useState(null);
-    const [activeCalType, setActiveCalType] = useState(initialCalType || (team.calType==='beplankung'?'beplankung':team.calType==='ausflocken'?'ausflocken':'montage'));
+
+    const teamCalTypes = parseCalTypes(team.calType);
+    const [activeCalType, setActiveCalType] = useState(initialCalType || teamCalTypes[0] || 'montage');
 
     const days = getCalWeekDays(calWeek);
 
@@ -703,7 +885,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     },[filteredEntries]);
 
     const deleteCalEntry = async (id) => { const {db,doc,deleteDoc}=window.FirebaseSDK; await deleteDoc(doc(db,`teams_cal_${team.id}`,id)); };
-
     const toggleDone = async (entry) => { const {db,doc,updateDoc}=window.FirebaseSDK; await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{isDone:!entry.isDone,doneAt:!entry.isDone?new Date().toISOString():null}); };
 
     const compressCalImage = (file) => new Promise(resolve => {
@@ -743,11 +924,18 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         } catch(err) { alert('Fehler: '+err.message); }
     };
 
+    // FIX 2: Week PDF — allowTaint:true + dark text colors baked into template
     const triggerWeekPDF = () => {
         setTimeout(() => {
             const el = document.getElementById('cal-week-pdf-content');
             if (!el) return;
-            html2pdf().set({ margin:5, filename:`Kalender_KW${getWeekNumber(calWeek)}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'}, jsPDF:{unit:'mm',format:'a3',orientation:'landscape'} }).from(el).save();
+            html2pdf().set({
+                margin:5,
+                filename:`Kalender_KW${getWeekNumber(calWeek)}_${team.name}.pdf`,
+                image:{type:'jpeg',quality:0.98},
+                html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false},
+                jsPDF:{unit:'mm',format:'a3',orientation:'landscape'}
+            }).from(el).save();
         },200);
     };
 
@@ -784,36 +972,45 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         return 'mid';
     };
 
-    const teamCalType = team.calType||'montage';
     const visibleTabs = isAdminAccess
         ? ['montage','beplankung','ausflocken']
-        : ['montage','beplankung','ausflocken'].filter(ct => ct===teamCalType||teamCalType==='both'||teamCalType==='all'||(ct==='montage'&&!team.calType));
+        : (['montage','beplankung','ausflocken'].filter(ct => teamCalTypes.includes(ct)));
+
+    const kw = getWeekNumber(calWeek);
 
     return (
-        <div style={{ minHeight:'100vh',background:'#f1f5f9',display:'flex',flexDirection:'column' }}>
+        <div style={{ minHeight:'100vh',background:'#0f172a',display:'flex',flexDirection:'column' }}>
+            {/* FIX 2: PDF content with DARK text colors — all text explicitly set to black/dark */}
             <div style={{ position:'absolute',left:'-9999px',top:0 }}>
-                <div id="cal-week-pdf-content" style={{ padding:'8mm',background:'#fff',fontFamily:'Arial,sans-serif',width:'420mm' }}>
+                <div id="cal-week-pdf-content" style={{ padding:'8mm',background:'#fff',fontFamily:'Arial,sans-serif',width:'420mm',color:'#000' }}>
                     <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5mm',borderBottom:'1.5pt solid #000',paddingBottom:'3mm' }}>
-                        <div><h1 style={{ fontSize:'16pt',fontWeight:900,margin:0,textTransform:'uppercase' }}>Wochenkalender — {team.name} ({currentCalConfig.label})</h1><div style={{ fontSize:'12pt',fontWeight:900,color:'#2563eb' }}>KW {getWeekNumber(calWeek)}</div></div>
-                        <p style={{ margin:0,fontSize:'9pt',color:'#666' }}>{formatDate(toLocalDateStr(days[0]))} – {formatDate(toLocalDateStr(days[5]))}</p>
+                        <div>
+                            <h1 style={{ fontSize:'16pt',fontWeight:900,margin:0,textTransform:'uppercase',color:'#000' }}>Wochenkalender — {team.name} ({currentCalConfig.label})</h1>
+                            <div style={{ fontSize:'12pt',fontWeight:900,color:'#2563eb' }}>KW {kw}</div>
+                        </div>
+                        <p style={{ margin:0,fontSize:'9pt',color:'#000',fontWeight:700 }}>{formatDate(toLocalDateStr(days[0]))} – {formatDate(toLocalDateStr(days[5]))}</p>
                     </div>
                     <div style={{ display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:'3mm' }}>
                         {days.map((day,di)=>{
                             const dayStr=toLocalDateStr(day), dayEnt=entriesForDay(dayStr);
                             return <div key={di}>
-                                <div style={{ background:'#f1f5f9',borderRadius:'4pt',padding:'3mm',marginBottom:'2mm',textAlign:'center' }}>
-                                    <div style={{ fontSize:'9pt',fontWeight:900,textTransform:'uppercase' }}>{DAY_NAMES[di]}</div>
-                                    <div style={{ fontSize:'7pt',color:'#64748b' }}>{formatDate(dayStr)}</div>
+                                {/* FIX 2: Day header with dark text */}
+                                <div style={{ background:'#e2e8f0',borderRadius:'4pt',padding:'3mm',marginBottom:'2mm',textAlign:'center',border:'1pt solid #94a3b8' }}>
+                                    <div style={{ fontSize:'9pt',fontWeight:900,textTransform:'uppercase',color:'#000' }}>{DAY_NAMES[di]}</div>
+                                    <div style={{ fontSize:'7pt',color:'#1e293b',fontWeight:700 }}>{formatDate(dayStr)}</div>
                                 </div>
                                 {dayEnt.map((e,ei)=>{
                                     const ci=colorIndex[e.id];
                                     const bg=e.isProv?PROV_BG:CARD_COLORS[ci>=0?ci:0];
                                     const bd=e.isProv?PROV_BORDER:CARD_BORDER[ci>=0?ci:0];
-                                    const tx=e.isProv?PROV_TEXT:CARD_TEXT[ci>=0?ci:0];
-                                    return <div key={ei} style={{ background:bg,borderLeft:`2pt solid ${bd}`,borderRadius:'4pt',padding:'2mm 3mm',marginBottom:'2mm' }}>
-                                        <div style={{ fontSize:'7pt',fontWeight:900,color:tx }}>{e.customer}{e.isProv?' ⚠ PROV':''}</div>
-                                        <div style={{ fontSize:'6pt',color:tx,opacity:0.8 }}>{e.address}</div>
-                                        {e.memo&&<div style={{ fontSize:'6pt',fontWeight:800,borderLeft:`1.5pt solid ${bd}`,paddingLeft:'2mm',marginTop:'1mm',color:tx }}>📝 {e.memo}</div>}
+                                    // Always use dark text in PDF for readability
+                                    const pdfText = e.isProv ? '#5a2d00' : CARD_TEXT[ci>=0?ci:0];
+                                    return <div key={ei} style={{ background:bg,borderLeft:`2pt solid ${bd}`,border:`1pt solid ${bd}66`,borderRadius:'4pt',padding:'2mm 3mm',marginBottom:'2mm' }}>
+                                        <div style={{ fontSize:'8pt',fontWeight:900,color:pdfText }}>{e.customer}{e.isProv?' ⚠ PROV':''}</div>
+                                        {e.auftragsNr&&<div style={{ fontSize:'6.5pt',color:'#333',fontFamily:'monospace',marginBottom:'0.5mm' }}>{cleanAuftragsNr(e.auftragsNr)}</div>}
+                                        <div style={{ fontSize:'7pt',color:'#222' }}>{e.address}</div>
+                                        {e.memo&&<div style={{ fontSize:'7pt',fontWeight:800,borderLeft:`1.5pt solid ${bd}`,paddingLeft:'2mm',marginTop:'1mm',color:pdfText }}>📝 {e.memo}</div>}
+                                        {e.target>0&&<div style={{ fontSize:'7pt',fontWeight:900,color:pdfText,marginTop:'1mm' }}>{e.target} ELE</div>}
                                     </div>;
                                 })}
                             </div>;
@@ -822,14 +1019,18 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             </div>
 
+            {/* HEADER */}
             <div style={{ background:'#1e293b',padding:'10px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:40,borderBottom:'2px solid #334155',flexShrink:0 }}>
                 <div style={{ display:'flex',alignItems:'center',gap:10,flex:'0 0 auto' }}>
                     <button onClick={onBack} style={{ background:'#334155',border:'none',borderRadius:10,width:34,height:34,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}>
                         <Icon name="arrow-left" size={16} className="text-blue-400"/>
                     </button>
                     <div>
-                        <div style={{ color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1 }}>{isAdminAccess?'ADMIN':'TEAM'} • KW {getWeekNumber(calWeek)}</div>
-                        <div style={{ color:'#fff',fontSize:13,fontWeight:900,fontStyle:'italic' }}>{team.name}</div>
+                        <div style={{ color:'#94a3b8',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:2 }}>{isAdminAccess?'ADMIN':'TEAM'}</div>
+                        <div style={{ display:'flex',alignItems:'baseline',gap:6 }}>
+                            <span style={{ color:'#60a5fa',fontSize:26,fontWeight:900,lineHeight:1,letterSpacing:-1 }}>KW {kw}</span>
+                        </div>
+                        <div style={{ color:'#fff',fontSize:12,fontWeight:900,fontStyle:'italic',marginTop:1 }}>{team.name}</div>
                     </div>
                     <span className="live-badge"><span className="live-dot"></span>LIVE</span>
                 </div>
@@ -847,27 +1048,29 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                     <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()-7);setCalWeek(d);}} style={{ background:'#334155',border:'none',borderRadius:8,width:30,height:30,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}><Icon name="chevron-left" size={14} className="text-blue-400"/></button>
                     <button onClick={()=>setCalWeek(new Date())} style={{ background:'#334155',border:'none',borderRadius:8,padding:'4px 10px',color:'#cbd5e1',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer' }}>Heute</button>
                     <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()+7);setCalWeek(d);}} style={{ background:'#334155',border:'none',borderRadius:8,width:30,height:30,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}><Icon name="chevron-right" size={14} className="text-blue-400"/></button>
+
+                    <button onClick={triggerWeekPDF} style={{ background:'#475569',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4 }}><Icon name="download" size={12}/>A3 PDF</button>
+
                     {isAdminAccess && <>
                         <button onClick={()=>setEditCalEntry({...emptyEntry})} style={{ background:'#10b981',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4 }}><Icon name="plus" size={12}/>Neu</button>
                         <button onClick={()=>setShowStandbyPicker({dayStr:toLocalDateStr(days[0])})} style={{ background:'#f59e0b',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4 }}><Icon name="archive" size={12}/>Standby</button>
                         <button onClick={()=>setShowCalImport(true)} style={{ background:'#3b82f6',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4 }}><Icon name="upload" size={12}/>Import</button>
-                        <button onClick={triggerWeekPDF} style={{ background:'#475569',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4 }}><Icon name="download" size={12}/>A3 PDF</button>
                     </>}
                 </div>
             </div>
 
             <div style={{ background:currentCalConfig.bg,padding:'5px 16px',textAlign:'center',fontSize:9,fontWeight:900,color:'#fff',textTransform:'uppercase',letterSpacing:2 }}>
-                {currentCalConfig.banner} — KW {getWeekNumber(calWeek)} — {formatDate(toLocalDateStr(days[0]))} bis {formatDate(toLocalDateStr(days[5]))}
+                {currentCalConfig.banner} — KW {kw} — {formatDate(toLocalDateStr(days[0]))} bis {formatDate(toLocalDateStr(days[5]))}
             </div>
 
-            {copyEntry && (
+            {copyEntry && isAdminAccess && (
                 <div style={{ background:'#f59e0b',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:10,fontWeight:900,color:'#fff' }}>
                     <span>📋 KOPIEREN: „{copyEntry.customer}" — Tag-Spalte anklicken</span>
                     <button onClick={()=>setCopyEntry(null)} style={{ background:'rgba(0,0,0,0.2)',border:'none',borderRadius:6,padding:'3px 10px',color:'#fff',cursor:'pointer',fontSize:9,fontWeight:900 }}>Abbrechen</button>
                 </div>
             )}
 
-            <div style={{ flex:1,overflowX:'auto',overflowY:'auto' }}>
+            <div style={{ flex:1,overflowX:'auto',overflowY:'auto',background:'#f1f5f9' }}>
                 <div style={{ minWidth:760 }}>
                     <div style={{ display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'2px solid #000',background:'#1e293b' }}>
                         {DAY_NAMES.map((name,di)=>(
@@ -952,7 +1155,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         <input style={{ width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box' }}
                             placeholder="Adresse" value={editCalEntry.address} onChange={e=>setEditCalEntry({...editCalEntry,address:e.target.value})}/>
                         <div>
-                            <div style={{ color:'#f59e0b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4 }}>📝 MEMO (erscheint gross im Kalender)</div>
+                            <div style={{ color:'#f59e0b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4 }}>📝 MEMO</div>
                             <input style={{ width:'100%',padding:'10px 12px',borderRadius:10,background:'#0f172a',border:'2px solid #f59e0b55',color:'#fde68a',fontSize:12,fontWeight:800,boxSizing:'border-box' }}
                                 placeholder="Wichtige Hausinfo..." value={editCalEntry.memo} onChange={e=>setEditCalEntry({...editCalEntry,memo:e.target.value})}/>
                         </div>
@@ -961,7 +1164,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         <input type="number" style={{ width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box' }}
                             placeholder="ELE" value={editCalEntry.target||''} onChange={e=>setEditCalEntry({...editCalEntry,target:e.target.value})}/>
                         <div>
-                            <div style={{ color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4 }}>START-Badge Text (leer = „START")</div>
+                            <div style={{ color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4 }}>START-Badge Text</div>
                             <input style={{ width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:11,boxSizing:'border-box' }}
                                 placeholder="START" value={editCalEntry.customStartLabel||''} onChange={e=>setEditCalEntry({...editCalEntry,customStartLabel:e.target.value.toUpperCase()})}
                                 maxLength={12}/>
@@ -981,14 +1184,14 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         </div>
                         {editCalEntry.endDate && editCalEntry.endDate>editCalEntry.deliveryDate && (
                             <div style={{ background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:8,padding:'8px 12px',fontSize:9,color:'#f59e0b',fontWeight:700 }}>
-                                📅 {daysBetween(editCalEntry.deliveryDate,editCalEntry.endDate)} Tage · Badge: {editCalEntry.isProv?'PROV.':(editCalEntry.customStartLabel||'START')}
+                                📅 {daysBetween(editCalEntry.deliveryDate,editCalEntry.endDate)} Tage
                             </div>
                         )}
                         <div>
                             <input type="file" accept="image/*" className="hidden" id="cal-img-upload-modal"
                                 onChange={async(ev)=>{ if(!ev.target.files[0]) return; const b64=await compressCalImage(ev.target.files[0]); setEditCalEntry(p=>({...p,image:b64})); ev.target.value=''; }}/>
                             <label htmlFor="cal-img-upload-modal" style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'10px',border:'1px dashed rgba(255,255,255,0.2)',borderRadius:10,color:'#94a3b8',cursor:'pointer',fontSize:9,fontWeight:700,textTransform:'uppercase' }}>
-                                <Icon name="camera" size={14}/>{editCalEntry.image?'Foto ersetzen':'Foto anhängen (→ PDF-Download für Monteur)'}
+                                <Icon name="camera" size={14}/>{editCalEntry.image?'Foto ersetzen':'Foto anhängen'}
                             </label>
                             {editCalEntry.image && (
                                 <div style={{ position:'relative',marginTop:6 }}>
@@ -1182,41 +1385,45 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [deleteCodeInput, setDeleteCodeInput] = useState('');
     const [editTeam, setEditTeam] = useState(null);
-    const [newTeam, setNewTeam] = useState({ name:'',pin:'',color:'#3b82f6',calType:'montage' });
+    const [newTeam, setNewTeam] = useState({ name:'',pin:'',color:'#3b82f6',calTypes:['montage'] });
     const [showBilling, setShowBilling] = useState(false);
+
+    const toggleCalType = (types, ct) => {
+        if (types.includes(ct)) {
+            const next = types.filter(t=>t!==ct);
+            return next.length === 0 ? [ct] : next;
+        }
+        return [...types, ct];
+    };
+
+    const serializeCalTypes = (types) => {
+        if (!types || types.length === 0) return 'montage';
+        if (types.length === 3) return 'all';
+        if (types.length === 1) return types[0];
+        return JSON.stringify(types);
+    };
 
     const handleAddTeam = async () => {
         if (!newTeam.name.trim()) { alert('Bitte Team-Name eingeben!'); return; }
         if (!newTeam.pin.trim() || newTeam.pin.length !== 4) { alert('Bitte 4-stelligen PIN eingeben!'); return; }
         if (!/^\d{4}$/.test(newTeam.pin)) { alert('PIN muss aus 4 Ziffern bestehen!'); return; }
-
         setIsSaving(true);
         try {
             const { db, doc, setDoc } = window.FirebaseSDK;
             const id = genTeamId(newTeam.name);
-            const teamData = {
-                id,
-                name: newTeam.name.trim(),
-                pin: newTeam.pin.trim(),
-                color: newTeam.color || '#3b82f6',
-                calType: newTeam.calType || 'montage',
-                createdAt: new Date().toISOString(),
-            };
-            await setDoc(doc(db, 'teams_config', id), teamData);
+            const calType = serializeCalTypes(newTeam.calTypes);
+            const teamData = { id, name:newTeam.name.trim(), pin:newTeam.pin.trim(), color:newTeam.color||'#3b82f6', calType, createdAt:new Date().toISOString() };
+            await setDoc(doc(db,'teams_config',id), teamData);
             setIsAdding(false);
-            setNewTeam({ name:'', pin:'', color:'#3b82f6', calType:'montage' });
-        } catch(err) {
-            console.error('Fehler beim Erstellen:', err);
-            alert('Fehler beim Erstellen: ' + err.message);
-        } finally {
-            setIsSaving(false);
-        }
+            setNewTeam({ name:'',pin:'',color:'#3b82f6',calTypes:['montage'] });
+        } catch(err) { alert('Fehler: '+err.message); } finally { setIsSaving(false); }
     };
 
     const handleSaveEditTeam = async () => {
         if (!editTeam) return;
         const {db,doc,updateDoc}=window.FirebaseSDK;
-        await updateDoc(doc(db,'teams_config',editTeam.id),{name:editTeam.name,pin:editTeam.pin,color:editTeam.color,calType:editTeam.calType||'montage'});
+        const calType = serializeCalTypes(editTeam.calTypes || parseCalTypes(editTeam.calType));
+        await updateDoc(doc(db,'teams_config',editTeam.id),{name:editTeam.name,pin:editTeam.pin,color:editTeam.color,calType});
         setEditTeam(null);
     };
 
@@ -1227,8 +1434,16 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
         setDeleteConfirm(null); setDeleteCodeInput('');
     };
 
-    const calTypeBadge = (ct) => ({ both:{bg:'#f3e8ff',color:'#7c3aed',border:'1px solid #d8b4fe'}, beplankung:{bg:'#d1fae5',color:'#059669',border:'1px solid #6ee7b7'}, ausflocken:{bg:'#fef3c7',color:'#b45309',border:'1px solid #fcd34d'}, montage:{bg:'#dbeafe',color:'#2563eb',border:'1px solid #93c5fd'} }[ct||'montage']||{bg:'#dbeafe',color:'#2563eb',border:'1px solid #93c5fd'});
-    const calTypeLabel = (ct) => ({both:'⚡ Alle',beplankung:'🏗 Beplankung',ausflocken:'❄️ Ausflocken',montage:'🔧 Montage'}[ct||'montage']||'🔧 Montage');
+    const CAL_TYPE_OPTIONS = [
+        { key:'montage',    label:'🔧 Montage',    color:'#2563eb', bg:'#dbeafe', border:'#93c5fd' },
+        { key:'beplankung', label:'🏗 Beplankung', color:'#059669', bg:'#d1fae5', border:'#6ee7b7' },
+        { key:'ausflocken', label:'❄️ Ausflocken', color:'#b45309', bg:'#fef3c7', border:'#fcd34d' },
+    ];
+
+    const getTypeBadges = (calType) => {
+        const types = parseCalTypes(calType);
+        return types.map(t => CAL_TYPE_OPTIONS.find(o=>o.key===t)).filter(Boolean);
+    };
 
     return (
         <div className="admin-mesh" style={{ minHeight:'100vh',display:'flex',flexDirection:'column' }}>
@@ -1252,7 +1467,7 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
 
             <div style={{ flex:1,padding:'32px 32px 48px',maxWidth:1400,width:'100%',margin:'0 auto',boxSizing:'border-box' }}>
                 <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:32 }}>
-                    {[{label:'Gruppen',value:teams.length,color:'#3b82f6',bg:'#eff6ff',icon:'users'},{label:'Montage',value:teams.filter(t=>!t.calType||t.calType==='montage'||t.calType==='both').length,color:'#2563eb',bg:'#dbeafe',icon:'wrench'},{label:'Beplankung',value:teams.filter(t=>t.calType==='beplankung'||t.calType==='both').length,color:'#059669',bg:'#d1fae5',icon:'building-2'},{label:'Ausflocken',value:teams.filter(t=>t.calType==='ausflocken'||t.calType==='both').length,color:'#b45309',bg:'#fef3c7',icon:'snowflake'}].map(s=>(
+                    {[{label:'Gruppen',value:teams.length,color:'#3b82f6',bg:'#eff6ff',icon:'users'},{label:'Mit Montage',value:teams.filter(t=>parseCalTypes(t.calType).includes('montage')).length,color:'#2563eb',bg:'#dbeafe',icon:'wrench'},{label:'Mit Beplankung',value:teams.filter(t=>parseCalTypes(t.calType).includes('beplankung')).length,color:'#059669',bg:'#d1fae5',icon:'building-2'},{label:'Mit Ausflocken',value:teams.filter(t=>parseCalTypes(t.calType).includes('ausflocken')).length,color:'#b45309',bg:'#fef3c7',icon:'snowflake'}].map(s=>(
                         <div key={s.label} className="admin-stat-card" style={{ padding:'20px 24px',display:'flex',alignItems:'center',gap:16 }}>
                             <div style={{ width:48,height:48,background:s.bg,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center' }}><Icon name={s.icon} size={22} style={{ color:s.color }}/></div>
                             <div><div style={{ color:'#1e293b',fontSize:28,fontWeight:900,lineHeight:1 }}>{s.value}</div><div style={{ color:'#64748b',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:1,marginTop:2 }}>{s.label}</div></div>
@@ -1267,28 +1482,33 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
 
                 <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:20 }}>
                     {teams.map(t=>{
-                        const bs=calTypeBadge(t.calType); const ct=t.calType||'montage';
+                        const types = parseCalTypes(t.calType);
+                        const badges = getTypeBadges(t.calType);
                         return (
                             <div key={t.id} className="admin-card" style={{ padding:'24px' }}>
                                 <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16 }}>
                                     <div style={{ width:50,height:50,borderRadius:16,background:t.color+'22',border:`2px solid ${t.color}44`,display:'flex',alignItems:'center',justifyContent:'center' }}><Icon name="users" size={22} style={{ color:t.color }}/></div>
                                     <div style={{ display:'flex',gap:6 }}>
-                                        <button onClick={()=>setEditTeam({...t})} style={{ background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#64748b',display:'flex',alignItems:'center',justifyContent:'center' }} onMouseEnter={e=>{e.currentTarget.style.background='#dbeafe';e.currentTarget.style.color='#2563eb';}} onMouseLeave={e=>{e.currentTarget.style.background='#f1f5f9';e.currentTarget.style.color='#64748b';}}><Icon name="pencil" size={14}/></button>
+                                        <button onClick={()=>setEditTeam({...t,calTypes:parseCalTypes(t.calType)})} style={{ background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#64748b',display:'flex',alignItems:'center',justifyContent:'center' }} onMouseEnter={e=>{e.currentTarget.style.background='#dbeafe';e.currentTarget.style.color='#2563eb';}} onMouseLeave={e=>{e.currentTarget.style.background='#f1f5f9';e.currentTarget.style.color='#64748b';}}><Icon name="pencil" size={14}/></button>
                                         <button onClick={()=>setDeleteConfirm(t)} style={{ background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#64748b',display:'flex',alignItems:'center',justifyContent:'center' }} onMouseEnter={e=>{e.currentTarget.style.background='#fee2e2';e.currentTarget.style.color='#ef4444';}} onMouseLeave={e=>{e.currentTarget.style.background='#f1f5f9';e.currentTarget.style.color='#64748b';}}><Icon name="trash-2" size={14}/></button>
                                     </div>
                                 </div>
-                                <div style={{ marginBottom:8 }}>
+                                <div style={{ marginBottom:10 }}>
                                     <div style={{ color:'#1e293b',fontSize:18,fontWeight:900,letterSpacing:-0.3 }}>{t.name}</div>
                                     <div style={{ color:'#94a3b8',fontSize:11,fontWeight:600,marginTop:2 }}>PIN: {t.pin}</div>
                                 </div>
-                                <div style={{ display:'inline-flex',alignItems:'center',gap:6,background:bs.bg,border:bs.border,borderRadius:8,padding:'4px 10px',marginBottom:14 }}>
-                                    <div style={{ width:6,height:6,borderRadius:'50%',background:bs.color }}></div>
-                                    <span style={{ fontSize:9,fontWeight:800,color:bs.color,textTransform:'uppercase',letterSpacing:1 }}>{calTypeLabel(ct)}</span>
+                                <div style={{ display:'flex',gap:6,flexWrap:'wrap',marginBottom:14 }}>
+                                    {badges.map(b=>(
+                                        <div key={b.key} style={{ display:'inline-flex',alignItems:'center',gap:4,background:b.bg,border:`1px solid ${b.border}`,borderRadius:8,padding:'3px 9px' }}>
+                                            <div style={{ width:6,height:6,borderRadius:'50%',background:b.color }}></div>
+                                            <span style={{ fontSize:9,fontWeight:800,color:b.color,textTransform:'uppercase',letterSpacing:1 }}>{b.label}</span>
+                                        </div>
+                                    ))}
                                 </div>
                                 <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
-                                    {(ct==='montage'||ct==='both'||ct==='all'||!t.calType)&&<button onClick={()=>onSelectTeam(t,'montage')} style={{ flex:1,minWidth:80,background:'linear-gradient(135deg,#dbeafe,#eff6ff)',border:'1px solid #93c5fd',borderRadius:10,padding:'8px',color:'#1d4ed8',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer' }}>🔧 Montage ↗</button>}
-                                    {(ct==='beplankung'||ct==='both'||ct==='all')&&<button onClick={()=>onSelectTeam(t,'beplankung')} style={{ flex:1,minWidth:80,background:'linear-gradient(135deg,#d1fae5,#ecfdf5)',border:'1px solid #6ee7b7',borderRadius:10,padding:'8px',color:'#065f46',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer' }}>🏗 Beplankung ↗</button>}
-                                    {(ct==='ausflocken'||ct==='both'||ct==='all')&&<button onClick={()=>onSelectTeam(t,'ausflocken')} style={{ flex:1,minWidth:80,background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fcd34d',borderRadius:10,padding:'8px',color:'#92400e',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer' }}>❄️ Ausflocken ↗</button>}
+                                    {types.includes('montage')&&<button onClick={()=>onSelectTeam(t,'montage')} style={{ flex:1,minWidth:80,background:'linear-gradient(135deg,#dbeafe,#eff6ff)',border:'1px solid #93c5fd',borderRadius:10,padding:'8px',color:'#1d4ed8',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer' }}>🔧 Montage ↗</button>}
+                                    {types.includes('beplankung')&&<button onClick={()=>onSelectTeam(t,'beplankung')} style={{ flex:1,minWidth:80,background:'linear-gradient(135deg,#d1fae5,#ecfdf5)',border:'1px solid #6ee7b7',borderRadius:10,padding:'8px',color:'#065f46',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer' }}>🏗 Beplankung ↗</button>}
+                                    {types.includes('ausflocken')&&<button onClick={()=>onSelectTeam(t,'ausflocken')} style={{ flex:1,minWidth:80,background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fcd34d',borderRadius:10,padding:'8px',color:'#92400e',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer' }}>❄️ Ausflocken ↗</button>}
                                 </div>
                             </div>
                         );
@@ -1304,18 +1524,32 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
 
             {editTeam && (
                 <div style={{ position:'fixed',inset:0,zIndex:50,background:'rgba(15,23,42,0.6)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16 }}>
-                    <div style={{ background:'#fff',borderRadius:24,padding:32,width:'100%',maxWidth:400,boxShadow:'0 40px 80px rgba(0,0,0,0.2)' }}>
+                    <div style={{ background:'#fff',borderRadius:24,padding:32,width:'100%',maxWidth:420,boxShadow:'0 40px 80px rgba(0,0,0,0.2)' }}>
                         <h3 style={{ color:'#1e293b',fontSize:16,fontWeight:900,margin:'0 0 24px 0' }}>Gruppe bearbeiten</h3>
                         <div style={{ display:'flex',flexDirection:'column',gap:14 }}>
                             {[['name','Gruppen Name'],['pin','PIN (4 Ziffern)']].map(([field,label])=>(
                                 <div key={field}><div style={{ color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:6 }}>{label}</div><input maxLength={field==='pin'?4:undefined} value={editTeam[field]} onChange={e=>setEditTeam({...editTeam,[field]:e.target.value})} style={{ width:'100%',background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:12,padding:'12px',color:'#1e293b',fontSize:13,boxSizing:'border-box',outline:'none' }}/></div>
                             ))}
                             <div><div style={{ color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:6 }}>Farbe</div><input type="color" value={editTeam.color} onChange={e=>setEditTeam({...editTeam,color:e.target.value})} style={{ width:'100%',height:48,background:'transparent',border:'none',cursor:'pointer',borderRadius:8 }}/></div>
-                            <div><div style={{ color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:8 }}>Kalender-Typ</div>
-                                <div style={{ display:'flex',gap:6,flexWrap:'wrap' }}>
-                                    {[['montage','🔧 Montage','#2563eb'],['beplankung','🏗 Beplankg.','#059669'],['ausflocken','❄️ Ausflock.','#b45309'],['both','⚡ Alle','#7c3aed']].map(([ct,label,color])=>(
-                                        <button key={ct} onClick={()=>setEditTeam({...editTeam,calType:ct})} style={{ flex:1,minWidth:60,padding:'10px 4px',borderRadius:10,border:editTeam.calType===ct?'none':'1.5px solid #e2e8f0',fontSize:8,fontWeight:800,textTransform:'uppercase',cursor:'pointer',background:editTeam.calType===ct?color:'#f8fafc',color:editTeam.calType===ct?'#fff':'#94a3b8' }}>{label}</button>
-                                    ))}
+                            <div>
+                                <div style={{ color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:8 }}>Kalender-Typen (Mehrfachauswahl)</div>
+                                <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
+                                    {CAL_TYPE_OPTIONS.map(opt=>{
+                                        const currentTypes = editTeam.calTypes || parseCalTypes(editTeam.calType);
+                                        const active = currentTypes.includes(opt.key);
+                                        return (
+                                            <button key={opt.key} onClick={()=>{
+                                                const ct = editTeam.calTypes || parseCalTypes(editTeam.calType);
+                                                setEditTeam({...editTeam, calTypes: toggleCalType(ct, opt.key)});
+                                            }} style={{ flex:1,minWidth:90,padding:'10px 6px',borderRadius:12,border:active?'none':`2px solid ${opt.border}`,fontSize:10,fontWeight:800,textTransform:'uppercase',cursor:'pointer',background:active?opt.color:'#f8fafc',color:active?'#fff':opt.color,transition:'all 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:3 }}>
+                                                {opt.label}
+                                                {active && <span style={{ fontSize:7,background:'rgba(255,255,255,0.3)',borderRadius:4,padding:'1px 5px' }}>✓ Aktiv</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div style={{ marginTop:8,padding:'6px 10px',background:'#f8fafc',borderRadius:8,fontSize:9,color:'#64748b' }}>
+                                    Aktiv: {(editTeam.calTypes || parseCalTypes(editTeam.calType)).map(t=>CAL_TYPE_OPTIONS.find(o=>o.key===t)?.label).filter(Boolean).join(' + ')}
                                 </div>
                             </div>
                         </div>
@@ -1343,7 +1577,7 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
 
             {isAdding && (
                 <div style={{ position:'fixed',inset:0,zIndex:50,background:'rgba(15,23,42,0.6)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16 }}>
-                    <div style={{ background:'#fff',borderRadius:24,padding:32,width:'100%',maxWidth:400,boxShadow:'0 40px 80px rgba(0,0,0,0.2)' }}>
+                    <div style={{ background:'#fff',borderRadius:24,padding:32,width:'100%',maxWidth:420,boxShadow:'0 40px 80px rgba(0,0,0,0.2)' }}>
                         <h3 style={{ color:'#1e293b',fontSize:16,fontWeight:900,margin:'0 0 24px 0' }}>Neue Gruppe erstellen</h3>
                         <div style={{ display:'flex',flexDirection:'column',gap:14 }}>
                             <div>
@@ -1362,19 +1596,27 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
                                 <input type="color" value={newTeam.color} onChange={e=>setNewTeam({...newTeam,color:e.target.value})} style={{ width:'100%',height:48,background:'transparent',border:'none',cursor:'pointer' }}/>
                             </div>
                             <div>
-                                <div style={{ color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:8 }}>Kalender-Typ</div>
-                                <div style={{ display:'flex',gap:6,flexWrap:'wrap' }}>
-                                    {[['montage','🔧 Montage','#2563eb'],['beplankung','🏗 Beplankg.','#059669'],['ausflocken','❄️ Ausflock.','#b45309'],['both','⚡ Alle','#7c3aed']].map(([ct,label,color])=>(
-                                        <button key={ct} onClick={()=>setNewTeam({...newTeam,calType:ct})} style={{ flex:1,minWidth:60,padding:'10px 4px',borderRadius:10,border:newTeam.calType===ct?'none':'1.5px solid #e2e8f0',fontSize:8,fontWeight:800,textTransform:'uppercase',cursor:'pointer',background:newTeam.calType===ct?color:'#f8fafc',color:newTeam.calType===ct?'#fff':'#94a3b8' }}>{label}</button>
-                                    ))}
+                                <div style={{ color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:8 }}>Kalender-Typen (Mehrfachauswahl)</div>
+                                <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
+                                    {CAL_TYPE_OPTIONS.map(opt=>{
+                                        const active = newTeam.calTypes.includes(opt.key);
+                                        return (
+                                            <button key={opt.key} onClick={()=>setNewTeam({...newTeam,calTypes:toggleCalType(newTeam.calTypes,opt.key)})}
+                                                style={{ flex:1,minWidth:90,padding:'10px 6px',borderRadius:12,border:active?'none':`2px solid ${opt.border}`,fontSize:10,fontWeight:800,textTransform:'uppercase',cursor:'pointer',background:active?opt.color:'#f8fafc',color:active?'#fff':opt.color,transition:'all 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:3 }}>
+                                                {opt.label}
+                                                {active && <span style={{ fontSize:7,background:'rgba(255,255,255,0.3)',borderRadius:4,padding:'1px 5px' }}>✓ Aktiv</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div style={{ marginTop:8,padding:'6px 10px',background:'#f8fafc',borderRadius:8,fontSize:9,color:'#64748b' }}>
+                                    Ausgewählt: {newTeam.calTypes.map(t=>CAL_TYPE_OPTIONS.find(o=>o.key===t)?.label).filter(Boolean).join(' + ')}
                                 </div>
                             </div>
                         </div>
                         <div style={{ display:'flex',gap:12,marginTop:24 }}>
-                            <button onClick={()=>{ setIsAdding(false); setNewTeam({name:'',pin:'',color:'#3b82f6',calType:'montage'}); }} disabled={isSaving}
-                                style={{ flex:1,padding:'13px',background:'#f1f5f9',border:'none',borderRadius:12,color:'#64748b',fontWeight:800,fontSize:11,cursor:'pointer' }}>
-                                Abbrechen
-                            </button>
+                            <button onClick={()=>{ setIsAdding(false); setNewTeam({name:'',pin:'',color:'#3b82f6',calTypes:['montage']}); }} disabled={isSaving}
+                                style={{ flex:1,padding:'13px',background:'#f1f5f9',border:'none',borderRadius:12,color:'#64748b',fontWeight:800,fontSize:11,cursor:'pointer' }}>Abbrechen</button>
                             <button onClick={handleAddTeam} disabled={isSaving || !newTeam.name.trim() || newTeam.pin.length !== 4}
                                 style={{ flex:1,padding:'13px',background: isSaving || !newTeam.name.trim() || newTeam.pin.length!==4 ? '#94a3b8' : 'linear-gradient(135deg,#3b82f6,#6366f1)',border:'none',borderRadius:12,color:'#fff',fontWeight:800,fontSize:11,cursor: isSaving || !newTeam.name.trim() || newTeam.pin.length!==4 ? 'not-allowed' : 'pointer',transition:'all 0.2s' }}>
                                 {isSaving ? '⏳ Speichern...' : 'Erstellen'}
@@ -1408,9 +1650,9 @@ function App() {
     },[]);
 
     if (!ready) return (
-        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
-            <div className="text-indigo-500 font-black animate-pulse uppercase tracking-[1em] text-sm">LADE SYSTEM...</div>
-            <div className="text-slate-600 text-xs">{window.FirebaseReady?'🔥 Verbinde mit Firestore (pe-kalender-alle-gruppen)...':'Lokaler Modus...'}</div>
+        <div style={{ minHeight:'100vh',background:'#030712',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16 }}>
+            <div style={{ color:'#6366f1',fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',fontSize:13,animation:'pulse 2s infinite' }}>LADE SYSTEM...</div>
+            <div style={{ color:'#334155',fontSize:11 }}>{window.FirebaseReady?'🔥 Verbinde mit Firestore...':'Lokaler Modus...'}</div>
         </div>
     );
 
@@ -1422,8 +1664,10 @@ function App() {
         return <AdminPanel teams={teams} onLogout={()=>setAuthState(null)} onSelectTeam={(team,calType)=>setAuthState({...authState,adminViewingTeam:team,adminCalType:calType})} onOpenStandby={()=>setAuthState({...authState,showStandby:true})}/>;
     }
 
-    const team=authState.team, ct=team.calType||'montage';
-    return <CalendarView team={team} isAdminAccess={false} activeCalType={authState.activeCalType||(ct==='beplankung'?'beplankung':ct==='ausflocken'?'ausflocken':'montage')} onBack={()=>setAuthState(null)}/>;
+    const team=authState.team;
+    const teamTypes = parseCalTypes(team.calType);
+    const defaultType = authState.activeCalType || teamTypes[0] || 'montage';
+    return <CalendarView team={team} isAdminAccess={false} activeCalType={defaultType} onBack={()=>setAuthState(null)}/>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);

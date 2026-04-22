@@ -823,8 +823,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         return unsub;
     },[]);
 
-    // ── SORTED filtered entries: always by deliveryDate ASC, then createdAt ASC ──
-    // This ensures consistent ordering across all days of a multi-day entry.
     const filteredEntries = useMemo(() => {
         return calEntries
             .filter(e => (e.calType || 'montage') === activeCalType)
@@ -833,7 +831,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 const dateB = b.deliveryDate || '';
                 if (dateA < dateB) return -1;
                 if (dateA > dateB) return 1;
-                // Same start date: sort by createdAt
                 const ca = a.createdAt || '';
                 const cb = b.createdAt || '';
                 if (ca < cb) return -1;
@@ -842,9 +839,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             });
     }, [calEntries, activeCalType]);
 
-    // ── entriesForDay: returns entries sorted by their START date (deliveryDate) ──
-    // Multi-day entries always appear in the same position relative to each other
-    // regardless of which day column is being rendered.
     const entriesForDay = useCallback((dayStr) => {
         return filteredEntries.filter(e => {
             if (e.isMultiDay && e.endDate) {
@@ -852,12 +846,8 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             }
             return e.deliveryDate && e.deliveryDate.substring(0,10) === dayStr;
         });
-        // No additional sort needed — filteredEntries is already sorted by deliveryDate ASC
     }, [filteredEntries]);
 
-    // ── colorIndex: assigned once per unique entry ID, based on sorted order ──
-    // Because filteredEntries is sorted consistently, the same entry always
-    // gets the same color index regardless of which day column renders it.
     const colorIndex = useMemo(() => {
         const map = {};
         let ci = 0;
@@ -898,20 +888,33 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         } catch(err) { alert('Fehler: '+err.message); }
     };
 
+    // ✅ FIXED: saveNewCalEntry — kein undefined-Feld mehr (isNew wird nicht mitgespeichert)
     const saveNewCalEntry = async (entry) => {
         try {
             const { db, doc, setDoc } = window.FirebaseSDK;
             const id = `cal-${genId()}`;
-            const isMultiDay = !!(entry.endDate&&entry.endDate>entry.deliveryDate);
-            await setDoc(doc(db,`teams_cal_${team.id}`,id),{
-                ...entry, id, createdAt:new Date().toISOString(), isDone:false, isBilled:false,
-                entryType:entry.entryType||'LIEFERUNG', calType:entry.calType||activeCalType,
-                target:parseInt(entry.target)||0, image:entry.image||null,
-                isMultiDay, endDate:entry.endDate||null, isNew:undefined,
-                isProv:!!entry.isProv, customStartLabel:entry.customStartLabel||'',
+            const isMultiDay = !!(entry.endDate && entry.endDate > entry.deliveryDate);
+            await setDoc(doc(db, `teams_cal_${team.id}`, id), {
+                id,
+                createdAt: new Date().toISOString(),
+                isDone: false,
+                isBilled: false,
+                entryType: entry.entryType || 'LIEFERUNG',
+                customer: entry.customer || '',
+                address: entry.address || '',
+                memo: entry.memo || '',
+                auftragsNr: entry.auftragsNr || '',
+                target: parseInt(entry.target) || 0,
+                image: entry.image || null,
+                deliveryDate: entry.deliveryDate || '',
+                endDate: entry.endDate || null,
+                isMultiDay: isMultiDay,
+                calType: entry.calType || activeCalType,
+                isProv: !!entry.isProv,
+                customStartLabel: entry.customStartLabel || '',
             });
             setEditCalEntry(null);
-        } catch(err) { alert('Fehler: '+err.message); }
+        } catch(err) { alert('Fehler: ' + err.message); }
     };
 
     const triggerWeekPDF = () => {

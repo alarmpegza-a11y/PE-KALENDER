@@ -10,17 +10,14 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- jsPDF standalone — for direct base64-safe PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-    <!-- Firebase SDK v9 compat -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <script>
-      // ── FIREBASE CONFIG (LIVE) ──
       const firebaseConfig = {
         apiKey: "AIzaSyDStnUEu9A7reQUXBhVz5CrXxkmY4n2nOk",
         authDomain: "pe-kalender-alle-gruppen.firebaseapp.com",
@@ -85,7 +82,6 @@
 
     <style>
         :root { --primary:#3b82f6; --bg-main:#0f172a; }
-        /* FIX: ensure body is always dark, not white */
         body { overscroll-behavior-y:contain; font-family:'DM Sans','Inter',sans-serif; background-color:#0f172a !important; color:#f8fafc; -webkit-font-smoothing:antialiased; }
         #root { background-color:#0f172a; min-height:100vh; }
         * { -webkit-tap-highlight-color:transparent; }
@@ -134,7 +130,6 @@
         .live-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:2px 8px; font-size:8px; font-weight:900; color:#10b981; text-transform:uppercase; letter-spacing:1px; }
         .live-dot { width:5px; height:5px; border-radius:50%; background:#10b981; animation:gd 1.5s infinite; }
 
-        /* KW display - larger */
         .kw-display { font-size:22px !important; font-weight:900 !important; color:#60a5fa !important; line-height:1; }
         .kw-label { font-size:10px !important; font-weight:700 !important; color:#94a3b8 !important; text-transform:uppercase; letter-spacing:2px; }
 
@@ -202,16 +197,9 @@ const Icon = memo(({ name, size=18, className="" }) => {
     return <span ref={ref} className={`inline-flex items-center justify-center ${className}`}></span>;
 });
 
-// ═══════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════
-// downloadEntryPDF — DIRECT jsPDF (no html2canvas, no DOM tricks)
-// This is the only 100% reliable way to embed base64 images in PDFs.
-// jsPDF is already bundled inside html2pdf.js as window.jspdf.jsPDF
-// ═══════════════════════════════════════════════════════
 function downloadEntryPDF(entry) {
     return new Promise(resolve => {
         try {
-            // jsPDF is bundled inside html2pdf — access it directly
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
@@ -220,7 +208,6 @@ function downloadEntryPDF(entry) {
             const contentW = pageW - margin * 2;
             let y = margin;
 
-            // ── Helper functions ──
             const setFont = (size, style = 'normal', color = [0,0,0]) => {
                 doc.setFontSize(size);
                 doc.setFont('helvetica', style);
@@ -240,7 +227,6 @@ function downloadEntryPDF(entry) {
                 return yPos + (lines.length * 5.5) + 2;
             };
 
-            // ── HEADER ──
             doc.setFillColor(37, 99, 235);
             doc.rect(0, 0, pageW, 18, 'F');
             setFont(13, 'bold', [255,255,255]);
@@ -249,17 +235,14 @@ function downloadEntryPDF(entry) {
             doc.text('PE-MONTAGE', pageW - margin, 12, { align: 'right' });
             y = 26;
 
-            // ── TITLE (Kunde) ──
             setFont(16, 'bold', [0,0,0]);
             const customerLines = doc.splitTextToSize((entry.customer || '').toUpperCase(), contentW);
             doc.text(customerLines, margin, y);
             y += customerLines.length * 8 + 3;
 
-            // ── Divider ──
             drawLine(margin, y, pageW - margin, y, [37,99,235], 0.8);
             y += 6;
 
-            // ── DATA ROWS ──
             const nr = cleanAuftragsNr(entry.auftragsNr);
             if (nr) {
                 setFont(9, 'bold', [80,80,80]);
@@ -287,7 +270,6 @@ function downloadEntryPDF(entry) {
                 y += 15;
             }
 
-            // ── MEMO ──
             if (entry.memo) {
                 y += 2;
                 drawLine(margin, y, pageW - margin, y, [200,200,200], 0.3);
@@ -295,26 +277,23 @@ function downloadEntryPDF(entry) {
                 doc.setFillColor(255, 251, 235);
                 doc.setDrawColor(245, 158, 11);
                 doc.setLineWidth(0.8);
-                doc.rect(margin, y, 1.5, 999, 'F'); // left accent bar placeholder
+                doc.rect(margin, y, 1.5, 999, 'F');
                 setFont(7, 'bold', [120,80,0]);
                 doc.text('MEMO', margin, y + 4);
                 y += 6;
                 setFont(12, 'bold', [0,0,0]);
                 const memoLines = doc.splitTextToSize(entry.memo, contentW - 4);
-                // Draw memo background
                 const memoH = memoLines.length * 6 + 6;
                 doc.setFillColor(255, 251, 235);
                 doc.setDrawColor(245, 158, 11);
                 doc.setLineWidth(0.5);
                 doc.roundedRect(margin, y - 1, contentW, memoH, 2, 2, 'FD');
-                // Left accent
                 doc.setFillColor(245, 158, 11);
                 doc.rect(margin, y - 1, 2, memoH, 'F');
                 doc.text(memoLines, margin + 5, y + 4);
                 y += memoH + 5;
             }
 
-            // ── IMAGE ──
             if (entry.image) {
                 y += 3;
                 drawLine(margin, y, pageW - margin, y, [200,200,200], 0.3);
@@ -324,17 +303,14 @@ function downloadEntryPDF(entry) {
                 y += 4;
 
                 try {
-                    // Detect image format from base64 header
                     const b64 = entry.image;
                     let imgFormat = 'JPEG';
                     if (b64.includes('data:image/png')) imgFormat = 'PNG';
                     else if (b64.includes('data:image/webp')) imgFormat = 'WEBP';
 
-                    // Calculate dimensions to fit in page
                     const maxImgW = contentW;
                     const maxImgH = 120;
 
-                    // Load image to get natural dimensions
                     const img = new Image();
                     img.onload = () => {
                         const ratio = Math.min(maxImgW / img.naturalWidth, maxImgH / img.naturalHeight, 1);
@@ -342,12 +318,10 @@ function downloadEntryPDF(entry) {
                         const imgH = img.naturalHeight * ratio;
                         const imgX = margin + (contentW - imgW) / 2;
 
-                        // Check if we need a new page
                         if (y + imgH > 280) { doc.addPage(); y = margin; }
 
                         doc.addImage(b64, imgFormat, imgX, y, imgW, imgH);
 
-                        // ── FOOTER ──
                         const totalPages = doc.internal.getNumberOfPages();
                         for (let i = 1; i <= totalPages; i++) {
                             doc.setPage(i);
@@ -363,19 +337,17 @@ function downloadEntryPDF(entry) {
                         resolve();
                     };
                     img.onerror = () => {
-                        // Image failed to load, save without it
                         const filename = `Auftrag_${(nr || entry.customer || 'export').replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
                         doc.save(filename);
                         resolve();
                     };
                     img.src = b64;
-                    return; // wait for img.onload
+                    return;
                 } catch(imgErr) {
                     console.warn('Image insert failed:', imgErr);
                 }
             }
 
-            // ── FOOTER (no image path) ──
             const totalPages = doc.internal.getNumberOfPages();
             for (let i = 1; i <= totalPages; i++) {
                 doc.setPage(i);
@@ -392,7 +364,6 @@ function downloadEntryPDF(entry) {
 
         } catch(err) {
             console.error('jsPDF error:', err);
-            // Fallback: try html2pdf if jsPDF direct fails
             const el = document.createElement('div');
             el.style.cssText = 'position:fixed;top:0;left:0;width:210mm;background:#fff;padding:15mm;font-family:Arial;color:#000;z-index:99999;opacity:0;pointer-events:none;';
             el.innerHTML = `<h2 style="color:#000">${entry.customer||''}</h2><p style="color:#000">${entry.address||''}</p><p style="color:#000">${entry.memo||''}</p>`;
@@ -405,9 +376,6 @@ function downloadEntryPDF(entry) {
     });
 }
 
-// ═══════════════════════════════════════════════════════
-// LOGIN SCREEN
-// ═══════════════════════════════════════════════════════
 function LoginScreen({ onLogin, teams }) {
     const [pin, setPin] = useState('');
     const [error, setError] = useState('');
@@ -463,9 +431,6 @@ function LoginScreen({ onLogin, teams }) {
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// IMPORT MODAL
-// ═══════════════════════════════════════════════════════
 function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onClose, onDone }) {
     const [text, setText] = useState('');
     const [saving, setSaving] = useState(false);
@@ -556,7 +521,7 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
             </div>
             <div style={{ display:'flex',gap:12 }}>
                 <button onClick={onClose} style={{ flex:1,padding:'13px',background:'transparent',border:'1px solid #334155',borderRadius:12,color:'#64748b',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer' }}>Abbrechen</button>
-                <button onClick={doImport} disabled={saving||preview.length===0} style={{ flex:2,padding:'13px',background:preview.length>0&&!saving?'#3b82f6':'#1e293b',border:'none',borderRadius:12,color:preview.length>0&&!saving?'#fff':'#475569',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:preview.length>0&&!saving?'pointer':'not-allowed' }}>
+                <button onClick={doImport} disabled={saving||preview.length===0} style={{ flex:2,padding:'13px',background:preview.length>0&&!saving?'#3b82f6':'#1e293b',border:'none',borderRadius:12,color:preview.length>0&&!saving?'#fff':'#475573',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:preview.length>0&&!saving?'pointer':'not-allowed' }}>
                     {saving?'⏳ Speichern...':preview.length>0?`✓ ${preview.length} Aufträge importieren`:'Text eingeben...'}
                 </button>
             </div>
@@ -564,9 +529,6 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// CALENDAR CARD
-// ═══════════════════════════════════════════════════════
 function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone }) {
     const isProv = !!e.isProv;
     const bg     = isProv ? PROV_BG     : CARD_COLORS[ci];
@@ -666,9 +628,6 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// BILLING MODAL
-// ═══════════════════════════════════════════════════════
 function BillingModal({ teams, onClose }) {
     const [allEntries, setAllEntries] = useState([]);
     const [activeTeamTab, setActiveTeamTab] = useState(null);
@@ -826,9 +785,6 @@ function BillingModal({ teams, onClose }) {
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// CALENDAR VIEW
-// ═══════════════════════════════════════════════════════
 function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initialCalType }) {
     const [calEntries, setCalEntries] = useState([]);
     const [calWeek, setCalWeek] = useState(new Date());
@@ -867,22 +823,56 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         return unsub;
     },[]);
 
-    const filteredEntries = useMemo(() => calEntries.filter(e=>(e.calType||'montage')===activeCalType),[calEntries,activeCalType]);
+    // ── SORTED filtered entries: always by deliveryDate ASC, then createdAt ASC ──
+    // This ensures consistent ordering across all days of a multi-day entry.
+    const filteredEntries = useMemo(() => {
+        return calEntries
+            .filter(e => (e.calType || 'montage') === activeCalType)
+            .sort((a, b) => {
+                const dateA = a.deliveryDate || '';
+                const dateB = b.deliveryDate || '';
+                if (dateA < dateB) return -1;
+                if (dateA > dateB) return 1;
+                // Same start date: sort by createdAt
+                const ca = a.createdAt || '';
+                const cb = b.createdAt || '';
+                if (ca < cb) return -1;
+                if (ca > cb) return 1;
+                return 0;
+            });
+    }, [calEntries, activeCalType]);
 
-    const entriesForDay = useCallback((dayStr) => filteredEntries.filter(e => {
-        if (e.isMultiDay&&e.endDate) return dayStr>=e.deliveryDate.substring(0,10)&&dayStr<=e.endDate.substring(0,10);
-        return e.deliveryDate&&e.deliveryDate.substring(0,10)===dayStr;
-    }),[filteredEntries]);
+    // ── entriesForDay: returns entries sorted by their START date (deliveryDate) ──
+    // Multi-day entries always appear in the same position relative to each other
+    // regardless of which day column is being rendered.
+    const entriesForDay = useCallback((dayStr) => {
+        return filteredEntries.filter(e => {
+            if (e.isMultiDay && e.endDate) {
+                return dayStr >= e.deliveryDate.substring(0,10) && dayStr <= e.endDate.substring(0,10);
+            }
+            return e.deliveryDate && e.deliveryDate.substring(0,10) === dayStr;
+        });
+        // No additional sort needed — filteredEntries is already sorted by deliveryDate ASC
+    }, [filteredEntries]);
 
+    // ── colorIndex: assigned once per unique entry ID, based on sorted order ──
+    // Because filteredEntries is sorted consistently, the same entry always
+    // gets the same color index regardless of which day column renders it.
     const colorIndex = useMemo(() => {
         const map = {};
         let ci = 0;
         filteredEntries.forEach(e => {
-            if (!e.isProv) { map[e.id] = ci % CARD_COLORS.length; ci++; }
-            else map[e.id] = -1;
+            if (!e.isProv) {
+                if (!(e.id in map)) {
+                    map[e.id] = ci % CARD_COLORS.length;
+                    ci++;
+                }
+            } else {
+                map[e.id] = -1;
+            }
         });
         return map;
-    },[filteredEntries]);
+    }, [filteredEntries]);
 
     const deleteCalEntry = async (id) => { const {db,doc,deleteDoc}=window.FirebaseSDK; await deleteDoc(doc(db,`teams_cal_${team.id}`,id)); };
     const toggleDone = async (entry) => { const {db,doc,updateDoc}=window.FirebaseSDK; await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{isDone:!entry.isDone,doneAt:!entry.isDone?new Date().toISOString():null}); };
@@ -924,7 +914,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         } catch(err) { alert('Fehler: '+err.message); }
     };
 
-    // FIX 2: Week PDF — allowTaint:true + dark text colors baked into template
     const triggerWeekPDF = () => {
         setTimeout(() => {
             const el = document.getElementById('cal-week-pdf-content');
@@ -980,7 +969,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
 
     return (
         <div style={{ minHeight:'100vh',background:'#0f172a',display:'flex',flexDirection:'column' }}>
-            {/* FIX 2: PDF content with DARK text colors — all text explicitly set to black/dark */}
             <div style={{ position:'absolute',left:'-9999px',top:0 }}>
                 <div id="cal-week-pdf-content" style={{ padding:'8mm',background:'#fff',fontFamily:'Arial,sans-serif',width:'420mm',color:'#000' }}>
                     <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5mm',borderBottom:'1.5pt solid #000',paddingBottom:'3mm' }}>
@@ -994,7 +982,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         {days.map((day,di)=>{
                             const dayStr=toLocalDateStr(day), dayEnt=entriesForDay(dayStr);
                             return <div key={di}>
-                                {/* FIX 2: Day header with dark text */}
                                 <div style={{ background:'#e2e8f0',borderRadius:'4pt',padding:'3mm',marginBottom:'2mm',textAlign:'center',border:'1pt solid #94a3b8' }}>
                                     <div style={{ fontSize:'9pt',fontWeight:900,textTransform:'uppercase',color:'#000' }}>{DAY_NAMES[di]}</div>
                                     <div style={{ fontSize:'7pt',color:'#1e293b',fontWeight:700 }}>{formatDate(dayStr)}</div>
@@ -1003,7 +990,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                                     const ci=colorIndex[e.id];
                                     const bg=e.isProv?PROV_BG:CARD_COLORS[ci>=0?ci:0];
                                     const bd=e.isProv?PROV_BORDER:CARD_BORDER[ci>=0?ci:0];
-                                    // Always use dark text in PDF for readability
                                     const pdfText = e.isProv ? '#5a2d00' : CARD_TEXT[ci>=0?ci:0];
                                     return <div key={ei} style={{ background:bg,borderLeft:`2pt solid ${bd}`,border:`1pt solid ${bd}66`,borderRadius:'4pt',padding:'2mm 3mm',marginBottom:'2mm' }}>
                                         <div style={{ fontSize:'8pt',fontWeight:900,color:pdfText }}>{e.customer}{e.isProv?' ⚠ PROV':''}</div>
@@ -1269,9 +1255,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// STANDBY VIEW
-// ═══════════════════════════════════════════════════════
 function StandbyView({ onBack }) {
     const [items, setItems] = useState([]);
     const [search, setSearch] = useState('');
@@ -1376,9 +1359,6 @@ function StandbyView({ onBack }) {
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// ADMIN PANEL
-// ═══════════════════════════════════════════════════════
 function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
     const [isAdding, setIsAdding] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -1629,9 +1609,6 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby }) {
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// MAIN APP
-// ═══════════════════════════════════════════════════════
 function App() {
     const [authState, setAuthState] = useState(null);
     const [teams, setTeams] = useState([]);

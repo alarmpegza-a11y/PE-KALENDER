@@ -95,13 +95,18 @@
         .billing-modal { background:#141b2d; border-radius:16px; overflow:hidden; }
         .billing-modal-header { background:linear-gradient(135deg,#1a2540,#1e2d45); padding:20px 24px; border-bottom:1px solid rgba(255,255,255,0.07); }
 
-        .cal-col { border-right:1px solid #e2e8f0; min-height:120px; padding:4px; display:flex; flex-direction:column; gap:4px; }
-        .cal-col:last-child { border-right:none; }
         .cal-card-item { border-radius:6px; padding:7px 8px; border-left:3px solid; position:relative; font-size:11px; transition:all 0.15s; }
         .cal-card-item:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,0.15); }
 
         .cal-card-prov { background:#fef9c3 !important; border-left-color:#eab308 !important; }
         .cal-card-prov .prov-badge { background:#eab308; color:#fff; }
+
+        /* Move mode highlight */
+        .move-target-cell { background: rgba(251,191,36,0.08) !important; cursor: crosshair !important; }
+        .move-target-cell:hover { background: rgba(251,191,36,0.18) !important; }
+        .move-drop-hint { height:28px; border:2px dashed rgba(251,191,36,0.5); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:9px; color:rgba(251,191,36,0.8); font-weight:900; letter-spacing:1px; }
+        .move-active-card { outline: 2px solid #f59e0b; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(245,158,11,0.25) !important; animation: moveGlow 1.5s ease-in-out infinite; }
+        @keyframes moveGlow { 0%,100%{box-shadow:0 0 0 4px rgba(245,158,11,0.25);} 50%{box-shadow:0 0 0 8px rgba(245,158,11,0.1);} }
 
         .green-dot { position:absolute; top:4px; right:4px; width:7px; height:7px; border-radius:50%; background:#10b981; animation:gd 2s infinite; }
         @keyframes gd { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.7);} 50%{box-shadow:0 0 6px 3px rgba(16,185,129,0.3);} }
@@ -109,9 +114,6 @@
         .done-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#10b981; border:1.5px solid #10b981; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(16,185,129,0.1); pointer-events:none; white-space:nowrap; }
         .billed-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#a855f7; border:1.5px solid #a855f7; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(168,85,247,0.1); pointer-events:none; white-space:nowrap; }
         .done-card { opacity:0.6; }
-
-        .paste-target-col { background:rgba(245,158,11,0.08) !important; }
-        .paste-target-col:hover { background:rgba(245,158,11,0.18) !important; cursor:copy; }
 
         ::-webkit-scrollbar { height:8px; width:8px; }
         ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:10px; }
@@ -172,6 +174,13 @@ const getWeekNumber = (d) => { d=new Date(Date.UTC(d.getFullYear(),d.getMonth(),
 const getCalWeekDays = (base) => { const d=new Date(base); const day=d.getDay(); const diff=(day===0)?-6:1-day; const mon=new Date(d.getFullYear(),d.getMonth(),d.getDate()+diff); return Array.from({length:6},(_,i)=>new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i)); };
 const toLocalDateStr = (dateObj) => { const y=dateObj.getFullYear(),m=String(dateObj.getMonth()+1).padStart(2,'0'),d=String(dateObj.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; };
 const daysBetween = (s,e) => { if(!s||!e) return 1; return Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1); };
+
+// Add N calendar days to a date string
+const addDaysToStr = (dateStr, n) => {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n);
+  return toLocalDateStr(d);
+};
 
 const parseCalTypes = (calType) => {
   if (!calType || calType === 'montage') return ['montage'];
@@ -274,10 +283,6 @@ function downloadEntryPDF(entry) {
                 y += 2;
                 drawLine(margin, y, pageW - margin, y, [200,200,200], 0.3);
                 y += 5;
-                doc.setFillColor(255, 251, 235);
-                doc.setDrawColor(245, 158, 11);
-                doc.setLineWidth(0.8);
-                doc.rect(margin, y, 1.5, 999, 'F');
                 setFont(7, 'bold', [120,80,0]);
                 doc.text('MEMO', margin, y + 4);
                 y += 6;
@@ -529,7 +534,7 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
     );
 }
 
-function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone }) {
+function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive }) {
     const isProv = !!e.isProv;
     const bg     = isProv ? PROV_BG     : CARD_COLORS[ci];
     const border = isProv ? PROV_BORDER : CARD_BORDER[ci];
@@ -544,6 +549,7 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
 
     const handleCardClick = (ev) => {
         ev.stopPropagation();
+        if (isMoveActive) return; // don't open edit while in move mode
         if (isAdminAccess) setEditCalEntry({...e});
     };
 
@@ -554,8 +560,8 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
 
     return (
         <div
-            className={`cal-card-item${e.isDone?' done-card':''}${isProv?' cal-card-prov':''}`}
-            style={{ background:bg, borderLeftColor:border, borderLeft:`3px solid ${border}`, color:text, borderTop:`1.5px solid ${border}33`, borderBottom:`1.5px solid ${border}33`, cursor:'pointer', filter:isStart?'none':'brightness(0.97)' }}
+            className={`cal-card-item${e.isDone?' done-card':''}${isProv?' cal-card-prov':''}${isMoveActive?' move-active-card':''}`}
+            style={{ background:bg, borderLeftColor:border, borderLeft:`3px solid ${border}`, color:text, borderTop:`1.5px solid ${border}33`, borderBottom:`1.5px solid ${border}33`, cursor: isMoveActive ? 'grab' : (isAdminAccess ? 'pointer' : (e.image ? 'pointer' : 'default')), filter:isStart?'none':'brightness(0.97)' }}
             onClick={isAdminAccess ? handleCardClick : (e.image ? handleTeamClick : undefined)}
         >
             {e.image && (
@@ -615,13 +621,23 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
                         {e.isDone?'✓ Erledigt':'○ Erledigen'}
                     </button>
                 )}
-                {isAdminAccess && (
+                {isAdminAccess && !isMoveActive && (
+                    <button onClick={(ev)=>{ ev.stopPropagation(); setMoveEntry({...e}); }}
+                        style={{ background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f59e0b',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2 }}>
+                        ↕ Verschieben
+                    </button>
+                )}
+                {isAdminAccess && !isMoveActive && (
                     <button onClick={(ev)=>{ ev.stopPropagation(); setCopyEntry({...e}); }}
                         style={{ background:'rgba(37,99,235,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#2563eb',lineHeight:1 }}>⧉</button>
                 )}
-                {isAdminAccess && (
+                {isAdminAccess && !isMoveActive && (
                     <button onClick={(ev)=>{ ev.stopPropagation(); if(confirm(`"${e.customer}" löschen?`)) deleteCalEntry(e.id); }}
                         style={{ background:'rgba(220,38,38,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#dc2626',lineHeight:1,fontWeight:900 }}>✕</button>
+                )}
+                {isAdminAccess && isMoveActive && (
+                    <button onClick={(ev)=>{ ev.stopPropagation(); setMoveEntry(null); }}
+                        style={{ background:'rgba(220,38,38,0.2)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:3,padding:'2px 6px',cursor:'pointer',fontSize:8,color:'#ef4444',lineHeight:1,fontWeight:900 }}>✕ Abbrechen</button>
                 )}
             </div>
         </div>
@@ -792,6 +808,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     const [showCalImport, setShowCalImport] = useState(false);
     const [calImportResult, setCalImportResult] = useState(null);
     const [copyEntry, setCopyEntry] = useState(null);
+    const [moveEntry, setMoveEntry] = useState(null); // NEW: entry being moved
     const [showStandbyPicker, setShowStandbyPicker] = useState(null);
     const [standbyItems, setStandbyItems] = useState([]);
     const [standbySearch, setStandbySearch] = useState('');
@@ -839,6 +856,84 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             });
     }, [calEntries, activeCalType]);
 
+    // ====================================================================
+    // FIXED LANE COMPUTATION
+    // Sort entries by START DATE first (chronologically), then by duration
+    // descending for same start date. This ensures entries are assigned lanes
+    // in the order they begin, allowing later entries to fill gaps left by
+    // shorter earlier entries.
+    //
+    // A lane is free for an entry if laneEndDates[lane] < entry.startDate
+    // (strictly less than, meaning the lane's last entry ended before this one begins)
+    // ====================================================================
+    const { entryLanes, numLanes, laneVisibleEntries } = useMemo(() => {
+        const weekStart = toLocalDateStr(days[0]);
+        const weekEnd   = toLocalDateStr(days[5]);
+
+        // Entries visible this week
+        const visible = filteredEntries.filter(e => {
+            const start = (e.deliveryDate || '').substring(0, 10);
+            const end   = (e.endDate || '').substring(0, 10) || start;
+            return start <= weekEnd && (end || start) >= weekStart;
+        });
+
+        // Sort: by start date ASC, then by duration DESC for same start, then by createdAt
+        const sorted = [...visible].sort((a, b) => {
+            const aStart = (a.deliveryDate || '').substring(0, 10);
+            const bStart = (b.deliveryDate || '').substring(0, 10);
+            // Primary: start date ascending
+            if (aStart !== bStart) return aStart < bStart ? -1 : 1;
+            // Secondary: longer duration first (fills lane earlier, shorter can share)
+            const aEnd   = (a.endDate || '').substring(0, 10) || aStart;
+            const bEnd   = (b.endDate || '').substring(0, 10) || bStart;
+            const aDays  = daysBetween(aStart, aEnd);
+            const bDays  = daysBetween(bStart, bEnd);
+            if (bDays !== aDays) return bDays - aDays;
+            return (a.createdAt || '') < (b.createdAt || '') ? -1 : 1;
+        });
+
+        // laneEndDates[lane] = the last DATE STRING that this lane is occupied through
+        // A lane is free for an entry starting on `start` if:
+        //   laneEndDates[lane] is undefined  OR  laneEndDates[lane] < start
+        const laneEndDates = [];
+        const entryLanesMap = new Map();
+
+        for (const e of sorted) {
+            const start = (e.deliveryDate || '').substring(0, 10);
+            const end   = (e.endDate || '').substring(0, 10) || start;
+
+            let lane = 0;
+            while (
+                lane < laneEndDates.length &&
+                laneEndDates[lane] !== undefined &&
+                laneEndDates[lane] >= start
+            ) {
+                lane++;
+            }
+            entryLanesMap.set(e.id, lane);
+            laneEndDates[lane] = end;
+        }
+
+        return {
+            entryLanes: entryLanesMap,
+            numLanes: Math.max(laneEndDates.length, 1),
+            laneVisibleEntries: sorted,
+        };
+    }, [filteredEntries, days]);
+
+    const colorIndex = useMemo(() => {
+        const map = {};
+        let ci = 0;
+        filteredEntries.forEach(e => {
+            if (!e.isProv) {
+                if (!(e.id in map)) { map[e.id] = ci % CARD_COLORS.length; ci++; }
+            } else {
+                map[e.id] = -1;
+            }
+        });
+        return map;
+    }, [filteredEntries]);
+
     const entriesForDay = useCallback((dayStr) => {
         return filteredEntries.filter(e => {
             if (e.isMultiDay && e.endDate) {
@@ -848,24 +943,24 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         });
     }, [filteredEntries]);
 
-    const colorIndex = useMemo(() => {
-        const map = {};
-        let ci = 0;
-        filteredEntries.forEach(e => {
-            if (!e.isProv) {
-                if (!(e.id in map)) {
-                    map[e.id] = ci % CARD_COLORS.length;
-                    ci++;
-                }
-            } else {
-                map[e.id] = -1;
-            }
-        });
-        return map;
-    }, [filteredEntries]);
-
     const deleteCalEntry = async (id) => { const {db,doc,deleteDoc}=window.FirebaseSDK; await deleteDoc(doc(db,`teams_cal_${team.id}`,id)); };
     const toggleDone = async (entry) => { const {db,doc,updateDoc}=window.FirebaseSDK; await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{isDone:!entry.isDone,doneAt:!entry.isDone?new Date().toISOString():null}); };
+
+    // Move entry to a new start date, preserving duration
+    const executeMoveEntry = async (entry, newStartDateStr) => {
+        const { db, doc, updateDoc } = window.FirebaseSDK;
+        const oldStart = (entry.deliveryDate || '').substring(0, 10);
+        const oldEnd   = (entry.endDate || '').substring(0, 10) || oldStart;
+        const duration = daysBetween(oldStart, oldEnd) - 1; // in days to add
+        const newEnd = duration > 0 ? addDaysToStr(newStartDateStr, duration) : null;
+        const isMultiDay = !!(newEnd && newEnd > newStartDateStr);
+        await updateDoc(doc(db, `teams_cal_${team.id}`, entry.id), {
+            deliveryDate: newStartDateStr,
+            endDate: newEnd || null,
+            isMultiDay: isMultiDay,
+        });
+        setMoveEntry(null);
+    };
 
     const compressCalImage = (file) => new Promise(resolve => {
         const reader = new FileReader();
@@ -888,30 +983,19 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         } catch(err) { alert('Fehler: '+err.message); }
     };
 
-    // ✅ FIXED: saveNewCalEntry — kein undefined-Feld mehr (isNew wird nicht mitgespeichert)
     const saveNewCalEntry = async (entry) => {
         try {
             const { db, doc, setDoc } = window.FirebaseSDK;
             const id = `cal-${genId()}`;
             const isMultiDay = !!(entry.endDate && entry.endDate > entry.deliveryDate);
             await setDoc(doc(db, `teams_cal_${team.id}`, id), {
-                id,
-                createdAt: new Date().toISOString(),
-                isDone: false,
-                isBilled: false,
-                entryType: entry.entryType || 'LIEFERUNG',
-                customer: entry.customer || '',
-                address: entry.address || '',
-                memo: entry.memo || '',
-                auftragsNr: entry.auftragsNr || '',
-                target: parseInt(entry.target) || 0,
-                image: entry.image || null,
-                deliveryDate: entry.deliveryDate || '',
-                endDate: entry.endDate || null,
-                isMultiDay: isMultiDay,
-                calType: entry.calType || activeCalType,
-                isProv: !!entry.isProv,
-                customStartLabel: entry.customStartLabel || '',
+                id, createdAt: new Date().toISOString(), isDone: false, isBilled: false,
+                entryType: entry.entryType || 'LIEFERUNG', customer: entry.customer || '',
+                address: entry.address || '', memo: entry.memo || '', auftragsNr: entry.auftragsNr || '',
+                target: parseInt(entry.target) || 0, image: entry.image || null,
+                deliveryDate: entry.deliveryDate || '', endDate: entry.endDate || null,
+                isMultiDay: isMultiDay, calType: entry.calType || activeCalType,
+                isProv: !!entry.isProv, customStartLabel: entry.customStartLabel || '',
             });
             setEditCalEntry(null);
         } catch(err) { alert('Fehler: ' + err.message); }
@@ -922,8 +1006,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             const el = document.getElementById('cal-week-pdf-content');
             if (!el) return;
             html2pdf().set({
-                margin:5,
-                filename:`Kalender_KW${getWeekNumber(calWeek)}_${team.name}.pdf`,
+                margin:5, filename:`Kalender_KW${getWeekNumber(calWeek)}_${team.name}.pdf`,
                 image:{type:'jpeg',quality:0.98},
                 html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false},
                 jsPDF:{unit:'mm',format:'a3',orientation:'landscape'}
@@ -969,9 +1052,19 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         : (['montage','beplankung','ausflocken'].filter(ct => teamCalTypes.includes(ct)));
 
     const kw = getWeekNumber(calWeek);
+    const weekStart = toLocalDateStr(days[0]);
+    const weekEnd   = toLocalDateStr(days[5]);
+
+    // Banner mode: copy takes priority over move
+    const isAnyActionMode = !!(copyEntry || moveEntry);
+    const actionBannerColor = copyEntry ? '#f59e0b' : '#a78bfa';
+    const actionBannerText = copyEntry
+        ? `📋 KOPIEREN: „${copyEntry.customer}" — Tag-Spalte anklicken`
+        : `↕ VERSCHIEBEN: „${moveEntry?.customer}" — Neuen Starttag anklicken`;
 
     return (
         <div style={{ minHeight:'100vh',background:'#0f172a',display:'flex',flexDirection:'column' }}>
+            {/* PDF hidden content */}
             <div style={{ position:'absolute',left:'-9999px',top:0 }}>
                 <div id="cal-week-pdf-content" style={{ padding:'8mm',background:'#fff',fontFamily:'Arial,sans-serif',width:'420mm',color:'#000' }}>
                     <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5mm',borderBottom:'1.5pt solid #000',paddingBottom:'3mm' }}>
@@ -1049,18 +1142,24 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             </div>
 
             <div style={{ background:currentCalConfig.bg,padding:'5px 16px',textAlign:'center',fontSize:9,fontWeight:900,color:'#fff',textTransform:'uppercase',letterSpacing:2 }}>
-                {currentCalConfig.banner} — KW {kw} — {formatDate(toLocalDateStr(days[0]))} bis {formatDate(toLocalDateStr(days[5]))}
+                {currentCalConfig.banner} — KW {kw} — {formatDate(weekStart)} bis {formatDate(weekEnd)}
             </div>
 
-            {copyEntry && isAdminAccess && (
-                <div style={{ background:'#f59e0b',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:10,fontWeight:900,color:'#fff' }}>
-                    <span>📋 KOPIEREN: „{copyEntry.customer}" — Tag-Spalte anklicken</span>
-                    <button onClick={()=>setCopyEntry(null)} style={{ background:'rgba(0,0,0,0.2)',border:'none',borderRadius:6,padding:'3px 10px',color:'#fff',cursor:'pointer',fontSize:9,fontWeight:900 }}>Abbrechen</button>
+            {/* Action mode banner (copy or move) */}
+            {isAnyActionMode && isAdminAccess && (
+                <div style={{ background:actionBannerColor,padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:10,fontWeight:900,color:'#fff' }}>
+                    <span>{actionBannerText}</span>
+                    <button onClick={()=>{ setCopyEntry(null); setMoveEntry(null); }} style={{ background:'rgba(0,0,0,0.2)',border:'none',borderRadius:6,padding:'3px 10px',color:'#fff',cursor:'pointer',fontSize:9,fontWeight:900 }}>Abbrechen</button>
                 </div>
             )}
 
+            {/* ============================================================
+                CALENDAR GRID — Row-based layout (one row = one lane)
+                Fixed: entries sorted by start date so they fill gaps correctly
+                ============================================================ */}
             <div style={{ flex:1,overflowX:'auto',overflowY:'auto',background:'#f1f5f9' }}>
                 <div style={{ minWidth:760 }}>
+                    {/* Day headers */}
                     <div style={{ display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'2px solid #000',background:'#1e293b' }}>
                         {DAY_NAMES.map((name,di)=>(
                             <div key={di} style={{ textAlign:'center',padding:'6px 4px',borderRight:di<5?'1px solid #334155':'none' }}>
@@ -1070,37 +1169,105 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                             </div>
                         ))}
                     </div>
-                    <div style={{ display:'grid',gridTemplateColumns:'repeat(6,1fr)',background:'#fff',alignItems:'start' }}>
-                        {days.map((day,di)=>{
-                            const dayStr=toLocalDateStr(day), dayEnt=entriesForDay(dayStr);
-                            const isPasteTarget=copyEntry&&isAdminAccess;
-                            return (
-                                <div key={di} className={`cal-col${isPasteTarget?' paste-target-col':''}`}
-                                    onClick={()=>{ if(isPasteTarget) pasteCopyToDay(dayStr); }}
-                                    style={{ cursor:isPasteTarget?'copy':'default' }}>
-                                    {dayEnt.length===0&&(
-                                        <div style={{ height:40,display:'flex',alignItems:'center',justifyContent:'center' }}>
-                                            {isPasteTarget?<span style={{ fontSize:9,color:'#f59e0b',fontWeight:900 }}>+ Hier einfügen</span>:<span style={{ fontSize:9,color:'#cbd5e1',fontStyle:'italic' }}>—</span>}
-                                        </div>
-                                    )}
-                                    {dayEnt.map(e=>{
-                                        const ci=colorIndex[e.id]>=0?colorIndex[e.id]:0;
-                                        const pos=getMultiDayPosition(e,dayStr);
-                                        const isStart=pos==='start'||pos==='single';
-                                        const totalDays=e.isMultiDay&&e.endDate?daysBetween(e.deliveryDate.substring(0,10),e.endDate.substring(0,10)):1;
-                                        const canMark=isAdminAccess||(e.isMultiDay&&e.endDate?dayStr===e.deliveryDate.substring(0,10):true);
+
+                    {/* Lane rows */}
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', background:'#fff', alignItems:'start' }}>
+                        {Array.from({ length: numLanes }, (_, laneIdx) => (
+                            <React.Fragment key={laneIdx}>
+                                {days.map((day, di) => {
+                                    const dayStr = toLocalDateStr(day);
+                                    const isCopyTarget = !!(copyEntry && isAdminAccess);
+                                    const isMoveTarget = !!(moveEntry && isAdminAccess);
+                                    const isActionTarget = isCopyTarget || isMoveTarget;
+
+                                    // Find the entry assigned to this lane that covers this day
+                                    const e = laneVisibleEntries.find(entry => {
+                                        if (entryLanes.get(entry.id) !== laneIdx) return false;
+                                        const start = (entry.deliveryDate || '').substring(0, 10);
+                                        const end   = (entry.endDate || '').substring(0, 10) || start;
+                                        return dayStr >= start && dayStr <= end;
+                                    }) || null;
+
+                                    const borderRight = di < 5 ? '1px solid #e2e8f0' : 'none';
+                                    const borderBottom = '1px solid #f1f5f9';
+
+                                    // For move mode: clicking any cell in lane 0 (first empty row at this day) moves the entry
+                                    // We show move targets only in cells that are empty AND it's a valid drop zone
+                                    const isMoveDrop = isMoveTarget && laneIdx === 0 && !e;
+
+                                    if (!e) {
                                         return (
-                                            <CalCard key={`${e.id}-${dayStr}`}
+                                            <div key={di}
+                                                className={isActionTarget ? 'move-target-cell' : ''}
+                                                style={{ borderRight, borderBottom, minHeight: 12, padding: '4px', boxSizing: 'border-box', background: isActionTarget ? (isMoveTarget ? 'rgba(167,139,250,0.05)' : 'rgba(245,158,11,0.05)') : '#fff', cursor: isActionTarget ? 'crosshair' : 'default' }}
+                                                onClick={() => {
+                                                    if (isCopyTarget) pasteCopyToDay(dayStr);
+                                                    else if (isMoveTarget) executeMoveEntry(moveEntry, dayStr);
+                                                }}>
+                                                {isActionTarget && laneIdx === 0 && (
+                                                    <div className="move-drop-hint" style={{ borderColor: isMoveTarget ? 'rgba(167,139,250,0.5)' : 'rgba(245,158,11,0.3)', color: isMoveTarget ? 'rgba(167,139,250,0.8)' : 'rgba(245,158,11,0.6)' }}>
+                                                        {isMoveTarget ? '↕ Hier verschieben' : '+ Hier einfügen'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+
+                                    const ci = colorIndex[e.id] >= 0 ? colorIndex[e.id] : 0;
+                                    const pos = getMultiDayPosition(e, dayStr);
+                                    const isStart = pos === 'start' || pos === 'single';
+                                    const totalDays = e.isMultiDay && e.endDate
+                                        ? daysBetween(e.deliveryDate.substring(0, 10), e.endDate.substring(0, 10))
+                                        : 1;
+                                    const canMark = isAdminAccess || (
+                                        e.isMultiDay && e.endDate
+                                            ? dayStr === e.deliveryDate.substring(0, 10)
+                                            : true
+                                    );
+                                    const isMoveActiveCard = !!(moveEntry && moveEntry.id === e.id);
+
+                                    return (
+                                        <div key={di}
+                                            style={{ borderRight, borderBottom, padding: '4px', boxSizing: 'border-box', background: isActionTarget ? (isMoveTarget ? 'rgba(167,139,250,0.04)' : 'rgba(245,158,11,0.04)') : '#fff', cursor: (isActionTarget && !isMoveActiveCard) ? 'crosshair' : 'default' }}
+                                            onClick={(ev) => {
+                                                // If clicking the move-target card itself, don't move to same spot
+                                                if (isMoveTarget && !isMoveActiveCard && isStart) {
+                                                    ev.stopPropagation();
+                                                    executeMoveEntry(moveEntry, dayStr);
+                                                } else if (isCopyTarget) {
+                                                    pasteCopyToDay(dayStr);
+                                                }
+                                            }}>
+                                            <CalCard
                                                 e={e} dayStr={dayStr} ci={ci} isStart={isStart} totalDays={totalDays}
                                                 isAdminAccess={isAdminAccess} toggleDone={toggleDone}
                                                 setCopyEntry={setCopyEntry} deleteCalEntry={deleteCalEntry}
                                                 setEditCalEntry={setEditCalEntry} canMarkDone={canMark}
+                                                setMoveEntry={setMoveEntry}
+                                                isMoveActive={isMoveActiveCard}
                                             />
-                                        );
-                                    })}
-                                    {isPasteTarget&&dayEnt.length>0&&(
-                                        <div style={{ margin:'4px 0',padding:'6px',background:'rgba(245,158,11,0.15)',border:'1px dashed #f59e0b',borderRadius:4,textAlign:'center',fontSize:9,color:'#f59e0b',fontWeight:900 }}>+ Hier einfügen</div>
-                                    )}
+                                        </div>
+                                    );
+                                })}
+                            </React.Fragment>
+                        ))}
+
+                        {/* Empty placeholder row if no entries */}
+                        {numLanes === 0 && days.map((day, di) => {
+                            const dayStr = toLocalDateStr(day);
+                            const isCopyTarget = !!(copyEntry && isAdminAccess);
+                            const isMoveTarget = !!(moveEntry && isAdminAccess);
+                            const isActionTarget = isCopyTarget || isMoveTarget;
+                            return (
+                                <div key={di}
+                                    style={{ borderRight: di < 5 ? '1px solid #e2e8f0' : 'none', minHeight: 80, padding: 4, cursor: isActionTarget ? 'crosshair' : 'default' }}
+                                    onClick={() => { if (isCopyTarget) pasteCopyToDay(dayStr); else if (isMoveTarget) executeMoveEntry(moveEntry, dayStr); }}>
+                                    <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {isActionTarget
+                                            ? <span style={{ fontSize: 9, color: isMoveTarget ? '#a78bfa' : '#f59e0b', fontWeight: 900 }}>{isMoveTarget ? '↕ Hier verschieben' : '+ Hier einfügen'}</span>
+                                            : <span style={{ fontSize: 9, color: '#cbd5e1', fontStyle: 'italic' }}>—</span>
+                                        }
+                                    </div>
                                 </div>
                             );
                         })}
@@ -1108,6 +1275,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             </div>
 
+            {/* Edit Modal */}
             {editCalEntry && isAdminAccess && (
                 <div style={{ position:'fixed',inset:0,zIndex:50,background:'rgba(15,23,42,0.96)',display:'flex',alignItems:'center',justifyContent:'center',padding:16,overflowY:'auto' }}>
                     <div style={{ width:'100%',maxWidth:440,background:'rgba(51,65,85,0.98)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:24,padding:24,display:'flex',flexDirection:'column',gap:12 }}>
@@ -1631,7 +1799,7 @@ function App() {
 
     if (!ready) return (
         <div style={{ minHeight:'100vh',background:'#030712',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16 }}>
-            <div style={{ color:'#6366f1',fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',fontSize:13,animation:'pulse 2s infinite' }}>LADE SYSTEM...</div>
+            <div style={{ color:'#6366f1',fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',fontSize:13 }}>LADE SYSTEM...</div>
             <div style={{ color:'#334155',fontSize:11 }}>{window.FirebaseReady?'🔥 Verbinde mit Firestore...':'Lokaler Modus...'}</div>
         </div>
     );

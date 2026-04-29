@@ -101,8 +101,13 @@
         .move-active-card { outline: 2px solid #f59e0b; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(245,158,11,0.25) !important; animation: moveGlow 1.5s ease-in-out infinite; }
         @keyframes moveGlow { 0%,100%{box-shadow:0 0 0 4px rgba(245,158,11,0.25);} 50%{box-shadow:0 0 0 8px rgba(245,158,11,0.1);} }
 
+        /* ── grüner Punkt: nur wenn Foto vorhanden ── */
         .green-dot { position:absolute; top:4px; right:4px; width:7px; height:7px; border-radius:50%; background:#10b981; animation:gd 2s infinite; }
         @keyframes gd { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.7);} 50%{box-shadow:0 0 6px 3px rgba(16,185,129,0.3);} }
+
+        /* ── PDF-Cursor-Hinweis für alle Karten (Monteur-Ansicht) ── */
+        .pdf-clickable { cursor: pointer !important; }
+        .pdf-clickable:hover { box-shadow:0 4px 16px rgba(59,130,246,0.25) !important; }
 
         .done-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#10b981; border:1.5px solid #10b981; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(16,185,129,0.1); pointer-events:none; white-space:nowrap; }
         .billed-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#a855f7; border:1.5px solid #a855f7; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(168,85,247,0.1); pointer-events:none; white-space:nowrap; }
@@ -176,6 +181,9 @@ const Icon = memo(({ name, size=18, className="" }) => {
     return <span ref={ref} className={`inline-flex items-center justify-center ${className}`}></span>;
 });
 
+// ============================================================
+// FIX 1: downloadEntryPDF — Bild wird jetzt korrekt eingefügt
+// ============================================================
 function downloadEntryPDF(entry) {
     return new Promise(resolve => {
         try {
@@ -186,20 +194,96 @@ function downloadEntryPDF(entry) {
             const setFont=(size,style='normal',color=[0,0,0])=>{doc.setFontSize(size);doc.setFont('helvetica',style);doc.setTextColor(color[0],color[1],color[2]);};
             const drawLine=(x1,y1,x2,y2,color=[0,0,0],w=0.5)=>{doc.setDrawColor(color[0],color[1],color[2]);doc.setLineWidth(w);doc.line(x1,y1,x2,y2);};
             const row=(label,value,yPos)=>{setFont(9,'bold',[80,80,80]);doc.text(label,margin,yPos);setFont(10,'normal',[0,0,0]);const lines=doc.splitTextToSize(String(value||'—'),contentW-38);doc.text(lines,margin+38,yPos);return yPos+(lines.length*5.5)+2;};
-            doc.setFillColor(37,99,235);doc.rect(0,0,pageW,18,'F');setFont(13,'bold',[255,255,255]);doc.text('AUFTRAG',margin,12);setFont(9,'normal',[180,210,255]);doc.text('PE-MONTAGE',pageW-margin,12,{align:'right'});y=26;
-            setFont(16,'bold',[0,0,0]);const customerLines=doc.splitTextToSize((entry.customer||'').toUpperCase(),contentW);doc.text(customerLines,margin,y);y+=customerLines.length*8+3;
+
+            // Header
+            doc.setFillColor(37,99,235);doc.rect(0,0,pageW,18,'F');
+            setFont(13,'bold',[255,255,255]);doc.text('AUFTRAG',margin,12);
+            setFont(9,'normal',[180,210,255]);doc.text('PE-MONTAGE',pageW-margin,12,{align:'right'});
+            y=26;
+
+            // Kundenname
+            setFont(16,'bold',[0,0,0]);
+            const customerLines=doc.splitTextToSize((entry.customer||'').toUpperCase(),contentW);
+            doc.text(customerLines,margin,y);y+=customerLines.length*8+3;
             drawLine(margin,y,pageW-margin,y,[37,99,235],0.8);y+=6;
+
+            // Auftragsnr
             const nr=cleanAuftragsNr(entry.auftragsNr);
             if(nr){setFont(9,'bold',[80,80,80]);doc.text('AUFTRAGSNR.',margin,y);setFont(11,'bold',[37,99,235]);doc.text(nr,margin+38,y);y+=8;}
-            y=row('ADRESSE',entry.address,y);y=row('DATUM',formatDate(entry.deliveryDate)+(entry.endDate?' – '+formatDate(entry.endDate):''),y);
-            if(entry.target>0)y=row('ELE',entry.target+' ELE',y);
-            if(entry.isProv){y+=2;doc.setFillColor(254,249,195);doc.setDrawColor(234,179,8);doc.setLineWidth(0.5);doc.roundedRect(margin,y,contentW,10,2,2,'FD');setFont(10,'bold',[113,63,18]);doc.text('⚠  PROVISORISCH',margin+4,y+7);y+=15;}
-            if(entry.memo){y+=2;drawLine(margin,y,pageW-margin,y,[200,200,200],0.3);y+=5;setFont(7,'bold',[120,80,0]);doc.text('MEMO',margin,y+4);y+=6;setFont(12,'bold',[0,0,0]);const memoLines=doc.splitTextToSize(entry.memo,contentW-4);const memoH=memoLines.length*6+6;doc.setFillColor(255,251,235);doc.setDrawColor(245,158,11);doc.setLineWidth(0.5);doc.roundedRect(margin,y-1,contentW,memoH,2,2,'FD');doc.setFillColor(245,158,11);doc.rect(margin,y-1,2,memoH,'F');doc.text(memoLines,margin+5,y+4);y+=memoH+5;}
+
+            y=row('ADRESSE',entry.address,y);
+            y=row('DATUM',formatDate(entry.deliveryDate)+(entry.endDate?' – '+formatDate(entry.endDate):''),y);
+            if(entry.target>0) y=row('ELE',entry.target+' ELE',y);
+
+            // Provisorisch-Banner
+            if(entry.isProv){
+                y+=2;
+                doc.setFillColor(254,249,195);doc.setDrawColor(234,179,8);doc.setLineWidth(0.5);
+                doc.roundedRect(margin,y,contentW,10,2,2,'FD');
+                setFont(10,'bold',[113,63,18]);doc.text('⚠  PROVISORISCH',margin+4,y+7);
+                y+=15;
+            }
+
+            // Memo
+            if(entry.memo){
+                y+=2;
+                drawLine(margin,y,pageW-margin,y,[200,200,200],0.3);y+=5;
+                setFont(7,'bold',[120,80,0]);doc.text('MEMO',margin,y+4);y+=6;
+                setFont(12,'bold',[0,0,0]);
+                const memoLines=doc.splitTextToSize(entry.memo,contentW-4);
+                const memoH=memoLines.length*6+6;
+                doc.setFillColor(255,251,235);doc.setDrawColor(245,158,11);doc.setLineWidth(0.5);
+                doc.roundedRect(margin,y-1,contentW,memoH,2,2,'FD');
+                doc.setFillColor(245,158,11);doc.rect(margin,y-1,2,memoH,'F');
+                doc.text(memoLines,margin+5,y+4);
+                y+=memoH+5;
+            }
+
+            // ── FIX: Bild einfügen wenn vorhanden ──
+            if(entry.image){
+                y+=4;
+                drawLine(margin,y,pageW-margin,y,[200,200,200],0.3);y+=5;
+                setFont(7,'bold',[60,60,60]);doc.text('FOTO / DOKUMENT',margin,y+4);y+=8;
+
+                // Bild als Base64 in PDF laden
+                // entry.image ist bereits ein Data-URL (z.B. "data:image/jpeg;base64,...")
+                try {
+                    // Bildformat aus Data-URL ermitteln
+                    let imgFormat = 'JPEG';
+                    if(entry.image.includes('image/png')) imgFormat = 'PNG';
+                    else if(entry.image.includes('image/gif')) imgFormat = 'GIF';
+
+                    // Maximale Bildgrösse berechnen (verfügbarer Platz bis Seitenende)
+                    const maxImgH = Math.min(120, 297 - margin - y - 15); // max 120mm oder bis Seitenende
+                    const maxImgW = contentW;
+
+                    // Bild-Dimensionen ermitteln über temporäres Image-Objekt
+                    // Da wir synchron in jsPDF arbeiten, benutzen wir addImage direkt
+                    // jsPDF skaliert das Bild auf die angegebenen Masse
+                    doc.addImage(entry.image, imgFormat, margin, y, maxImgW, maxImgH, undefined, 'FAST');
+                    y += maxImgH + 5;
+                } catch(imgErr) {
+                    // Fallback: Fehlermeldung im PDF
+                    setFont(9,'normal',[200,50,50]);
+                    doc.text('(Bild konnte nicht geladen werden)',margin,y+5);
+                    y+=10;
+                }
+            }
+
+            // Footer auf jeder Seite
             const totalPages=doc.internal.getNumberOfPages();
-            for(let i=1;i<=totalPages;i++){doc.setPage(i);doc.setFillColor(245,248,255);doc.rect(0,288,pageW,10,'F');setFont(7,'normal',[150,150,150]);doc.text('PE-MONTAGE Tourendisposition',margin,294);doc.text(`${new Date().toLocaleDateString('de-DE')}`,pageW-margin,294,{align:'right'});}
+            for(let i=1;i<=totalPages;i++){
+                doc.setPage(i);
+                doc.setFillColor(245,248,255);doc.rect(0,288,pageW,10,'F');
+                setFont(7,'normal',[150,150,150]);
+                doc.text('PE-MONTAGE Tourendisposition',margin,294);
+                doc.text(`${new Date().toLocaleDateString('de-DE')}`,pageW-margin,294,{align:'right'});
+            }
+
             const filename=`Auftrag_${(cleanAuftragsNr(entry.auftragsNr)||entry.customer||'export').replace(/[^a-zA-Z0-9]/g,'_')}.pdf`;
-            doc.save(filename);resolve();
-        } catch(err) { resolve(); }
+            doc.save(filename);
+            resolve();
+        } catch(err) { console.error('PDF Fehler:', err); resolve(); }
     });
 }
 
@@ -286,7 +370,6 @@ Antworte NUR mit einem JSON-Array. Kein anderer Text. Beispiel:
 
             let entries = [];
             try { entries = JSON.parse(clean); } catch(e) {
-                // Try to find JSON array in text
                 const match = rawText.match(/\[[\s\S]*\]/);
                 if (match) entries = JSON.parse(match[0]);
                 else throw new Error('Keine Einträge erkannt');
@@ -294,7 +377,6 @@ Antworte NUR mit einem JSON-Array. Kein anderer Text. Beispiel:
 
             if (!Array.isArray(entries) || entries.length === 0) throw new Error('Keine Aufträge gefunden');
 
-            // Apply calType
             entries = entries.map(e => ({ ...e, calType: activeCalType, isDone: false, isBilled: false }));
             setPreview(entries);
             setSelectedIds(new Set(entries.map((_, i) => i)));
@@ -652,6 +734,12 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
     );
 }
 
+// ============================================================
+// FIX 2: CalCard — PDF-Download für ALLE Aufträge
+//   • Grüner Punkt NUR wenn Foto vorhanden
+//   • Klick auf Karte (Monteur) → immer PDF
+//   • Kleines PDF-Icon unten rechts als Hinweis
+// ============================================================
 function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive }) {
     const isProv = !!e.isProv;
     const bg = isProv ? PROV_BG : CARD_COLORS[ci];
@@ -663,8 +751,6 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
         return Math.round((new Date(dayStr)-new Date(e.deliveryDate.substring(0,10)))/86400000)+1;
     },[e,dayStr]);
 
-    // Compute start label: if customStartLabel is set, show "START + LABEL"
-    // otherwise fall back to entryType for single-day, or PROV./START for multi
     const startLabel = useMemo(() => {
         if (isProv && !e.customStartLabel) return 'PROV.';
         if (e.customStartLabel) return `START + ${e.customStartLabel}`;
@@ -672,13 +758,36 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
         return e.entryType || 'LIEFERUNG';
     }, [isProv, e.customStartLabel, e.isMultiDay, e.endDate, e.entryType]);
 
+    // Monteur-Klick: immer PDF
+    const handleMonteurClick = async (ev) => {
+        ev.stopPropagation();
+        await downloadEntryPDF(e);
+    };
+
+    // Admin-Klick: Edit-Modal öffnen
+    const handleAdminClick = (ev) => {
+        ev.stopPropagation();
+        if (isMoveActive) return;
+        setEditCalEntry({...e});
+    };
+
     return (
-        <div className={`cal-card-item${e.isDone?' done-card':''}${isProv?' cal-card-prov':''}${isMoveActive?' move-active-card':''}`}
-            style={{ background:bg,borderLeftColor:border,borderLeft:`3px solid ${border}`,color:text,borderTop:`1.5px solid ${border}33`,borderBottom:`1.5px solid ${border}33`,cursor:isMoveActive?'grab':(isAdminAccess?'pointer':(e.image?'pointer':'default')) }}
-            onClick={isAdminAccess?(ev=>{ev.stopPropagation();if(isMoveActive)return;setEditCalEntry({...e});}):(e.image?async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}:undefined)}>
-            {e.image && <div className="green-dot" title="PDF herunterladen" onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{ cursor:'pointer' }}></div>}
+        <div className={`cal-card-item${e.isDone?' done-card':''}${isProv?' cal-card-prov':''}${isMoveActive?' move-active-card':''}${!isAdminAccess?' pdf-clickable':''}`}
+            style={{
+                background:bg, borderLeftColor:border, borderLeft:`3px solid ${border}`,
+                color:text, borderTop:`1.5px solid ${border}33`, borderBottom:`1.5px solid ${border}33`,
+                cursor: isMoveActive ? 'grab' : (isAdminAccess ? 'pointer' : 'pointer')
+            }}
+            onClick={isAdminAccess ? handleAdminClick : handleMonteurClick}>
+
+            {/* Grüner Punkt NUR wenn Foto vorhanden */}
+            {e.image && (
+                <div className="green-dot" title="Foto vorhanden — PDF herunterladen"></div>
+            )}
+
             {e.isDone && <div className="done-stamp">✓ Erledigt</div>}
             {e.isBilled && <div className="billed-stamp">✓ Abgerechnet</div>}
+
             <div style={{ display:'flex',alignItems:'center',gap:4,marginBottom:3,flexWrap:'wrap' }}>
                 {isStart ? (
                     <div style={{ fontSize:8,fontWeight:900,letterSpacing:1,textTransform:'uppercase',padding:'1px 5px',background:border,color:'#fff',borderRadius:2,display:'inline-block' }}>{startLabel}</div>
@@ -688,18 +797,28 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
                 {e.isMultiDay&&e.endDate&&<div className="multiday-badge" style={{ background:border+'33',color:border }}>📅 {totalDays} Tage</div>}
                 {isProv&&<div style={{ fontSize:8,fontWeight:900,background:'#eab308',color:'#fff',borderRadius:3,padding:'1px 5px' }}>⚠ PROV.</div>}
             </div>
+
             {e.auftragsNr&&<div style={{ fontSize:8,fontWeight:900,opacity:0.75,marginBottom:2,textTransform:'uppercase' }}>{cleanAuftragsNr(e.auftragsNr)}</div>}
             <div style={{ fontSize:10,fontWeight:900,lineHeight:1.3,marginBottom:2,textTransform:'uppercase' }}>{e.customer}</div>
             {e.address&&<div style={{ fontSize:9,fontWeight:700,lineHeight:1.3,marginBottom:2,opacity:0.85 }}>{e.address}</div>}
             {e.memo&&<div className="memo-block" style={{ background:border+'22',borderLeftColor:border,color:text }}><span style={{ fontSize:7,fontWeight:900,textTransform:'uppercase',letterSpacing:1,opacity:0.6,display:'block',marginBottom:1 }}>📝 MEMO</span><span style={{ fontSize:11,fontWeight:800 }}>{e.memo}</span></div>}
             {e.isMultiDay&&e.endDate&&isStart&&<div style={{ fontSize:8,color:border,fontWeight:700,marginTop:3 }}>{formatDate(e.deliveryDate)} – {formatDate(e.endDate)}</div>}
             {e.target>0&&<div style={{ marginTop:3,display:'inline-block',background:border,color:'#fff',fontSize:8,fontWeight:900,padding:'1px 5px',borderRadius:3 }}>{e.target} ELE</div>}
-            <div style={{ display:'flex',gap:3,marginTop:5,justifyContent:'flex-end' }}>
+
+            <div style={{ display:'flex',gap:3,marginTop:5,justifyContent:'flex-end',alignItems:'center' }}>
+                {/* PDF-Icon für Monteure als Hinweis */}
+                {!isAdminAccess && (
+                    <span style={{ fontSize:8,color:border,fontWeight:900,opacity:0.7,display:'flex',alignItems:'center',gap:2 }}>
+                        📄 PDF
+                    </span>
+                )}
                 {canMarkDone&&<button onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{ background:e.isDone?'rgba(16,185,129,0.25)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.3)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#10b981',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2 }}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setMoveEntry({...e});}} style={{ background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f59e0b',lineHeight:1,fontWeight:900 }}>↕ Verschieben</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setCopyEntry({...e});}} style={{ background:'rgba(37,99,235,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#2563eb',lineHeight:1 }}>⧉</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();if(confirm(`"${e.customer}" löschen?`))deleteCalEntry(e.id);}} style={{ background:'rgba(220,38,38,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#dc2626',lineHeight:1,fontWeight:900 }}>✕</button>}
                 {isAdminAccess&&isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setMoveEntry(null);}} style={{ background:'rgba(220,38,38,0.2)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:3,padding:'2px 6px',cursor:'pointer',fontSize:8,color:'#ef4444',lineHeight:1,fontWeight:900 }}>✕ Abbrechen</button>}
+                {/* Admin kann auch PDF herunterladen */}
+                {isAdminAccess&&!isMoveActive&&<button onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{ background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#3b82f6',lineHeight:1,fontWeight:900 }}>📄</button>}
             </div>
         </div>
     );
@@ -841,7 +960,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         return onSnapshot(collection(db,'standby_items'),snap=>{setStandbyItems(snap.docs.map(d=>({id:d.id,...d.data()})));});
     },[]);
 
-    // Scroll/highlight on navigation from search
     useEffect(() => {
         if (!highlightId) return;
         const timer = setTimeout(() => {
@@ -1006,6 +1124,13 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 {currentCalConfig.banner} — KW {kw} — {formatDate(weekStart)} bis {formatDate(weekEnd)}
             </div>
 
+            {/* Monteur-Hinweis: PDF klickbar */}
+            {!isAdminAccess && (
+                <div style={{ background:'rgba(59,130,246,0.08)',borderBottom:'1px solid rgba(59,130,246,0.15)',padding:'5px 16px',textAlign:'center',fontSize:9,fontWeight:700,color:'#60a5fa' }}>
+                    📄 Auf einen Auftrag tippen um die PDF herunterzuladen · 🟢 Grüner Punkt = Foto vorhanden
+                </div>
+            )}
+
             {isAnyActionMode&&isAdminAccess&&(
                 <div style={{ background:actionBannerColor,padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:10,fontWeight:900,color:'#fff' }}>
                     <span>{actionBannerText}</span>
@@ -1079,7 +1204,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap' }}>
                             <h3 style={{ color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase',fontStyle:'italic',margin:0 }}>{editCalEntry.isNew?'Neuer Eintrag':'Auftrag bearbeiten'}</h3>
                             <div style={{ display:'flex',gap:6,flexWrap:'wrap' }}>
-                                {/* SilentPanels toggle button */}
                                 <button onClick={()=>{
                                     const cur=editCalEntry.customStartLabel||'';
                                     const hasSP=cur.toUpperCase().includes('SILENTPANLS')||cur.toUpperCase().includes('SILENTPANELS');
@@ -1119,7 +1243,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         <input type="number" style={{ width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box' }}
                             placeholder="ELE" value={editCalEntry.target||''} onChange={e=>setEditCalEntry({...editCalEntry,target:e.target.value})}/>
 
-                        {/* START-Badge — now longer + SilentPanels info */}
                         <div>
                             <div style={{ color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4 }}>START-Badge Zusatztext</div>
                             <input style={{ width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:11,boxSizing:'border-box' }}
@@ -1226,7 +1349,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
 }
 
 // ============================================================
-// STANDBY VIEW — with multi-select bulk delete
+// STANDBY VIEW
 // ============================================================
 function StandbyView({ onBack }) {
     const [items, setItems] = useState([]);
@@ -1384,7 +1507,6 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
                     <div><div style={{ color:'#1e293b',fontSize:18,fontWeight:900,letterSpacing:-0.5 }}>PE-MONTAGE</div><div style={{ display:'flex',alignItems:'center',gap:8 }}><div style={{ color:'#64748b',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:2 }}>Admin · {teams.length} Gruppen</div><span className="live-badge" style={{ background:'rgba(16,185,129,0.1)',color:'#059669',border:'1px solid rgba(16,185,129,0.25)' }}><span className="live-dot" style={{ background:'#059669' }}></span>{window.FirebaseReady?'🔥 Firestore Live':'Lokal'}</span></div></div>
                 </div>
                 <div style={{ display:'flex',gap:10,alignItems:'center',flexWrap:'wrap' }}>
-                    {/* Global search button */}
                     <button onClick={onSearch} style={{ background:'linear-gradient(135deg,#1e293b,#334155)',border:'1px solid #475569',borderRadius:12,padding:'9px 18px',color:'#94a3b8',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6 }}><Icon name="search" size={14}/>🔍 Suche</button>
                     <button onClick={onOpenStandby} style={{ background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fde68a',borderRadius:12,padding:'9px 18px',color:'#92400e',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6 }}><Icon name="archive" size={14}/>📦 Standby</button>
                     <button onClick={()=>setShowBilling(true)} style={{ background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'1px solid #86efac',borderRadius:12,padding:'9px 18px',color:'#15803d',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6 }}><Icon name="receipt" size={14}/>💰 Abrechnung</button>
@@ -1531,7 +1653,6 @@ function App() {
         if(authState.showStandby)return <StandbyView onBack={()=>setAuthState({...authState,showStandby:false})}/>;
         if(authState.showSearch)return <GlobalSearchModal teams={teams} onClose={()=>setAuthState({...authState,showSearch:false})}
             onNavigate={(entry,team)=>{
-                // Navigate to the team's calendar at the right week and highlight the entry
                 setAuthState({...authState,showSearch:false,adminViewingTeam:team,adminCalType:entry.calType||'montage',scrollToEntry:entry});
             }}/>;
         if(authState.adminViewingTeam)return <CalendarView team={authState.adminViewingTeam} isAdminAccess={true} activeCalType={authState.adminCalType||'montage'} scrollToEntry={authState.scrollToEntry||null} onBack={()=>setAuthState({...authState,adminViewingTeam:null,adminCalType:null,scrollToEntry:null})}/>;

@@ -88,13 +88,21 @@
         .admin-stat-card { background:white; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,0.06); border:1px solid rgba(226,232,240,0.8); }
         .admin-mesh { background-color:#f0f4ff; background-image:radial-gradient(at 20% 10%,rgba(99,102,241,0.08) 0px,transparent 50%),radial-gradient(at 80% 20%,rgba(59,130,246,0.06) 0px,transparent 50%),radial-gradient(at 50% 90%,rgba(168,85,247,0.05) 0px,transparent 50%); }
 
-        /* ── BILLING MODAL – überarbeitet für alle Gruppen ── */
+        /* BILLING MODAL */
         .billing-modal { background:#141b2d; border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
         .billing-modal-header { background:linear-gradient(135deg,#1a2540,#1e2d45); padding:20px 24px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
-        /* Scrollbare Tab-Leiste */
         .billing-team-tabs { display:flex; gap:0; overflow-x:auto; padding-bottom:0; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.1) transparent; flex-shrink:0; }
         .billing-team-tabs::-webkit-scrollbar { height:4px; }
         .billing-team-tabs::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:4px; }
+
+        /* MONTEUR BILLING MODAL – eigener Stil */
+        .monteur-billing-overlay { position:fixed; inset:0; z-index:80; background:rgba(10,15,30,0.98); display:flex; flex-direction:column; }
+        .monteur-billing-header { background:linear-gradient(135deg,#0f172a,#1e293b); padding:16px 20px; border-bottom:2px solid rgba(16,185,129,0.2); flex-shrink:0; }
+        .monteur-billing-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+        .monteur-entry-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px 16px; cursor:pointer; transition:all 0.15s; }
+        .monteur-entry-card:hover { background:rgba(59,130,246,0.08); border-color:rgba(59,130,246,0.3); }
+        .monteur-entry-card.selected { background:rgba(16,185,129,0.1); border-color:rgba(16,185,129,0.4); }
+        .monteur-entry-card.billed { background:rgba(168,85,247,0.05); border-color:rgba(168,85,247,0.15); opacity:0.7; }
 
         .cal-card-item { border-radius:6px; padding:7px 8px; border-left:3px solid; position:relative; font-size:11px; transition:all 0.15s; }
         .cal-card-item:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,0.15); }
@@ -114,6 +122,7 @@
 
         .done-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#10b981; border:1.5px solid #10b981; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(16,185,129,0.1); pointer-events:none; white-space:nowrap; }
         .billed-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#a855f7; border:1.5px solid #a855f7; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(168,85,247,0.1); pointer-events:none; white-space:nowrap; }
+        .monteur-billed-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#10b981; border:1.5px solid #10b981; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(16,185,129,0.1); pointer-events:none; white-space:nowrap; }
         .done-card { opacity:0.6; }
 
         ::-webkit-scrollbar { height:8px; width:8px; }
@@ -133,7 +142,13 @@
         .live-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:2px 8px; font-size:8px; font-weight:900; color:#10b981; text-transform:uppercase; letter-spacing:1px; }
         .live-dot { width:5px; height:5px; border-radius:50%; background:#10b981; animation:gd 1.5s infinite; }
 
-        /* ── Kalender-Suchleiste (Admin only) ── */
+        /* Abrechnung Button für Monteure – auffällig */
+        .monteur-billing-btn { background:linear-gradient(135deg,#10b981,#059669); border:none; border-radius:10px; padding:8px 16px; color:#fff; font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:1px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(16,185,129,0.35); transition:all 0.2s; position:relative; }
+        .monteur-billing-btn:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(16,185,129,0.45); }
+        .monteur-billing-badge { position:absolute; top:-6px; right:-6px; background:#ef4444; color:#fff; font-size:8px; font-weight:900; border-radius:10px; padding:1px 5px; min-width:18px; text-align:center; animation:badgePulse 2s ease-in-out infinite; }
+        @keyframes badgePulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
+
+        /* Cal search bar */
         .cal-search-bar { display:flex; align-items:center; gap:8px; background:#0f172a; border-bottom:1px solid #1e293b; padding:8px 16px; }
         .cal-search-input { flex:1; background:#1e293b; border:1.5px solid #334155; border-radius:10px; padding:8px 14px; color:#fff; font-size:11px; font-weight:600; outline:none; transition:border-color 0.2s; }
         .cal-search-input:focus { border-color:#3b82f6; }
@@ -143,16 +158,13 @@
         .cal-search-result-item:hover { background:rgba(59,130,246,0.12); }
         .cal-search-result-item:last-child { border-bottom:none; }
 
-        /* Search highlight */
         .search-highlight { outline: 3px solid #f59e0b !important; outline-offset: 2px; animation: searchPulse 1.5s ease-in-out 3; }
         @keyframes searchPulse { 0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0.5);} 50%{box-shadow:0 0 0 8px rgba(245,158,11,0);} }
 
-        /* AI Import styles */
         .ai-import-overlay { position:fixed; inset:0; z-index:70; background:rgba(15,23,42,0.99); display:flex; flex-direction:column; }
         .ai-loading-spinner { width:40px; height:40px; border:3px solid #1e293b; border-top-color:#3b82f6; border-radius:50%; animation:spin 0.8s linear infinite; }
         @keyframes spin { to{transform:rotate(360deg);} }
 
-        /* Multi-image gallery styles */
         .img-thumb-wrap { position:relative; border-radius:8px; overflow:hidden; border:2px solid rgba(255,255,255,0.1); aspect-ratio:1; }
         .img-thumb-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
         .img-thumb-del { position:absolute; top:3px; right:3px; background:#ef4444; border:none; border-radius:50%; width:18px; height:18px; cursor:pointer; color:#fff; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:900; line-height:1; }
@@ -161,6 +173,9 @@
 
         @media print { body * { visibility:hidden; } #billing-pdf-content, #billing-pdf-content * { visibility:visible; } #billing-pdf-content { position:fixed; left:0; top:0; width:100%; } }
         @keyframes slideUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+
+        /* Monteur Abrechnung Stats */
+        .monteur-stat-box { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px 16px; display:flex; flex-direction:column; gap:4px; flex:1; }
     </style>
 </head>
 <body>
@@ -306,6 +321,94 @@ function downloadEntryPDF(entry) {
 }
 
 // ============================================================
+// MONTEUR BILLING PDF EXPORT
+// ============================================================
+function downloadMonteurBillingPDF(entries, teamName) {
+    return new Promise(resolve => {
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+            const pageW=297, pageH=210, margin=12, contentW=pageW-margin*2;
+            let y=margin;
+
+            const setFont=(size,style='normal',color=[0,0,0])=>{doc.setFontSize(size);doc.setFont('helvetica',style);doc.setTextColor(color[0],color[1],color[2]);};
+            const today=new Date().toLocaleDateString('de-DE');
+
+            // Header
+            doc.setFillColor(16,185,129); doc.rect(0,0,pageW,20,'F');
+            setFont(14,'bold',[255,255,255]); doc.text('ABRECHNUNG — FERTIGMONTIERTE AUFTRÄGE',margin,13);
+            setFont(9,'normal',[200,255,230]); doc.text(`Gruppe: ${teamName} · Erstellt: ${today} · ${entries.length} Aufträge`,pageW-margin,13,{align:'right'});
+            y=28;
+
+            // Table header
+            doc.setFillColor(240,253,244); doc.rect(margin,y-4,contentW,8,'F');
+            doc.setDrawColor(16,185,129); doc.setLineWidth(0.5); doc.line(margin,y+4,pageW-margin,y+4);
+            setFont(7,'bold',[20,100,60]);
+            const cols=[{x:margin,w:8,label:'#'},{x:margin+8,w:22,label:'DATUM'},{x:margin+30,w:55,label:'KUNDE'},{x:margin+85,w:38,label:'AUFTRAGSNR.'},{x:margin+123,w:65,label:'ADRESSE'},{x:margin+188,w:85,label:'MEMO'},{x:pageW-margin-20,w:20,label:'STATUS'}];
+            cols.forEach(c=>doc.text(c.label,c.x,y));
+            y+=8;
+
+            entries.forEach((e,i)=>{
+                if(y > pageH-20){
+                    doc.addPage('a4','landscape');
+                    y=margin+10;
+                    doc.setFillColor(240,253,244); doc.rect(margin,y-4,contentW,8,'F');
+                    setFont(7,'bold',[20,100,60]);
+                    cols.forEach(c=>doc.text(c.label,c.x,y));
+                    y+=8;
+                }
+                const rowH=8;
+                if(i%2===0){doc.setFillColor(248,255,252);doc.rect(margin,y-4,contentW,rowH,'F');}
+                setFont(7,'normal',[0,0,0]);
+                doc.text(String(i+1),cols[0].x,y);
+                doc.text(formatDate(e.deliveryDate),cols[1].x,y);
+
+                const customerTxt=(e.customer||'').toUpperCase();
+                const customerLines=doc.splitTextToSize(customerTxt,cols[2].w-2);
+                setFont(7,'bold',[0,0,0]);
+                doc.text(customerLines[0]||'',cols[2].x,y);
+                setFont(7,'normal',[0,0,0]);
+
+                const nr=cleanAuftragsNr(e.auftragsNr)||'—';
+                doc.setTextColor(29,78,216);
+                doc.text(nr,cols[3].x,y);
+                doc.setTextColor(0,0,0);
+
+                const addrLines=doc.splitTextToSize(e.address||'',cols[4].w-2);
+                doc.text(addrLines[0]||'',cols[4].x,y);
+
+                if(e.memo){
+                    doc.setTextColor(146,64,14);
+                    const memoLines=doc.splitTextToSize(e.memo,cols[5].w-2);
+                    doc.text(memoLines[0]||'',cols[5].x,y);
+                    doc.setTextColor(0,0,0);
+                }
+
+                doc.setTextColor(21,128,61); setFont(6,'bold',[21,128,61]);
+                doc.text('✓ FERTIG',cols[6].x,y);
+                doc.setTextColor(0,0,0);
+
+                y+=rowH;
+            });
+
+            // Footer
+            const totalPages=doc.internal.getNumberOfPages();
+            for(let i=1;i<=totalPages;i++){
+                doc.setPage(i);
+                doc.setFillColor(240,253,244); doc.rect(0,pageH-10,pageW,10,'F');
+                setFont(7,'normal',[100,150,120]);
+                doc.text(`PE-MONTAGE · Monteur-Abrechnung · Gruppe: ${teamName}`,margin,pageH-3);
+                doc.text(`${today} · Seite ${i}/${totalPages}`,pageW-margin,pageH-3,{align:'right'});
+            }
+
+            const filename=`Monteur_Abrechnung_${teamName.replace(/[^a-zA-Z0-9]/g,'_')}_${today.replace(/\./g,'-')}.pdf`;
+            doc.save(filename);
+            resolve();
+        } catch(err) { console.error('PDF Fehler:', err); resolve(); }
+    });
+}
+
+// ============================================================
 // MULTI-IMAGE UPLOAD COMPONENT
 // ============================================================
 function MultiImageUpload({ images, onChange, maxImages=10 }) {
@@ -406,17 +509,6 @@ function AIImportModal({ team, activeCalType, onClose, onDone }) {
             const today = new Date().toISOString().split('T')[0];
             const systemPrompt = `Du bist ein Assistent der Kalendereinträge aus Bildern oder PDFs von Montage-Kalenern extrahiert.
 Extrahiere ALLE Aufträge/Einträge aus dem Kalender-Bild.
-Für jeden Auftrag erkenne:
-- customer: Kundenname / Firma
-- address: Adresse
-- memo: Notizen, Hinweise
-- auftragsNr: Auftragsnummer
-- deliveryDate: Start-Datum im Format YYYY-MM-DD
-- endDate: End-Datum im Format YYYY-MM-DD (falls mehrtägig, sonst null)
-- entryType: MONTAGE, BEPLANKUNG, LIEFERUNG, AUSFLOCKEN etc.
-- target: ELE-Zahl falls vorhanden (nur Zahl), sonst 0
-- customStartLabel: Falls Start-Labels sichtbar
-- isProv: true falls "PROV" oder "provisorisch" erwähnt, sonst false
 Antworte NUR mit einem JSON-Array.`;
 
             let msgContent = [];
@@ -458,7 +550,7 @@ Antworte NUR mit einem JSON-Array.`;
     return (
         <div className="ai-import-overlay" style={{padding:16}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                <div><div style={{color:'#60a5fa',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>🤖 KI-IMPORT — {team.name}</div><div style={{color:'#94a3b8',fontSize:9,marginTop:3}}>PDF oder Foto hochladen → KI erkennt Einträge automatisch</div></div>
+                <div><div style={{color:'#60a5fa',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>🤖 KI-IMPORT — {team.name}</div></div>
                 <button onClick={onClose} style={{background:'#334155',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
             </div>
             {(step==='upload'||step==='ready')&&(
@@ -485,7 +577,7 @@ Antworte NUR mit einem JSON-Array.`;
                     <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
                         {preview.map((e,i)=>(<div key={i} onClick={()=>toggleSelect(i)} style={{background:selectedIds.has(i)?'rgba(99,102,241,0.12)':'rgba(255,255,255,0.04)',border:selectedIds.has(i)?'1px solid rgba(99,102,241,0.4)':'1px solid rgba(255,255,255,0.07)',borderRadius:10,padding:'10px 14px',cursor:'pointer',display:'flex',gap:12,alignItems:'flex-start'}}>
                             <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${selectedIds.has(i)?'#6366f1':'rgba(255,255,255,0.15)'}`,background:selectedIds.has(i)?'#6366f1':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2}}>{selectedIds.has(i)&&<span style={{color:'#fff',fontSize:11}}>✓</span>}</div>
-                            <div style={{flex:1}}><div style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}{e.isProv&&<span style={{background:'#eab308',color:'#fff',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',marginLeft:6}}>⚠ PROV</span>}</div><div style={{color:'#94a3b8',fontSize:9,marginTop:2}}>{e.address}</div><div style={{color:'#60a5fa',fontSize:9,marginTop:2}}>{formatDate(e.deliveryDate)}{e.endDate?' → '+formatDate(e.endDate):''}</div></div>
+                            <div style={{flex:1}}><div style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</div><div style={{color:'#94a3b8',fontSize:9,marginTop:2}}>{e.address}</div><div style={{color:'#60a5fa',fontSize:9,marginTop:2}}>{formatDate(e.deliveryDate)}</div></div>
                         </div>))}
                     </div>
                     {error&&<div style={{background:'rgba(239,68,68,0.1)',border:'1px solid #ef4444',borderRadius:8,padding:'10px 14px',color:'#ef4444',fontSize:11}}>{error}</div>}
@@ -501,7 +593,7 @@ Antworte NUR mit einem JSON-Array.`;
 }
 
 // ============================================================
-// GLOBAL SEARCH MODAL — zeigt jetzt Gruppenname deutlich
+// GLOBAL SEARCH MODAL
 // ============================================================
 function GlobalSearchModal({ teams, onClose, onNavigate }) {
     const [query, setQuery] = useState('');
@@ -522,7 +614,6 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
     const getKW=(dateStr)=>{if(!dateStr)return'?';return getWeekNumber(new Date(dateStr));};
     const team4entry=(e)=>teams.find(t=>t.id===e.teamId);
 
-    // Gruppiere Ergebnisse nach Team für bessere Übersicht
     const groupedResults = useMemo(() => {
         const groups = {};
         results.forEach(e => {
@@ -544,27 +635,21 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
             <input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Kunde, Adresse, Auftragsnr., Memo..." style={{width:'100%',background:'#1e293b',border:'2px solid #3b82f6',borderRadius:12,padding:'14px 16px',color:'#fff',fontSize:14,fontWeight:700,boxSizing:'border-box',marginBottom:12}}/>
             {loading&&<div style={{color:'#64748b',textAlign:'center',padding:20}}>Lade Daten...</div>}
             {!loading&&query&&results.length===0&&<div style={{color:'#64748b',textAlign:'center',padding:40}}><div style={{fontSize:32,marginBottom:8}}>🔍</div><div style={{fontSize:12,fontWeight:700}}>Keine Ergebnisse für „{query}"</div></div>}
-            {!loading&&query&&results.length>0&&(
-                <div style={{marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',fontSize:9,fontWeight:900,padding:'3px 10px',borderRadius:20}}>{results.length} Treffer in {groupedResults.length} Gruppe{groupedResults.length!==1?'n':''}</span>
-                </div>
-            )}
+            {!loading&&query&&results.length>0&&<div style={{marginBottom:8}}><span style={{background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',fontSize:9,fontWeight:900,padding:'3px 10px',borderRadius:20}}>{results.length} Treffer in {groupedResults.length} Gruppe{groupedResults.length!==1?'n':''}</span></div>}
             <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:12}}>
                 {groupedResults.map((group, gi) => (
                     <div key={gi}>
-                        {/* Gruppen-Header */}
                         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,padding:'6px 12px',background:'rgba(255,255,255,0.04)',borderRadius:10,border:'1px solid rgba(255,255,255,0.07)'}}>
-                            <div style={{width:10,height:10,borderRadius:'50%',background:group.teamColor||'#64748b',flexShrink:0,boxShadow:`0 0 6px ${group.teamColor||'#64748b'}`}}></div>
-                            <span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:0.5}}>{group.teamName}</span>
+                            <div style={{width:10,height:10,borderRadius:'50%',background:group.teamColor||'#64748b',flexShrink:0}}></div>
+                            <span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{group.teamName}</span>
                             <span style={{background:'rgba(255,255,255,0.08)',color:'#94a3b8',fontSize:8,fontWeight:700,padding:'2px 7px',borderRadius:10}}>{group.entries.length} Treffer</span>
                         </div>
-                        {/* Einträge der Gruppe */}
                         <div style={{display:'flex',flexDirection:'column',gap:4,paddingLeft:8}}>
                             {group.entries.map((e,i)=>{
                                 const t=team4entry(e);
                                 return(
                                     <div key={i} onClick={()=>{onNavigate(e,t);onClose();}}
-                                        style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderLeft:`3px solid ${group.teamColor||'#64748b'}`,borderRadius:10,padding:'10px 14px',cursor:'pointer',display:'flex',gap:12,alignItems:'center',transition:'background 0.15s'}}
+                                        style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderLeft:`3px solid ${group.teamColor||'#64748b'}`,borderRadius:10,padding:'10px 14px',cursor:'pointer',display:'flex',gap:12,alignItems:'center'}}
                                         onMouseEnter={ev=>ev.currentTarget.style.background='rgba(59,130,246,0.1)'}
                                         onMouseLeave={ev=>ev.currentTarget.style.background='rgba(255,255,255,0.04)'}>
                                         <div style={{flex:1,minWidth:0}}>
@@ -572,11 +657,8 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
                                                 <span style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
                                                 <span style={{background:'rgba(59,130,246,0.2)',color:'#60a5fa',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>KW {getKW(e.deliveryDate)}</span>
                                                 {e.isDone&&<span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>✓ Erledigt</span>}
-                                                {e.isProv&&<span style={{background:'rgba(234,179,8,0.2)',color:'#eab308',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>⚠ PROV</span>}
                                             </div>
                                             <div style={{color:'#94a3b8',fontSize:10}}>{e.address}</div>
-                                            {e.auftragsNr&&<div style={{color:'#475569',fontSize:9,fontFamily:'monospace',marginTop:2}}>#{cleanAuftragsNr(e.auftragsNr)}</div>}
-                                            {e.memo&&<div style={{color:'#fbbf24',fontSize:9,marginTop:2,fontWeight:700}}>📝 {e.memo}</div>}
                                         </div>
                                         <div style={{color:'#60a5fa',fontSize:10,fontWeight:900,flexShrink:0}}>→</div>
                                     </div>
@@ -590,6 +672,238 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
     );
 }
 
+// ============================================================
+// MONTEUR BILLING MODAL — Eigene Abrechnung für Monteure
+// Unabhängig vom Admin — speichert in teams_cal_{teamId} als
+// monteurBilled / monteurBilledAt Felder
+// ============================================================
+function MonteurBillingModal({ team, onClose }) {
+    const [entries, setEntries] = useState([]);
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [exporting, setExporting] = useState(false);
+    const [successCount, setSuccessCount] = useState(null);
+
+    useEffect(()=>{
+        const{db,collection,onSnapshot}=window.FirebaseSDK;
+        return onSnapshot(collection(db,`teams_cal_${team.id}`),(snap)=>{
+            setEntries(snap.docs.map(d=>({id:d.id,...d.data()})));
+        });
+    },[team.id]);
+
+    // Aufträge die als erledigt markiert sind (vom Monteur oder Admin)
+    const doneEntries = useMemo(()=>entries.filter(e=>e.isDone&&!e.monteurBilled).sort((a,b)=>a.deliveryDate>b.deliveryDate?-1:1),[entries]);
+    const billedEntries = useMemo(()=>entries.filter(e=>e.monteurBilled).sort((a,b)=>(b.monteurBilledAt||'')>(a.monteurBilledAt||'')?1:-1),[entries]);
+
+    const toggleSelect=(id)=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+    const selectAll=()=>{if(selectedIds.size===doneEntries.length)setSelectedIds(new Set());else setSelectedIds(new Set(doneEntries.map(e=>e.id)));};
+
+    const markMonteurBilled = async () => {
+        const toMark = doneEntries.filter(e=>selectedIds.has(e.id));
+        if(toMark.length===0) return;
+        const{db,doc,updateDoc}=window.FirebaseSDK;
+        for(const e of toMark){
+            await updateDoc(doc(db,`teams_cal_${team.id}`,e.id),{
+                monteurBilled:true,
+                monteurBilledAt:new Date().toISOString()
+            });
+        }
+        setSuccessCount(toMark.length);
+        setSelectedIds(new Set());
+    };
+
+    const unmarkMonteurBilled = async (e) => {
+        const{db,doc,updateDoc}=window.FirebaseSDK;
+        await updateDoc(doc(db,`teams_cal_${team.id}`,e.id),{
+            monteurBilled:false,
+            monteurBilledAt:null
+        });
+    };
+
+    const handlePDFExport = async () => {
+        const toExport = selectedIds.size > 0 ? doneEntries.filter(e=>selectedIds.has(e.id)) : doneEntries;
+        if(toExport.length===0){alert('Keine Aufträge zum Exportieren.');return;}
+        setExporting(true);
+        await downloadMonteurBillingPDF(toExport, team.name);
+        setExporting(false);
+    };
+
+    const handleBilledPDFExport = async () => {
+        if(billedEntries.length===0){alert('Keine abgerechneten Aufträge.');return;}
+        setExporting(true);
+        await downloadMonteurBillingPDF(billedEntries, team.name + ' (Abgerechnet)');
+        setExporting(false);
+    };
+
+    if(successCount !== null) {
+        return (
+            <div className="monteur-billing-overlay" style={{alignItems:'center',justifyContent:'center',padding:32}}>
+                <div style={{textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:20}}>
+                    <div style={{width:80,height:80,background:'rgba(16,185,129,0.2)',border:'2px solid #10b981',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:40}}>✓</div>
+                    <div>
+                        <div style={{color:'#10b981',fontSize:42,fontWeight:900,lineHeight:1}}>{successCount}</div>
+                        <div style={{color:'#fff',fontSize:14,fontWeight:900,marginTop:6,textTransform:'uppercase'}}>Aufträge abgerechnet</div>
+                        <div style={{color:'#64748b',fontSize:11,marginTop:8}}>Diese Aufträge wurden als abgerechnet markiert</div>
+                    </div>
+                    <div style={{display:'flex',gap:12,width:'100%',maxWidth:300}}>
+                        <button onClick={()=>setSuccessCount(null)} style={{flex:1,padding:'14px',background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,color:'#94a3b8',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>Weiter</button>
+                        <button onClick={onClose} style={{flex:1,padding:'14px',background:'#10b981',border:'none',borderRadius:12,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>Schliessen</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="monteur-billing-overlay">
+            {/* Header */}
+            <div className="monteur-billing-header">
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
+                    <div>
+                        <div style={{color:'#10b981',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:4}}>MEINE ABRECHNUNG</div>
+                        <h2 style={{color:'#fff',fontSize:20,fontWeight:900,textTransform:'uppercase',margin:'0 0 4px'}}>FERTIG MONTIERT</h2>
+                        <div style={{display:'flex',alignItems:'center',gap:6}}>
+                            <div style={{width:8,height:8,borderRadius:'50%',background:team.color||'#10b981'}}></div>
+                            <span style={{color:'#94a3b8',fontSize:11,fontWeight:700}}>{team.name}</span>
+                        </div>
+                    </div>
+                    <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:36,height:36,cursor:'pointer',color:'#94a3b8',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                </div>
+
+                {/* Stats */}
+                <div style={{display:'flex',gap:10,marginBottom:12}}>
+                    <div className="monteur-stat-box">
+                        <div style={{color:'#10b981',fontSize:22,fontWeight:900,lineHeight:1}}>{doneEntries.length}</div>
+                        <div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Offen</div>
+                    </div>
+                    <div className="monteur-stat-box">
+                        <div style={{color:'#a855f7',fontSize:22,fontWeight:900,lineHeight:1}}>{billedEntries.length}</div>
+                        <div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Abgerechnet</div>
+                    </div>
+                    <div className="monteur-stat-box">
+                        <div style={{color:'#f59e0b',fontSize:22,fontWeight:900,lineHeight:1}}>{entries.filter(e=>e.isDone).length}</div>
+                        <div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Total Erledigt</div>
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    {doneEntries.length > 0 && (
+                        <button onClick={selectAll} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'7px 14px',color:'#cbd5e1',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>
+                            {selectedIds.size===doneEntries.length?'Alle abwählen':'Alle wählen'} ({doneEntries.length})
+                        </button>
+                    )}
+                    {selectedIds.size > 0 && (
+                        <button onClick={markMonteurBilled} style={{background:'#10b981',border:'none',borderRadius:8,padding:'7px 16px',color:'#fff',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
+                            ✓ Als abgerechnet markieren ({selectedIds.size})
+                        </button>
+                    )}
+                    <button onClick={handlePDFExport} disabled={exporting} style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:8,padding:'7px 14px',color:'#10b981',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:6,opacity:exporting?0.5:1}}>
+                        <Icon name="download" size={12}/>{exporting?'Exportiere...':'PDF Export (Offen)'}
+                    </button>
+                    {billedEntries.length > 0 && (
+                        <button onClick={handleBilledPDFExport} disabled={exporting} style={{background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.3)',borderRadius:8,padding:'7px 14px',color:'#a855f7',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:6,opacity:exporting?0.5:1}}>
+                            <Icon name="download" size={12}/>PDF Abgerechnet
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Body */}
+            <div className="monteur-billing-body">
+                {doneEntries.length === 0 && billedEntries.length === 0 && (
+                    <div style={{textAlign:'center',padding:60,color:'#475569'}}>
+                        <div style={{fontSize:48,marginBottom:12}}>📋</div>
+                        <div style={{fontSize:14,fontWeight:900,color:'#64748b'}}>Keine erledigten Aufträge</div>
+                        <div style={{fontSize:11,marginTop:8,color:'#334155',lineHeight:1.6}}>Aufträge im Kalender als „Erledigt" markieren,<br/>um sie hier in der Abrechnung zu sehen.</div>
+                    </div>
+                )}
+
+                {/* Offene Abrechnungen */}
+                {doneEntries.length > 0 && (
+                    <div>
+                        <div style={{color:'#10b981',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+                            <div style={{width:6,height:6,borderRadius:'50%',background:'#10b981'}}></div>
+                            Fertig — Noch nicht abgerechnet
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                            {doneEntries.map(e=>(
+                                <div key={e.id}
+                                    className={`monteur-entry-card ${selectedIds.has(e.id)?'selected':''}`}
+                                    onClick={()=>toggleSelect(e.id)}>
+                                    <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+                                        {/* Checkbox */}
+                                        <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${selectedIds.has(e.id)?'#10b981':'rgba(255,255,255,0.2)'}`,background:selectedIds.has(e.id)?'#10b981':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2,transition:'all 0.15s'}}>
+                                            {selectedIds.has(e.id)&&<span style={{color:'#fff',fontSize:13,fontWeight:900,lineHeight:1}}>✓</span>}
+                                        </div>
+                                        <div style={{flex:1,minWidth:0}}>
+                                            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                                                <span style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                                <span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>✓ ERLEDIGT</span>
+                                                {e.isProv&&<span style={{background:'rgba(234,179,8,0.2)',color:'#eab308',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>⚠ PROV</span>}
+                                            </div>
+                                            <div style={{color:'#64748b',fontSize:10,marginBottom:e.auftragsNr?4:0}}>{e.address}</div>
+                                            <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+                                                <span style={{color:'#475569',fontSize:9}}>{formatDate(e.deliveryDate)}</span>
+                                                {e.auftragsNr&&(
+                                                    <span style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.2)',borderRadius:5,padding:'1px 7px',color:'#60a5fa',fontSize:9,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>
+                                                )}
+                                            </div>
+                                            {e.memo&&(
+                                                <div style={{display:'flex',alignItems:'flex-start',gap:6,background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.2)',borderLeft:'3px solid #f59e0b',borderRadius:'0 6px 6px 0',padding:'5px 8px',marginTop:6}}>
+                                                    <span style={{fontSize:10}}>📝</span>
+                                                    <span style={{color:'#fbbf24',fontSize:10,fontWeight:700,lineHeight:1.4}}>{e.memo}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Abgerechnete Aufträge */}
+                {billedEntries.length > 0 && (
+                    <div style={{marginTop:doneEntries.length>0?16:0}}>
+                        <div style={{color:'#a855f7',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+                            <div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div>
+                            <span>✓ Bereits Abgerechnet ({billedEntries.length})</span>
+                            <div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div>
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                            {billedEntries.map(e=>(
+                                <div key={e.id} className="monteur-entry-card billed"
+                                    style={{borderLeft:`3px solid rgba(168,85,247,0.4)`}}
+                                    onClick={()=>{if(confirm(`"${e.customer}" wieder als nicht abgerechnet markieren?`))unmarkMonteurBilled(e);}}>
+                                    <div style={{display:'flex',alignItems:'center',gap:12}}>
+                                        <div style={{width:22,height:22,borderRadius:6,background:'rgba(168,85,247,0.2)',border:'2px solid rgba(168,85,247,0.4)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                                            <span style={{color:'#a855f7',fontSize:13,fontWeight:900,lineHeight:1}}>✓</span>
+                                        </div>
+                                        <div style={{flex:1,minWidth:0}}>
+                                            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}>
+                                                <span style={{color:'#cbd5e1',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                                <span style={{background:'rgba(168,85,247,0.15)',color:'#a855f7',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>✓ ABGERECHNET</span>
+                                                {e.auftragsNr&&<span style={{color:'#475569',fontSize:9,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}
+                                            </div>
+                                            <div style={{color:'#475569',fontSize:9}}>{formatDate(e.deliveryDate)} · {e.address}</div>
+                                            {e.memo&&<div style={{color:'#78350f',fontSize:9,fontWeight:700,marginTop:3}}>📝 {e.memo}</div>}
+                                            {e.monteurBilledAt&&<div style={{color:'#334155',fontSize:8,marginTop:2}}>Abgerechnet: {formatDate(e.monteurBilledAt)}</div>}
+                                        </div>
+                                        <span style={{color:'#334155',fontSize:8,flexShrink:0}}>Klick = Rückbuchen</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
 function LoginScreen({ onLogin, teams }) {
     const [pin, setPin] = useState('');
     const [error, setError] = useState('');
@@ -648,10 +962,7 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
 
     const handleTextChange=(val)=>{setText(val);setPreview(parse(val));setProvIds(new Set());};
     const toggleProv=(i)=>setProvIds(prev=>{const n=new Set(prev);n.has(i)?n.delete(i):n.add(i);return n;});
-    const doImport=async()=>{
-        const entries=parse(text);if(!entries.length){alert('Keine Aufträge erkannt.');return;}setSaving(true);
-        try{const{db,doc,setDoc}=window.FirebaseSDK;for(let i=0;i<entries.length;i++){const e=entries[i];const id=`cal-${genId()}`;await setDoc(doc(db,`teams_cal_${team.id}`,id),{...e,id,images:[],image:null,createdAt:new Date().toISOString(),isDone:false,isBilled:false,isProv:provIds.has(i),customStartLabel:''});}onDone(entries.length);}catch(err){alert('Fehler: '+err.message);setSaving(false);}
-    };
+    const doImport=async()=>{const entries=parse(text);if(!entries.length){alert('Keine Aufträge erkannt.');return;}setSaving(true);try{const{db,doc,setDoc}=window.FirebaseSDK;for(let i=0;i<entries.length;i++){const e=entries[i];const id=`cal-${genId()}`;await setDoc(doc(db,`teams_cal_${team.id}`,id),{...e,id,images:[],image:null,createdAt:new Date().toISOString(),isDone:false,isBilled:false,isProv:provIds.has(i),customStartLabel:''});}onDone(entries.length);}catch(err){alert('Fehler: '+err.message);setSaving(false);}};
 
     return (
         <div style={{position:'fixed',inset:0,zIndex:50,background:'rgba(15,23,42,0.99)',padding:'16px',display:'flex',flexDirection:'column',gap:12}}>
@@ -719,16 +1030,16 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
             {images.length > 0 && (
                 <div style={{position:'absolute',top:4,right:4,display:'flex',alignItems:'center',gap:3}}>
                     {images.length > 1 && (
-                        <div style={{background:'#10b981',color:'#fff',fontSize:7,fontWeight:900,borderRadius:10,padding:'1px 5px',lineHeight:1.4}}>
-                            {images.length}
-                        </div>
+                        <div style={{background:'#10b981',color:'#fff',fontSize:7,fontWeight:900,borderRadius:10,padding:'1px 5px',lineHeight:1.4}}>{images.length}</div>
                     )}
-                    <div className="green-dot" title={`${images.length} Foto(s) — PDF herunterladen`} style={{position:'static'}}></div>
+                    <div className="green-dot" title={`${images.length} Foto(s)`} style={{position:'static'}}></div>
                 </div>
             )}
 
             {e.isDone&&<div className="done-stamp">✓ Erledigt</div>}
             {e.isBilled&&<div className="billed-stamp">✓ Abgerechnet</div>}
+            {/* Monteur-eigene Abrechnungsmarkierung */}
+            {!e.isBilled&&e.monteurBilled&&<div className="monteur-billed-stamp">✓ Abgerechn.</div>}
 
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,flexWrap:'wrap'}}>
                 {isStart?(<div style={{fontSize:8,fontWeight:900,letterSpacing:1,textTransform:'uppercase',padding:'1px 5px',background:border,color:'#fff',borderRadius:2,display:'inline-block'}}>{startLabel}</div>):(<div style={{fontSize:8,fontWeight:900,letterSpacing:1,textTransform:'uppercase',padding:'1px 5px',background:border+'bb',color:'#fff',borderRadius:2,display:'inline-block'}}>TAG {dayNumber}</div>)}
@@ -757,24 +1068,21 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
 }
 
 // ============================================================
-// BILLING MODAL — überarbeitet: alle Gruppen + Memo
+// ADMIN BILLING MODAL
 // ============================================================
 function BillingModal({ teams, onClose }) {
     const [allEntries, setAllEntries] = useState([]);
     const [activeTeamTab, setActiveTeamTab] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
-    const [loadedTeams, setLoadedTeams] = useState(0);
 
     useEffect(()=>{
         const{db,collection,onSnapshot}=window.FirebaseSDK;
         const unsubs=[];
         setAllEntries([]);
-        setLoadedTeams(0);
         teams.forEach(team=>{
             const unsub=onSnapshot(collection(db,`teams_cal_${team.id}`),(snap)=>{
                 const entries=snap.docs.map(d=>({id:d.id,...d.data(),teamId:team.id,teamName:team.name,teamColor:team.color}));
                 setAllEntries(prev=>[...prev.filter(e=>e.teamId!==team.id),...entries]);
-                setLoadedTeams(prev=>prev+1);
             });
             unsubs.push(unsub);
         });
@@ -789,44 +1097,40 @@ function BillingModal({ teams, onClose }) {
     const currentTeamDone=activeTeamTab?doneForTeam(activeTeamTab):[];
     const currentTeamBilled=activeTeamTab?billedForTeam(activeTeamTab):[];
     const currentTeam=teams.find(t=>t.id===activeTeamTab);
-
-    // Gesamtstatistik
-    const totalDone = doneEntries.length;
-    const totalBilled = billedEntries.length;
+    const totalDone=doneEntries.length;
+    const totalBilled=billedEntries.length;
 
     const toggleSelect=(id)=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
     const selectAll=()=>{if(selectedIds.size===currentTeamDone.length)setSelectedIds(new Set());else setSelectedIds(new Set(currentTeamDone.map(e=>e.id)));};
     const markBilled=async()=>{const{db,doc,updateDoc}=window.FirebaseSDK;for(const e of currentTeamDone.filter(e=>selectedIds.has(e.id)))await updateDoc(doc(db,`teams_cal_${e.teamId}`,e.id),{isBilled:true,billedAt:new Date().toISOString()});setSelectedIds(new Set());};
     const unmarkBilled=async(e)=>{const{db,doc,updateDoc}=window.FirebaseSDK;await updateDoc(doc(db,`teams_cal_${e.teamId}`,e.id),{isBilled:false,billedAt:null});};
     const deleteEntry=async(e)=>{if(!confirm(`"${e.customer}" löschen?`))return;const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,`teams_cal_${e.teamId}`,e.id));};
-    const exportPDF=()=>{const el=document.getElementById('billing-pdf-content');if(!el)return;html2pdf().set({margin:8,filename:`Fertigmontage_${currentTeam?.name||'Export'}_${new Date().toLocaleDateString('de-DE')}.pdf`,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'landscape'}}).from(el).save();};
+    const exportPDF=()=>{const el=document.getElementById('admin-billing-pdf-content');if(!el)return;html2pdf().set({margin:8,filename:`Fertigmontage_${currentTeam?.name||'Export'}_${new Date().toLocaleDateString('de-DE')}.pdf`,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'landscape'}}).from(el).save();};
     const pdfEntries=currentTeamDone.filter(e=>selectedIds.size===0||selectedIds.has(e.id));
     const today=new Date().toLocaleDateString('de-DE');
 
     return (
         <div style={{position:'fixed',inset:0,zIndex:80,background:'rgba(10,15,30,0.97)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-            {/* Hidden PDF content */}
             <div style={{position:'absolute',left:'-9999px',top:0}}>
-                <div id="billing-pdf-content" style={{background:'#fff',color:'#000',fontFamily:'Arial,sans-serif',width:'277mm',padding:'10mm 12mm'}}>
+                <div id="admin-billing-pdf-content" style={{background:'#fff',color:'#000',fontFamily:'Arial,sans-serif',width:'277mm',padding:'10mm 12mm'}}>
                     <div style={{background:'#2563eb',padding:'7mm 10mm',margin:'-10mm -12mm 7mm -12mm',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                        <div style={{color:'#fff',fontSize:'9pt',fontWeight:'bold',textTransform:'uppercase',letterSpacing:2}}>FERTIGMONTAGE ABRECHNUNG</div>
+                        <div style={{color:'#fff',fontSize:'9pt',fontWeight:'bold',textTransform:'uppercase',letterSpacing:2}}>ADMIN ABRECHNUNG</div>
                         <div style={{color:'#fff',fontSize:'9pt',fontWeight:'bold'}}>{currentTeam?.name||''}</div>
                     </div>
                     <h1 style={{fontSize:'18pt',fontWeight:900,margin:'0 0 2mm 0',color:'#000'}}>FERTIGMONTAGE — {currentTeam?.name}</h1>
                     <div style={{color:'#444',fontSize:'8pt',marginBottom:'5mm'}}>Erstellt: {today} · Aufträge: {pdfEntries.length}</div>
                     <table style={{width:'100%',borderCollapse:'collapse',fontSize:'8.5pt'}}>
-                        <thead><tr style={{borderBottom:'1.5pt solid #000',background:'#f8fafc'}}><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'8mm'}}>#</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'22mm'}}>DATUM</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'52mm'}}>KUNDE</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'35mm'}}>AUFTRAGSNR.</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>ADRESSE</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'40mm'}}>MEMO</th><th style={{textAlign:'right',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'22mm'}}>STATUS</th></tr></thead>
-                        <tbody>{pdfEntries.map((e,i)=>(<tr key={e.id} style={{borderBottom:'0.5pt solid #e2e8f0',background:i%2===0?'#f8fafc':'#fff'}}><td style={{padding:'2.5mm 3mm',fontWeight:900,color:'#555',fontSize:'8pt'}}>{i+1}</td><td style={{padding:'2.5mm 3mm',fontSize:'8pt',color:'#000'}}>{formatDate(e.deliveryDate)}</td><td style={{padding:'2.5mm 3mm',fontWeight:700,fontSize:'9pt',color:'#000'}}>{e.customer}</td><td style={{padding:'2.5mm 3mm'}}><span style={{background:'#eff6ff',border:'1pt solid #bfdbfe',borderRadius:'4pt',padding:'1mm 3mm',fontWeight:900,fontSize:'8pt',color:'#1d4ed8',fontFamily:'monospace'}}>{cleanAuftragsNr(e.auftragsNr)||'—'}</span></td><td style={{padding:'2.5mm 3mm',color:'#333',fontSize:'8pt'}}>{e.address}</td><td style={{padding:'2.5mm 3mm',color:'#92400e',fontSize:'8pt',fontStyle:e.memo?'normal':'italic'}}>{e.memo||'—'}</td><td style={{padding:'2.5mm 3mm',textAlign:'right'}}><span style={{background:'#f0fdf4',border:'1pt solid #86efac',borderRadius:'4pt',padding:'1mm 3mm',color:'#15803d',fontWeight:900,fontSize:'7pt',textTransform:'uppercase'}}>✓ FERTIG</span></td></tr>))}</tbody>
+                        <thead><tr style={{borderBottom:'1.5pt solid #000',background:'#f8fafc'}}><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>#</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>DATUM</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>KUNDE</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>AUFTRAGSNR.</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>ADRESSE</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>MEMO</th><th style={{textAlign:'right',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>STATUS</th></tr></thead>
+                        <tbody>{pdfEntries.map((e,i)=>(<tr key={e.id} style={{borderBottom:'0.5pt solid #e2e8f0',background:i%2===0?'#f8fafc':'#fff'}}><td style={{padding:'2.5mm 3mm',fontWeight:900,color:'#555',fontSize:'8pt'}}>{i+1}</td><td style={{padding:'2.5mm 3mm',fontSize:'8pt',color:'#000'}}>{formatDate(e.deliveryDate)}</td><td style={{padding:'2.5mm 3mm',fontWeight:700,fontSize:'9pt',color:'#000'}}>{e.customer}</td><td style={{padding:'2.5mm 3mm'}}><span style={{background:'#eff6ff',border:'1pt solid #bfdbfe',borderRadius:'4pt',padding:'1mm 3mm',fontWeight:900,fontSize:'8pt',color:'#1d4ed8',fontFamily:'monospace'}}>{cleanAuftragsNr(e.auftragsNr)||'—'}</span></td><td style={{padding:'2.5mm 3mm',color:'#333',fontSize:'8pt'}}>{e.address}</td><td style={{padding:'2.5mm 3mm',color:'#92400e',fontSize:'8pt'}}>{e.memo||'—'}</td><td style={{padding:'2.5mm 3mm',textAlign:'right'}}><span style={{background:'#f0fdf4',border:'1pt solid #86efac',borderRadius:'4pt',padding:'1mm 3mm',color:'#15803d',fontWeight:900,fontSize:'7pt',textTransform:'uppercase'}}>✓ FERTIG</span></td></tr>))}</tbody>
                     </table>
                 </div>
             </div>
 
             <div className="billing-modal" style={{width:'100%',maxWidth:800,maxHeight:'92vh',border:'1px solid rgba(255,255,255,0.08)',boxShadow:'0 40px 80px rgba(0,0,0,0.6)'}}>
-                {/* Header */}
                 <div className="billing-modal-header">
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
                         <div>
-                            <div style={{color:'#94a3b8',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:4}}>ABRECHNUNGSLISTE</div>
+                            <div style={{color:'#94a3b8',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:4}}>ADMIN ABRECHNUNGSLISTE</div>
                             <h2 style={{color:'#fff',fontSize:22,fontWeight:900,textTransform:'uppercase',margin:0}}>FERTIG MONTIERT</h2>
                             <div style={{display:'flex',gap:12,marginTop:8}}>
                                 <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.25)',borderRadius:8,padding:'4px 10px'}}>
@@ -841,7 +1145,6 @@ function BillingModal({ teams, onClose }) {
                         </div>
                         <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:36,height:36,cursor:'pointer',color:'#94a3b8',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                     </div>
-                    {/* Scrollbare Team-Tabs – alle Gruppen sichtbar */}
                     <div className="billing-team-tabs" style={{borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
                         {teams.map(t=>{
                             const done=doneForTeam(t.id).length;
@@ -850,7 +1153,7 @@ function BillingModal({ teams, onClose }) {
                             return(
                                 <button key={t.id} onClick={()=>{setActiveTeamTab(t.id);setSelectedIds(new Set());}}
                                     style={{padding:'10px 16px',background:isActive?'rgba(59,130,246,0.1)':'transparent',border:'none',borderBottom:isActive?`2px solid ${t.color||'#3b82f6'}`:'2px solid transparent',color:isActive?'#fff':'#64748b',fontWeight:900,fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',flexShrink:0,transition:'all 0.15s'}}>
-                                    <div style={{width:8,height:8,borderRadius:'50%',background:isActive?(t.color||'#3b82f6'):'#334155',boxShadow:isActive?`0 0 6px ${t.color||'#3b82f6'}`:'none'}}></div>
+                                    <div style={{width:8,height:8,borderRadius:'50%',background:isActive?(t.color||'#3b82f6'):'#334155'}}></div>
                                     {t.name}
                                     {done>0&&<span style={{background:'#ef4444',color:'#fff',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>{done}</span>}
                                     {billed>0&&<span style={{background:'rgba(168,85,247,0.3)',color:'#a855f7',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>✓{billed}</span>}
@@ -859,14 +1162,11 @@ function BillingModal({ teams, onClose }) {
                         })}
                     </div>
                 </div>
-
-                {/* Body */}
                 <div style={{flex:1,overflowY:'auto',padding:20}}>
                     {currentTeam&&<>
-                        {/* Aktuelles Team Info */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                             <div style={{display:'flex',alignItems:'center',gap:10}}>
-                                <div style={{width:12,height:12,borderRadius:'50%',background:currentTeam.color||'#3b82f6',boxShadow:`0 0 8px ${currentTeam.color||'#3b82f6'}`}}></div>
+                                <div style={{width:12,height:12,borderRadius:'50%',background:currentTeam.color||'#3b82f6'}}></div>
                                 <span style={{color:'#fff',fontSize:14,fontWeight:900}}>{currentTeam.name}</span>
                                 <span style={{color:'#64748b',fontSize:10}}>— {currentTeamDone.length} offen · {currentTeamBilled.length} abgerechnet</span>
                             </div>
@@ -875,77 +1175,34 @@ function BillingModal({ teams, onClose }) {
                                 <button onClick={exportPDF} style={{background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:8,padding:'7px 14px',color:'#3b82f6',fontSize:9,fontWeight:900,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="download" size={12}/>PDF Export</button>
                             </div>
                         </div>
-
-                        {currentTeamDone.length>0&&(
-                            <div style={{marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                                <button onClick={selectAll} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:'6px 12px',color:'#cbd5e1',fontSize:9,fontWeight:900,cursor:'pointer'}}>ALLE WÄHLEN ({currentTeamDone.length})</button>
-                                <span style={{color:'#64748b',fontSize:9}}>{selectedIds.size} ausgewählt</span>
-                            </div>
-                        )}
-
+                        {currentTeamDone.length>0&&<div style={{marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}><button onClick={selectAll} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:'6px 12px',color:'#cbd5e1',fontSize:9,fontWeight:900,cursor:'pointer'}}>ALLE WÄHLEN ({currentTeamDone.length})</button><span style={{color:'#64748b',fontSize:9}}>{selectedIds.size} ausgewählt</span></div>}
                         {currentTeamDone.length===0&&currentTeamBilled.length===0?(
-                            <div style={{textAlign:'center',padding:40,color:'#475569'}}>
-                                <div style={{fontSize:32,marginBottom:8}}>📋</div>
-                                <div style={{fontSize:12,fontWeight:700}}>Keine erledigten Aufträge</div>
-                                <div style={{fontSize:10,marginTop:4,color:'#334155'}}>Aufträge als „Erledigt" markieren um sie hier zu sehen</div>
-                            </div>
+                            <div style={{textAlign:'center',padding:40,color:'#475569'}}><div style={{fontSize:32,marginBottom:8}}>📋</div><div style={{fontSize:12,fontWeight:700}}>Keine erledigten Aufträge</div></div>
                         ):(
                             <div style={{display:'flex',flexDirection:'column',gap:8}}>
                                 {currentTeamDone.map(e=>(
-                                    <div key={e.id}
-                                        style={{background:selectedIds.has(e.id)?'rgba(59,130,246,0.1)':'rgba(255,255,255,0.04)',border:selectedIds.has(e.id)?'1px solid rgba(59,130,246,0.4)':'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 16px',display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer'}}
-                                        onClick={()=>toggleSelect(e.id)}>
-                                        <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${selectedIds.has(e.id)?'#3b82f6':'rgba(255,255,255,0.15)'}`,background:selectedIds.has(e.id)?'#3b82f6':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2}}>
-                                            {selectedIds.has(e.id)&&<span style={{color:'#fff',fontSize:11,fontWeight:900}}>✓</span>}
-                                        </div>
+                                    <div key={e.id} style={{background:selectedIds.has(e.id)?'rgba(59,130,246,0.1)':'rgba(255,255,255,0.04)',border:selectedIds.has(e.id)?'1px solid rgba(59,130,246,0.4)':'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 16px',display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer'}} onClick={()=>toggleSelect(e.id)}>
+                                        <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${selectedIds.has(e.id)?'#3b82f6':'rgba(255,255,255,0.15)'}`,background:selectedIds.has(e.id)?'#3b82f6':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2}}>{selectedIds.has(e.id)&&<span style={{color:'#fff',fontSize:11,fontWeight:900}}>✓</span>}</div>
                                         <div style={{flex:1,minWidth:0}}>
                                             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
                                                 <span style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
                                                 <span style={{color:'#64748b',fontSize:9}}>· {formatDate(e.deliveryDate)}</span>
-                                                {e.auftragsNr&&(
-                                                    <div style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:6,padding:'2px 8px'}}>
-                                                        <span style={{color:'#3b82f6',fontSize:10,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>
-                                                    </div>
-                                                )}
+                                                {e.auftragsNr&&<div style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:6,padding:'2px 8px'}}><span style={{color:'#3b82f6',fontSize:10,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span></div>}
+                                                {e.monteurBilled&&<span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>✓ Monteur Abgr.</span>}
                                             </div>
                                             <div style={{color:'#64748b',fontSize:10,marginBottom:e.memo?6:0}}>{e.address}</div>
-                                            {/* ── MEMO ANZEIGE IN ABRECHNUNG ── */}
-                                            {e.memo&&(
-                                                <div style={{display:'flex',alignItems:'flex-start',gap:6,background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.2)',borderLeft:'3px solid #f59e0b',borderRadius:'0 6px 6px 0',padding:'5px 8px',marginTop:4}}>
-                                                    <span style={{fontSize:10}}>📝</span>
-                                                    <span style={{color:'#fbbf24',fontSize:10,fontWeight:700,lineHeight:1.4}}>{e.memo}</span>
-                                                </div>
-                                            )}
+                                            {e.memo&&<div style={{display:'flex',alignItems:'flex-start',gap:6,background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.2)',borderLeft:'3px solid #f59e0b',borderRadius:'0 6px 6px 0',padding:'5px 8px',marginTop:4}}><span style={{fontSize:10}}>📝</span><span style={{color:'#fbbf24',fontSize:10,fontWeight:700,lineHeight:1.4}}>{e.memo}</span></div>}
                                         </div>
-                                        <button onClick={(ev)=>{ev.stopPropagation();deleteEntry(e);}}
-                                            style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,padding:'6px 10px',cursor:'pointer',color:'#ef4444',fontSize:9,fontWeight:900,display:'flex',alignItems:'center',gap:4,flexShrink:0,alignSelf:'flex-start'}}>
-                                            <Icon name="trash-2" size={12}/>LÖSCHEN
-                                        </button>
+                                        <button onClick={(ev)=>{ev.stopPropagation();deleteEntry(e);}} style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,padding:'6px 10px',cursor:'pointer',color:'#ef4444',fontSize:9,fontWeight:900,display:'flex',alignItems:'center',gap:4,flexShrink:0,alignSelf:'flex-start'}}><Icon name="trash-2" size={12}/>LÖSCHEN</button>
                                     </div>
                                 ))}
-
                                 {currentTeamBilled.length>0&&(
                                     <>
-                                        <div style={{color:'#a855f7',fontSize:9,fontWeight:900,textTransform:'uppercase',margin:'12px 0 8px',display:'flex',alignItems:'center',gap:8}}>
-                                            <div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div>
-                                            Bereits Abgerechnet ({currentTeamBilled.length})
-                                            <div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div>
-                                        </div>
-                                        {currentTeamBilled.map(e=>(
-                                            <div key={e.id} onClick={()=>unmarkBilled(e)}
-                                                style={{background:'rgba(168,85,247,0.05)',border:'1px solid rgba(168,85,247,0.15)',borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',opacity:0.7}}>
-                                                <div style={{flex:1,minWidth:0}}>
-                                                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}>
-                                                        <span style={{color:'#cbd5e1',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
-                                                        {e.auftragsNr&&<span style={{color:'#a855f7',fontSize:10,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}
-                                                    </div>
-                                                    <div style={{color:'#475569',fontSize:9}}>{formatDate(e.deliveryDate)} · {e.address}</div>
-                                                    {/* Memo auch bei abgerechneten */}
-                                                    {e.memo&&<div style={{color:'#78350f',fontSize:9,fontWeight:700,marginTop:3}}>📝 {e.memo}</div>}
-                                                </div>
-                                                <span style={{color:'#64748b',fontSize:8,flexShrink:0,marginTop:2}}>Klick zum Rückbuchen</span>
-                                            </div>
-                                        ))}
+                                        <div style={{color:'#a855f7',fontSize:9,fontWeight:900,textTransform:'uppercase',margin:'12px 0 8px',display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div>Bereits Abgerechnet ({currentTeamBilled.length})<div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div></div>
+                                        {currentTeamBilled.map(e=>(<div key={e.id} onClick={()=>unmarkBilled(e)} style={{background:'rgba(168,85,247,0.05)',border:'1px solid rgba(168,85,247,0.15)',borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',opacity:0.7}}>
+                                            <div style={{flex:1,minWidth:0}}><div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}><span style={{color:'#cbd5e1',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>{e.auftragsNr&&<span style={{color:'#a855f7',fontSize:10,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}</div><div style={{color:'#475569',fontSize:9}}>{formatDate(e.deliveryDate)} · {e.address}</div>{e.memo&&<div style={{color:'#78350f',fontSize:9,fontWeight:700,marginTop:3}}>📝 {e.memo}</div>}</div>
+                                            <span style={{color:'#64748b',fontSize:8,flexShrink:0,marginTop:2}}>Klick zum Rückbuchen</span>
+                                        </div>))}
                                     </>
                                 )}
                             </div>
@@ -958,7 +1215,7 @@ function BillingModal({ teams, onClose }) {
 }
 
 // ============================================================
-// CALENDAR VIEW mit Admin-Suchleiste
+// CALENDAR VIEW
 // ============================================================
 function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initialCalType, scrollToEntry=null }) {
     const [calEntries, setCalEntries] = useState([]);
@@ -974,10 +1231,11 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     const [standbySearch, setStandbySearch] = useState('');
     const [standbyDateModal, setStandbyDateModal] = useState(null);
     const [highlightId, setHighlightId] = useState(scrollToEntry?.id||null);
+    // MONTEUR ABRECHNUNG
+    const [showMonteurBilling, setShowMonteurBilling] = useState(false);
 
-    // ── KALENDER-SUCHE (Admin only) ──
+    // Cal search (Admin only)
     const [calSearchQuery, setCalSearchQuery] = useState('');
-    const [calSearchOpen, setCalSearchOpen] = useState(false);
     const [calSearchFocused, setCalSearchFocused] = useState(false);
     const calSearchRef = useRef(null);
 
@@ -996,7 +1254,10 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'standby_items'),snap=>{setStandbyItems(snap.docs.map(d=>({id:d.id,...d.data()})));});},[]);
     useEffect(()=>{if(!highlightId)return;const timer=setTimeout(()=>{const el=document.getElementById(`cal-entry-${highlightId}`);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('search-highlight');setTimeout(()=>el.classList.remove('search-highlight'),4500);}setHighlightId(null);},300);return()=>clearTimeout(timer);},[highlightId,calEntries]);
 
-    // Kalender-Suchergebnisse (alle Einträge des Teams)
+    // Count done entries for badge
+    const donePendingBillingCount = useMemo(()=>calEntries.filter(e=>e.isDone&&!e.monteurBilled).length,[calEntries]);
+
+    // Kalender-Suche
     const calSearchResults = useMemo(() => {
         if(!calSearchQuery.trim() || calSearchQuery.length < 2) return [];
         const q = calSearchQuery.toLowerCase();
@@ -1015,12 +1276,9 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         setCalSearchFocused(false);
     };
 
-    // Click outside to close
     useEffect(() => {
         const handleClick = (e) => {
-            if(calSearchRef.current && !calSearchRef.current.contains(e.target)) {
-                setCalSearchFocused(false);
-            }
+            if(calSearchRef.current && !calSearchRef.current.contains(e.target)) setCalSearchFocused(false);
         };
         document.addEventListener('mousedown', handleClick);
         return () => document.removeEventListener('mousedown', handleClick);
@@ -1048,14 +1306,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
         try{
             const{db,doc,updateDoc}=window.FirebaseSDK;
             const images = Array.isArray(entry.images) ? entry.images : (entry.image ? [entry.image] : []);
-            await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{
-                entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',
-                memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,
-                deliveryDate:entry.deliveryDate,endDate:entry.endDate||null,
-                isMultiDay:!!(entry.endDate&&entry.endDate>entry.deliveryDate),
-                images, image: images[0]||null,
-                calType:entry.calType||'montage',isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||''
-            });
+            await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,deliveryDate:entry.deliveryDate,endDate:entry.endDate||null,isMultiDay:!!(entry.endDate&&entry.endDate>entry.deliveryDate),images, image: images[0]||null,calType:entry.calType||'montage',isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||''});
             setEditCalEntry(null);
         }catch(err){alert('Fehler: '+err.message);}
     };
@@ -1065,14 +1316,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             const{db,doc,setDoc}=window.FirebaseSDK;const id=`cal-${genId()}`;
             const isMultiDay=!!(entry.endDate&&entry.endDate>entry.deliveryDate);
             const images = Array.isArray(entry.images) ? entry.images : [];
-            await setDoc(doc(db,`teams_cal_${team.id}`,id),{
-                id,createdAt:new Date().toISOString(),isDone:false,isBilled:false,
-                entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',
-                memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,
-                images, image: images[0]||null,
-                deliveryDate:entry.deliveryDate||'',endDate:entry.endDate||null,isMultiDay,
-                calType:entry.calType||activeCalType,isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||''
-            });
+            await setDoc(doc(db,`teams_cal_${team.id}`,id),{id,createdAt:new Date().toISOString(),isDone:false,isBilled:false,entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,images, image: images[0]||null,deliveryDate:entry.deliveryDate||'',endDate:entry.endDate||null,isMultiDay,calType:entry.calType||activeCalType,isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||''});
             setEditCalEntry(null);
         }catch(err){alert('Fehler: '+err.message);}
     };
@@ -1091,8 +1335,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     const kw=getWeekNumber(calWeek);
     const weekStart=toLocalDateStr(days[0]),weekEnd=toLocalDateStr(days[5]);
     const isAnyActionMode=!!(copyEntry||moveEntry);
-    const actionBannerColor=copyEntry?'#f59e0b':'#a78bfa';
-    const actionBannerText=copyEntry?`📋 KOPIEREN: „${copyEntry.customer}" — Tag-Spalte anklicken`:`↕ VERSCHIEBEN: „${moveEntry?.customer}" — Neuen Starttag anklicken`;
 
     return (
         <div style={{minHeight:'100vh',background:'#0f172a',display:'flex',flexDirection:'column'}}>
@@ -1133,6 +1375,18 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                     <button onClick={()=>setCalWeek(new Date())} style={{background:'#334155',border:'none',borderRadius:8,padding:'4px 10px',color:'#cbd5e1',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>Heute</button>
                     <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()+7);setCalWeek(d);}} style={{background:'#334155',border:'none',borderRadius:8,width:30,height:30,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-right" size={14} className="text-blue-400"/></button>
                     <button onClick={triggerWeekPDF} style={{background:'#475569',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="download" size={12}/>A3 PDF</button>
+
+                    {/* ── MONTEUR ABRECHNUNG BUTTON ── nur für Monteure */}
+                    {!isAdminAccess && (
+                        <button className="monteur-billing-btn" onClick={()=>setShowMonteurBilling(true)}>
+                            <Icon name="receipt" size={13}/>
+                            💰 Abrechnung
+                            {donePendingBillingCount > 0 && (
+                                <span className="monteur-billing-badge">{donePendingBillingCount}</span>
+                            )}
+                        </button>
+                    )}
+
                     {isAdminAccess&&<>
                         <button onClick={()=>setEditCalEntry({...emptyEntry})} style={{background:'#10b981',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="plus" size={12}/>Neu</button>
                         <button onClick={()=>setShowStandbyPicker({dayStr:toLocalDateStr(days[0])})} style={{background:'#f59e0b',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="archive" size={12}/>Standby</button>
@@ -1142,57 +1396,34 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             </div>
 
-            {/* ── ADMIN SUCHLEISTE ── */}
+            {/* Admin Suchleiste */}
             {isAdminAccess && (
                 <div className="cal-search-bar" ref={calSearchRef} style={{position:'relative'}}>
                     <div style={{position:'relative',flex:1,display:'flex',alignItems:'center',gap:8}}>
                         <span style={{color:'#475569',fontSize:13,flexShrink:0}}>🔍</span>
-                        <input
-                            className="cal-search-input"
-                            placeholder={`Aufträge in „${team.name}" suchen... (Kunde, Adresse, Nr., Memo)`}
-                            value={calSearchQuery}
-                            onChange={e=>setCalSearchQuery(e.target.value)}
-                            onFocus={()=>setCalSearchFocused(true)}
-                            style={{width:'100%'}}
-                        />
-                        {calSearchQuery && (
-                            <button onClick={()=>{setCalSearchQuery('');setCalSearchFocused(false);}} style={{background:'#334155',border:'none',borderRadius:6,width:22,height:22,cursor:'pointer',color:'#94a3b8',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
-                        )}
+                        <input className="cal-search-input" placeholder={`Aufträge in „${team.name}" suchen...`} value={calSearchQuery} onChange={e=>setCalSearchQuery(e.target.value)} onFocus={()=>setCalSearchFocused(true)} style={{width:'100%'}}/>
+                        {calSearchQuery&&<button onClick={()=>{setCalSearchQuery('');setCalSearchFocused(false);}} style={{background:'#334155',border:'none',borderRadius:6,width:22,height:22,cursor:'pointer',color:'#94a3b8',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>}
                     </div>
-                    {calSearchQuery && (
-                        <span style={{color:'#475569',fontSize:9,fontWeight:700,flexShrink:0}}>
-                            {calSearchResults.length} Treffer
-                        </span>
-                    )}
-                    {/* Dropdown-Ergebnisse */}
-                    {calSearchFocused && calSearchQuery.length >= 2 && (
+                    {calSearchQuery&&<span style={{color:'#475569',fontSize:9,fontWeight:700,flexShrink:0}}>{calSearchResults.length} Treffer</span>}
+                    {calSearchFocused&&calSearchQuery.length>=2&&(
                         <div className="cal-search-results" style={{top:'100%',left:0,right:0}}>
-                            {calSearchResults.length === 0 ? (
-                                <div style={{padding:'16px',textAlign:'center',color:'#475569',fontSize:11}}>Keine Treffer für „{calSearchQuery}"</div>
-                            ) : (
-                                calSearchResults.map((e,i) => {
-                                    const ci = colorIndex[e.id] >= 0 ? colorIndex[e.id] : 0;
-                                    const border = e.isProv ? PROV_BORDER : CARD_BORDER[ci];
-                                    return (
-                                        <div key={i} className="cal-search-result-item" onClick={()=>navigateToEntry(e)}>
-                                            <div style={{width:4,height:32,borderRadius:2,background:border,flexShrink:0}}></div>
-                                            <div style={{flex:1,minWidth:0}}>
-                                                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                                                    <span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
-                                                    <span style={{background:'rgba(59,130,246,0.15)',color:'#60a5fa',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:4}}>KW {getWeekNumber(new Date(e.deliveryDate))}</span>
-                                                    <span style={{color:'#64748b',fontSize:9}}>{formatDate(e.deliveryDate)}</span>
-                                                    {e.isDone&&<span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,padding:'1px 5px',borderRadius:4}}>✓</span>}
-                                                    {e.isProv&&<span style={{background:'rgba(234,179,8,0.2)',color:'#eab308',fontSize:8,fontWeight:900,padding:'1px 5px',borderRadius:4}}>⚠ PROV</span>}
-                                                </div>
-                                                <div style={{color:'#94a3b8',fontSize:9}}>{e.address}{e.auftragsNr?` · #${cleanAuftragsNr(e.auftragsNr)}`:''}</div>
-                                                {e.memo&&<div style={{color:'#fbbf24',fontSize:9,marginTop:1}}>📝 {e.memo}</div>}
-                                            </div>
-                                            <span style={{color:'#334155',fontSize:10,flexShrink:0}}>→ Springen</span>
-                                        </div>
-                                    );
-                                })
-                            )}
+                            {calSearchResults.length===0?(<div style={{padding:'16px',textAlign:'center',color:'#475569',fontSize:11}}>Keine Treffer für „{calSearchQuery}"</div>):
+                            calSearchResults.map((e,i)=>{const ci=colorIndex[e.id]>=0?colorIndex[e.id]:0;const border=e.isProv?PROV_BORDER:CARD_BORDER[ci];return(<div key={i} className="cal-search-result-item" onClick={()=>navigateToEntry(e)}><div style={{width:4,height:32,borderRadius:2,background:border,flexShrink:0}}></div><div style={{flex:1,minWidth:0}}><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}><span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span><span style={{background:'rgba(59,130,246,0.15)',color:'#60a5fa',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:4}}>KW {getWeekNumber(new Date(e.deliveryDate))}</span></div><div style={{color:'#94a3b8',fontSize:9}}>{e.address}</div></div><span style={{color:'#334155',fontSize:10,flexShrink:0}}>→ Springen</span></div>);})}
                         </div>
+                    )}
+                </div>
+            )}
+
+            {/* Monteur Info-Banner */}
+            {!isAdminAccess&&(
+                <div style={{background:'rgba(16,185,129,0.06)',borderBottom:'1px solid rgba(16,185,129,0.12)',padding:'5px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span style={{fontSize:9,fontWeight:700,color:'#10b981'}}>
+                        📄 Auftrag anklicken = PDF · ✓ Aufträge erledigen = erscheinen in Abrechnung
+                    </span>
+                    {donePendingBillingCount > 0 && (
+                        <span style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:10,padding:'2px 10px',color:'#10b981',fontSize:9,fontWeight:900,cursor:'pointer'}} onClick={()=>setShowMonteurBilling(true)}>
+                            {donePendingBillingCount} Aufträge offen zur Abrechnung →
+                        </span>
                     )}
                 </div>
             )}
@@ -1201,13 +1432,9 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 {currentCalConfig.banner} — KW {kw} — {formatDate(weekStart)} bis {formatDate(weekEnd)}
             </div>
 
-            {!isAdminAccess&&(<div style={{background:'rgba(59,130,246,0.08)',borderBottom:'1px solid rgba(59,130,246,0.15)',padding:'5px 16px',textAlign:'center',fontSize:9,fontWeight:700,color:'#60a5fa'}}>
-                📄 Auf einen Auftrag tippen um die PDF herunterzuladen · 🟢 Grüne Zahl = Anzahl Fotos im PDF
-            </div>)}
-
             {isAnyActionMode&&isAdminAccess&&(
-                <div style={{background:actionBannerColor,padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:10,fontWeight:900,color:'#fff'}}>
-                    <span>{actionBannerText}</span>
+                <div style={{background:copyEntry?'#f59e0b':'#a78bfa',padding:'8px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:10,fontWeight:900,color:'#fff'}}>
+                    <span>{copyEntry?`📋 KOPIEREN: „${copyEntry.customer}" — Tag-Spalte anklicken`:`↕ VERSCHIEBEN: „${moveEntry?.customer}" — Neuen Starttag anklicken`}</span>
                     <button onClick={()=>{setCopyEntry(null);setMoveEntry(null);}} style={{background:'rgba(0,0,0,0.2)',border:'none',borderRadius:6,padding:'3px 10px',color:'#fff',cursor:'pointer',fontSize:9,fontWeight:900}}>Abbrechen</button>
                 </div>
             )}
@@ -1226,77 +1453,53 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                                     const isCopyTarget=!!(copyEntry&&isAdminAccess),isMoveTarget=!!(moveEntry&&isAdminAccess),isActionTarget=isCopyTarget||isMoveTarget;
                                     const e=laneVisibleEntries.find(entry=>{if(entryLanes.get(entry.id)!==laneIdx)return false;const start=(entry.deliveryDate||'').substring(0,10),end=(entry.endDate||'').substring(0,10)||start;return dayStr>=start&&dayStr<=end;})||null;
                                     const borderRight=di<5?'1px solid #e2e8f0':'none',borderBottom='1px solid #f1f5f9';
-                                    if(!e){return(<div key={di} className={isActionTarget?'move-target-cell':''} style={{borderRight,borderBottom,minHeight:12,padding:'4px',boxSizing:'border-box',background:isActionTarget?(isMoveTarget?'rgba(167,139,250,0.05)':'rgba(245,158,11,0.05)'):'#fff',cursor:isActionTarget?'crosshair':'default'}} onClick={()=>{if(isCopyTarget)pasteCopyToDay(dayStr);else if(isMoveTarget)executeMoveEntry(moveEntry,dayStr);}}>
-                                        {isActionTarget&&laneIdx===0&&<div className="move-drop-hint" style={{borderColor:isMoveTarget?'rgba(167,139,250,0.5)':'rgba(245,158,11,0.3)',color:isMoveTarget?'rgba(167,139,250,0.8)':'rgba(245,158,11,0.6)'}}>{isMoveTarget?'↕ Hier verschieben':'+ Hier einfügen'}</div>}
+                                    if(!e){return(<div key={di} className={isActionTarget?'move-target-cell':''} style={{borderRight,borderBottom,minHeight:12,padding:'4px',boxSizing:'border-box',background:isActionTarget?'rgba(245,158,11,0.05)':'#fff',cursor:isActionTarget?'crosshair':'default'}} onClick={()=>{if(isCopyTarget)pasteCopyToDay(dayStr);else if(isMoveTarget)executeMoveEntry(moveEntry,dayStr);}}>
+                                        {isActionTarget&&laneIdx===0&&<div className="move-drop-hint">{isMoveTarget?'↕ Hier verschieben':'+ Hier einfügen'}</div>}
                                     </div>);}
                                     const ci=colorIndex[e.id]>=0?colorIndex[e.id]:0;
                                     const pos=getMultiDayPosition(e,dayStr),isStart=pos==='start'||pos==='single';
                                     const totalDays2=e.isMultiDay&&e.endDate?daysBetween(e.deliveryDate.substring(0,10),e.endDate.substring(0,10)):1;
                                     const canMark=isAdminAccess||(e.isMultiDay&&e.endDate?dayStr===e.deliveryDate.substring(0,10):true);
                                     const isMoveActiveCard=!!(moveEntry&&moveEntry.id===e.id);
-                                    return(<div key={di} id={`cal-entry-${e.id}`} style={{borderRight,borderBottom,padding:'4px',boxSizing:'border-box',background:isActionTarget?(isMoveTarget?'rgba(167,139,250,0.04)':'rgba(245,158,11,0.04)'):'#fff',cursor:(isActionTarget&&!isMoveActiveCard)?'crosshair':'default'}} onClick={(ev)=>{if(isMoveTarget&&!isMoveActiveCard&&isStart){ev.stopPropagation();executeMoveEntry(moveEntry,dayStr);}else if(isCopyTarget){pasteCopyToDay(dayStr);}}}>
+                                    return(<div key={di} id={`cal-entry-${e.id}`} style={{borderRight,borderBottom,padding:'4px',boxSizing:'border-box',background:isActionTarget?'rgba(245,158,11,0.04)':'#fff',cursor:(isActionTarget&&!isMoveActiveCard)?'crosshair':'default'}} onClick={(ev)=>{if(isMoveTarget&&!isMoveActiveCard&&isStart){ev.stopPropagation();executeMoveEntry(moveEntry,dayStr);}else if(isCopyTarget){pasteCopyToDay(dayStr);}}}>
                                         <CalCard e={e} dayStr={dayStr} ci={ci} isStart={isStart} totalDays={totalDays2} isAdminAccess={isAdminAccess} toggleDone={toggleDone} setCopyEntry={setCopyEntry} deleteCalEntry={deleteCalEntry} setEditCalEntry={setEditCalEntry} canMarkDone={canMark} setMoveEntry={setMoveEntry} isMoveActive={isMoveActiveCard}/>
                                     </div>);
                                 })}
                             </React.Fragment>
                         ))}
-                        {numLanes===0&&days.map((day,di)=>{const dayStr=toLocalDateStr(day),isCopyTarget=!!(copyEntry&&isAdminAccess),isMoveTarget=!!(moveEntry&&isAdminAccess),isActionTarget=isCopyTarget||isMoveTarget;return(<div key={di} style={{borderRight:di<5?'1px solid #e2e8f0':'none',minHeight:80,padding:4,cursor:isActionTarget?'crosshair':'default'}} onClick={()=>{if(isCopyTarget)pasteCopyToDay(dayStr);else if(isMoveTarget)executeMoveEntry(moveEntry,dayStr);}}><div style={{height:60,display:'flex',alignItems:'center',justifyContent:'center'}}>{isActionTarget?<span style={{fontSize:9,color:isMoveTarget?'#a78bfa':'#f59e0b',fontWeight:900}}>{isMoveTarget?'↕ Hier verschieben':'+ Hier einfügen'}</span>:<span style={{fontSize:9,color:'#cbd5e1',fontStyle:'italic'}}>—</span>}</div></div>);})}
+                        {numLanes===0&&days.map((day,di)=>{const dayStr=toLocalDateStr(day),isCopyTarget=!!(copyEntry&&isAdminAccess),isMoveTarget=!!(moveEntry&&isAdminAccess),isActionTarget=isCopyTarget||isMoveTarget;return(<div key={di} style={{borderRight:di<5?'1px solid #e2e8f0':'none',minHeight:80,padding:4,cursor:isActionTarget?'crosshair':'default'}} onClick={()=>{if(isCopyTarget)pasteCopyToDay(dayStr);else if(isMoveTarget)executeMoveEntry(moveEntry,dayStr);}}><div style={{height:60,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:9,color:'#cbd5e1',fontStyle:'italic'}}>—</span></div></div>);})}
                     </div>
                 </div>
             </div>
 
-            {/* EDIT MODAL */}
+            {/* EDIT MODAL (Admin) */}
             {editCalEntry&&isAdminAccess&&(
                 <div style={{position:'fixed',inset:0,zIndex:50,background:'rgba(15,23,42,0.96)',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:16,overflowY:'auto'}}>
                     <div style={{width:'100%',maxWidth:460,background:'rgba(51,65,85,0.98)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:24,padding:24,display:'flex',flexDirection:'column',gap:12,marginTop:8,marginBottom:8}}>
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
                             <h3 style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase',fontStyle:'italic',margin:0}}>{editCalEntry.isNew?'Neuer Eintrag':'Auftrag bearbeiten'}</h3>
                             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                                <button onClick={()=>{const cur=editCalEntry.customStartLabel||'';const hasSP=cur.toUpperCase().includes('SILENTPANLS')||cur.toUpperCase().includes('SILENTPANELS');if(hasSP){setEditCalEntry(p=>({...p,customStartLabel:cur.replace(/\+?\s*SILENTPANLS/gi,'').replace(/\+?\s*SILENTPANELS/gi,'').trim()}));}else{const base=cur.trim();setEditCalEntry(p=>({...p,customStartLabel:base?base+' + SILENTPANLS':'SILENTPANLS'}));}}} style={{background:(editCalEntry.customStartLabel||'').toUpperCase().includes('SILENT')?'#6366f1':'rgba(99,102,241,0.15)',border:`2px solid ${(editCalEntry.customStartLabel||'').toUpperCase().includes('SILENT')?'#6366f1':'rgba(99,102,241,0.3)'}`,borderRadius:10,padding:'6px 12px',color:(editCalEntry.customStartLabel||'').toUpperCase().includes('SILENT')?'#fff':'#a5b4fc',fontWeight:900,fontSize:9,textTransform:'uppercase',cursor:'pointer'}}>🔇 SILENTPANELS</button>
+                                <button onClick={()=>{const cur=editCalEntry.customStartLabel||'';const hasSP=cur.toUpperCase().includes('SILENTPANLS');if(hasSP){setEditCalEntry(p=>({...p,customStartLabel:cur.replace(/\+?\s*SILENTPANLS/gi,'').trim()}));}else{const base=cur.trim();setEditCalEntry(p=>({...p,customStartLabel:base?base+' + SILENTPANLS':'SILENTPANLS'}));}}} style={{background:(editCalEntry.customStartLabel||'').toUpperCase().includes('SILENT')?'#6366f1':'rgba(99,102,241,0.15)',border:`2px solid ${(editCalEntry.customStartLabel||'').toUpperCase().includes('SILENT')?'#6366f1':'rgba(99,102,241,0.3)'}`,borderRadius:10,padding:'6px 12px',color:(editCalEntry.customStartLabel||'').toUpperCase().includes('SILENT')?'#fff':'#a5b4fc',fontWeight:900,fontSize:9,textTransform:'uppercase',cursor:'pointer'}}>🔇 SILENTPANELS</button>
                                 <button onClick={()=>setEditCalEntry(p=>({...p,isProv:!p.isProv}))} style={{background:editCalEntry.isProv?'#eab308':'rgba(234,179,8,0.15)',border:`2px solid ${editCalEntry.isProv?'#eab308':'rgba(234,179,8,0.3)'}`,borderRadius:10,padding:'6px 12px',color:editCalEntry.isProv?'#fff':'#ca8a04',fontWeight:900,fontSize:9,textTransform:'uppercase',cursor:'pointer'}}>⚠ {editCalEntry.isProv?'PROV. AKTIV':'PROV.'}</button>
                             </div>
                         </div>
-
-                        {!editCalEntry.isNew&&(
-                            <button onClick={()=>downloadEntryPDF(editCalEntry)} style={{alignSelf:'flex-start',background:'#3b82f6',border:'none',borderRadius:8,padding:'6px 12px',color:'#fff',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
-                                <Icon name="download" size={12}/>PDF exportieren {getImages(editCalEntry).length > 0 ? `(${getImages(editCalEntry).length} Foto${getImages(editCalEntry).length>1?'s':''})` : ''}
-                            </button>
-                        )}
-
-                        <div style={{display:'flex',gap:6}}>
-                            {[['montage','🔧 Montage','#2563eb'],['beplankung','🏗 Beplankung','#059669'],['ausflocken','❄️ Ausflocken','#b45309']].map(([ct,label,color])=>(<button key={ct} onClick={()=>setEditCalEntry({...editCalEntry,calType:ct})} style={{flex:1,padding:'8px 4px',borderRadius:8,border:'none',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',background:editCalEntry.calType===ct?color:'#1e293b',color:editCalEntry.calType===ct?'#fff':'#64748b'}}>{label}</button>))}
-                        </div>
-
+                        {!editCalEntry.isNew&&<button onClick={()=>downloadEntryPDF(editCalEntry)} style={{alignSelf:'flex-start',background:'#3b82f6',border:'none',borderRadius:8,padding:'6px 12px',color:'#fff',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="download" size={12}/>PDF {getImages(editCalEntry).length > 0 ? `(${getImages(editCalEntry).length} Fotos)` : ''}</button>}
+                        <div style={{display:'flex',gap:6}}>{[['montage','🔧 Montage','#2563eb'],['beplankung','🏗 Beplankung','#059669'],['ausflocken','❄️ Ausflocken','#b45309']].map(([ct,label,color])=>(<button key={ct} onClick={()=>setEditCalEntry({...editCalEntry,calType:ct})} style={{flex:1,padding:'8px 4px',borderRadius:8,border:'none',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',background:editCalEntry.calType===ct?color:'#1e293b',color:editCalEntry.calType===ct?'#fff':'#64748b'}}>{label}</button>))}</div>
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#0f172a',border:'2px solid #3b82f6',color:'#60a5fa',fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:1,boxSizing:'border-box'}} placeholder="Typ" value={editCalEntry.entryType||'LIEFERUNG'} onChange={e=>setEditCalEntry({...editCalEntry,entryType:e.target.value.toUpperCase()})}/>
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Kunde *" value={editCalEntry.customer} onChange={e=>setEditCalEntry({...editCalEntry,customer:e.target.value})}/>
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Adresse" value={editCalEntry.address} onChange={e=>setEditCalEntry({...editCalEntry,address:e.target.value})}/>
-
-                        <div>
-                            <div style={{color:'#f59e0b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>📝 MEMO</div>
-                            <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#0f172a',border:'2px solid #f59e0b55',color:'#fde68a',fontSize:12,fontWeight:800,boxSizing:'border-box'}} placeholder="Wichtige Hausinfo..." value={editCalEntry.memo} onChange={e=>setEditCalEntry({...editCalEntry,memo:e.target.value})}/>
-                        </div>
+                        <div><div style={{color:'#f59e0b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>📝 MEMO</div><input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#0f172a',border:'2px solid #f59e0b55',color:'#fde68a',fontSize:12,fontWeight:800,boxSizing:'border-box'}} placeholder="Wichtige Hausinfo..." value={editCalEntry.memo} onChange={e=>setEditCalEntry({...editCalEntry,memo:e.target.value})}/></div>
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Auftragsnr." value={editCalEntry.auftragsNr} onChange={e=>setEditCalEntry({...editCalEntry,auftragsNr:e.target.value})}/>
                         <input type="number" style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="ELE" value={editCalEntry.target||''} onChange={e=>setEditCalEntry({...editCalEntry,target:e.target.value})}/>
-
-                        <div>
-                            <div style={{color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>START-Badge Zusatztext</div>
-                            <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="z.B. HAUS WEST oder SILENTPANLS" value={editCalEntry.customStartLabel||''} onChange={e=>setEditCalEntry({...editCalEntry,customStartLabel:e.target.value.toUpperCase()})} maxLength={40}/>
-                        </div>
-
+                        <div><div style={{color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>START-Badge Zusatztext</div><input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="z.B. HAUS WEST" value={editCalEntry.customStartLabel||''} onChange={e=>setEditCalEntry({...editCalEntry,customStartLabel:e.target.value.toUpperCase()})} maxLength={40}/></div>
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                             <div><div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',marginBottom:4}}>Start-Datum</div><input type="date" style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} value={editCalEntry.deliveryDate?.substring(0,10)||''} onChange={e=>setEditCalEntry({...editCalEntry,deliveryDate:e.target.value})}/></div>
                             <div><div style={{color:'#f59e0b',fontSize:8,fontWeight:900,textTransform:'uppercase',marginBottom:4}}>End-Datum (optional)</div><input type="date" style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(245,158,11,0.3)',color:'#fff',fontSize:11,boxSizing:'border-box'}} value={editCalEntry.endDate?.substring(0,10)||''} min={editCalEntry.deliveryDate?.substring(0,10)||''} onChange={e=>setEditCalEntry({...editCalEntry,endDate:e.target.value})}/></div>
                         </div>
-                        {editCalEntry.endDate&&editCalEntry.endDate>editCalEntry.deliveryDate&&(<div style={{background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:8,padding:'8px 12px',fontSize:9,color:'#f59e0b',fontWeight:700}}>📅 {daysBetween(editCalEntry.deliveryDate,editCalEntry.endDate)} Tage</div>)}
-
+                        {editCalEntry.endDate&&editCalEntry.endDate>editCalEntry.deliveryDate&&<div style={{background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:8,padding:'8px 12px',fontSize:9,color:'#f59e0b',fontWeight:700}}>📅 {daysBetween(editCalEntry.deliveryDate,editCalEntry.endDate)} Tage</div>}
                         <div style={{background:'rgba(0,0,0,0.2)',borderRadius:12,padding:12,border:'1px solid rgba(255,255,255,0.08)'}}>
-                            <MultiImageUpload
-                                images={Array.isArray(editCalEntry.images) ? editCalEntry.images : (editCalEntry.image ? [editCalEntry.image] : [])}
-                                onChange={(newImages) => setEditCalEntry(p => ({...p, images: newImages, image: newImages[0]||null}))}
-                                maxImages={10}
-                            />
+                            <MultiImageUpload images={Array.isArray(editCalEntry.images)?editCalEntry.images:(editCalEntry.image?[editCalEntry.image]:[])} onChange={(newImages)=>setEditCalEntry(p=>({...p,images:newImages,image:newImages[0]||null}))} maxImages={10}/>
                         </div>
-
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:4}}>
                             <button onClick={()=>setEditCalEntry(null)} style={{padding:'12px',background:'transparent',border:'none',color:'#64748b',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>Abbrechen</button>
                             <button onClick={()=>{if(!editCalEntry.customer)return;if(editCalEntry.isNew)saveNewCalEntry(editCalEntry);else saveCalEntry(editCalEntry);}} style={{padding:'12px',background:'#3b82f6',border:'none',borderRadius:12,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>Speichern</button>
@@ -1322,6 +1525,11 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             {showAIImport&&isAdminAccess&&(<AIImportModal team={team} activeCalType={activeCalType} onClose={()=>setShowAIImport(false)} onDone={(count)=>{setShowAIImport(false);setCalImportResult(count);}}/>)}
 
             {calImportResult!==null&&(<div style={{position:'fixed',inset:0,zIndex:60,background:'rgba(15,23,42,0.95)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}><div style={{background:'rgba(51,65,85,0.98)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:24,padding:32,width:'100%',maxWidth:300,display:'flex',flexDirection:'column',alignItems:'center',gap:20}}><div style={{width:64,height:64,background:'#10b981',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="check" size={32} className="text-white"/></div><div style={{textAlign:'center'}}><div style={{color:'#fff',fontSize:48,fontWeight:900,lineHeight:1}}>{calImportResult}</div><div style={{color:'#10b981',fontSize:11,fontWeight:900,textTransform:'uppercase',marginTop:4}}>Aufträge erfasst</div></div><button onClick={()=>setCalImportResult(null)} style={{width:'100%',padding:'14px',background:'#3b82f6',border:'none',borderRadius:12,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>OK</button></div></div>)}
+
+            {/* MONTEUR BILLING MODAL */}
+            {showMonteurBilling&&!isAdminAccess&&(
+                <MonteurBillingModal team={team} onClose={()=>setShowMonteurBilling(false)}/>
+            )}
         </div>
     );
 }
@@ -1360,7 +1568,7 @@ function StandbyView({ onBack }) {
                 <div style={{display:'flex',gap:8}}>
                     {selectMode?(<>
                         <button onClick={toggleAll} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:'6px 12px',color:'#cbd5e1',fontSize:9,fontWeight:900,cursor:'pointer'}}>{selectedIds.size===filtered.length?'Alle abwählen':'Alle wählen'}</button>
-                        {selectedIds.size>0&&<button onClick={bulkDelete} style={{background:'#ef4444',border:'none',borderRadius:8,padding:'6px 14px',color:'#fff',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="trash-2" size={12}/>Schnelllöschung ({selectedIds.size})</button>}
+                        {selectedIds.size>0&&<button onClick={bulkDelete} style={{background:'#ef4444',border:'none',borderRadius:8,padding:'6px 14px',color:'#fff',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="trash-2" size={12}/>Löschen ({selectedIds.size})</button>}
                         <button onClick={()=>{setSelectMode(false);setSelectedIds(new Set());}} style={{background:'#334155',border:'none',borderRadius:8,padding:'6px 12px',color:'#94a3b8',fontSize:9,fontWeight:900,cursor:'pointer'}}>Abbrechen</button>
                     </>):(<>
                         <button onClick={()=>setSelectMode(true)} style={{background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'6px 14px',color:'#ef4444',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="trash-2" size={12}/>Auswählen</button>
@@ -1379,13 +1587,15 @@ function StandbyView({ onBack }) {
                     {!selectMode&&<button onClick={()=>deleteItem(item.id)} style={{background:'rgba(239,68,68,0.15)',border:'none',borderRadius:6,padding:'6px 8px',cursor:'pointer',color:'#ef4444',marginLeft:8}}><Icon name="trash-2" size={14}/></button>}
                 </div>))}
             </div>
-
             {showAdd&&(<div style={{position:'fixed',inset:0,zIndex:60,background:'rgba(15,23,42,0.97)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{width:'100%',maxWidth:400,background:'#1e293b',border:'1px solid #334155',borderRadius:20,padding:24,display:'flex',flexDirection:'column',gap:10}}><h3 style={{color:'#f59e0b',fontSize:12,fontWeight:900,textTransform:'uppercase',margin:0}}>Auftrag in Standby</h3>{[['customer','Kunde *'],['address','Adresse'],['memo','📝 Memo'],['auftragsNr','Auftragsnr.']].map(([field,ph])=>(<input key={field} placeholder={ph} value={newItem[field]} onChange={e=>setNewItem({...newItem,[field]:e.target.value})} style={{width:'100%',background:'#0f172a',border:field==='memo'?'1px solid #f59e0b55':'1px solid #334155',borderRadius:8,padding:'10px 12px',color:field==='memo'?'#fde68a':'#fff',fontSize:11,boxSizing:'border-box'}}/>))}<input type="number" placeholder="ELE" value={newItem.target} onChange={e=>setNewItem({...newItem,target:e.target.value})} style={{width:'100%',background:'#0f172a',border:'1px solid #334155',borderRadius:8,padding:'10px 12px',color:'#fff',fontSize:11,boxSizing:'border-box'}}/><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:4}}><button onClick={()=>setShowAdd(false)} style={{padding:'11px',background:'transparent',border:'none',color:'#64748b',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>Abbrechen</button><button onClick={addItem} style={{padding:'11px',background:'#f59e0b',border:'none',borderRadius:10,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>Speichern</button></div></div></div>)}
             {showImport&&(<div style={{position:'fixed',inset:0,zIndex:60,background:'rgba(15,23,42,0.99)',padding:20,display:'flex',flexDirection:'column',gap:12}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><div style={{color:'#f59e0b',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>Import → Standby Pool</div><button onClick={()=>setShowImport(false)} style={{background:'#334155',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button></div><textarea autoFocus style={{flex:1,background:'#1e293b',border:'1px solid #334155',padding:14,borderRadius:10,fontSize:11,color:'#fff',fontFamily:'monospace',resize:'none',boxSizing:'border-box',lineHeight:1.6}} placeholder={"Kunde AG / Adresse / Memo / AuftragsNr"} value={importText} onChange={e=>setImportText(e.target.value)}/><div style={{display:'flex',gap:12}}><button onClick={()=>setShowImport(false)} style={{flex:1,padding:'13px',background:'transparent',border:'1px solid #334155',borderRadius:12,color:'#64748b',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>Abbrechen</button><button onClick={processImport} style={{flex:2,padding:'13px',background:'#f59e0b',border:'none',borderRadius:12,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>In Standby importieren</button></div></div>)}
         </div>
     );
 }
 
+// ============================================================
+// ADMIN PANEL
+// ============================================================
 function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) {
     const [isAdding, setIsAdding] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -1414,7 +1624,7 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
                 <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
                     <button onClick={onSearch} style={{background:'linear-gradient(135deg,#1e293b,#334155)',border:'1px solid #475569',borderRadius:12,padding:'9px 18px',color:'#94a3b8',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="search" size={14}/>🔍 Suche</button>
                     <button onClick={onOpenStandby} style={{background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fde68a',borderRadius:12,padding:'9px 18px',color:'#92400e',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="archive" size={14}/>📦 Standby</button>
-                    <button onClick={()=>setShowBilling(true)} style={{background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'1px solid #86efac',borderRadius:12,padding:'9px 18px',color:'#15803d',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="receipt" size={14}/>💰 Abrechnung</button>
+                    <button onClick={()=>setShowBilling(true)} style={{background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'1px solid #86efac',borderRadius:12,padding:'9px 18px',color:'#15803d',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="receipt" size={14}/>💰 Admin Abrechnung</button>
                     <button onClick={onLogout} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:12,padding:'9px 16px',color:'#64748b',fontSize:10,fontWeight:700,cursor:'pointer'}}>Logout</button>
                 </div>
             </div>
@@ -1461,7 +1671,7 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
                     <div style={{display:'flex',flexDirection:'column',gap:14}}>
                         {[['name','Gruppen Name'],['pin','PIN (4 Ziffern)']].map(([field,label])=>(<div key={field}><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>{label}</div><input maxLength={field==='pin'?4:undefined} value={editTeam[field]} onChange={e=>setEditTeam({...editTeam,[field]:e.target.value})} style={{width:'100%',background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:12,padding:'12px',color:'#1e293b',fontSize:13,boxSizing:'border-box',outline:'none'}}/></div>))}
                         <div><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>Farbe</div><input type="color" value={editTeam.color} onChange={e=>setEditTeam({...editTeam,color:e.target.value})} style={{width:'100%',height:48,background:'transparent',border:'none',cursor:'pointer',borderRadius:8}}/></div>
-                        <div><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:8}}>Kalender-Typen</div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{CAL_TYPE_OPTIONS.map(opt=>{const currentTypes=editTeam.calTypes||parseCalTypes(editTeam.calType);const active=currentTypes.includes(opt.key);return(<button key={opt.key} onClick={()=>{const ct=editTeam.calTypes||parseCalTypes(editTeam.calType);setEditTeam({...editTeam,calTypes:toggleCalType(ct,opt.key)});}} style={{flex:1,minWidth:90,padding:'10px 6px',borderRadius:12,border:active?'none':`2px solid ${opt.border}`,fontSize:10,fontWeight:800,textTransform:'uppercase',cursor:'pointer',background:active?opt.color:'#f8fafc',color:active?'#fff':opt.color}}>{opt.label}{active&&<span style={{fontSize:7,background:'rgba(255,255,255,0.3)',borderRadius:4,padding:'1px 5px',display:'block',marginTop:2}}>✓ Aktiv</span>}</button>);})}</div></div>
+                        <div><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:8}}>Kalender-Typen</div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{CAL_TYPE_OPTIONS.map(opt=>{const currentTypes=editTeam.calTypes||parseCalTypes(editTeam.calType);const active=currentTypes.includes(opt.key);return(<button key={opt.key} onClick={()=>{const ct=editTeam.calTypes||parseCalTypes(editTeam.calType);setEditTeam({...editTeam,calTypes:toggleCalType(ct,opt.key)});}} style={{flex:1,minWidth:90,padding:'10px 6px',borderRadius:12,border:active?'none':`2px solid ${opt.border}`,fontSize:10,fontWeight:800,textTransform:'uppercase',cursor:'pointer',background:active?opt.color:'#f8fafc',color:active?'#fff':opt.color}}>{opt.label}</button>);})}</div></div>
                     </div>
                     <div style={{display:'flex',gap:12,marginTop:24}}><button onClick={()=>setEditTeam(null)} style={{flex:1,padding:'13px',background:'#f1f5f9',border:'none',borderRadius:12,color:'#64748b',fontWeight:800,fontSize:11,cursor:'pointer'}}>Abbrechen</button><button onClick={handleSaveEditTeam} style={{flex:1,padding:'13px',background:'linear-gradient(135deg,#3b82f6,#6366f1)',border:'none',borderRadius:12,color:'#fff',fontWeight:800,fontSize:11,cursor:'pointer'}}>Speichern</button></div>
                 </div>
@@ -1483,7 +1693,7 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
                         <div><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>Team Name</div><input placeholder="z.B. Zürich / Montage A" value={newTeam.name} onChange={e=>setNewTeam({...newTeam,name:e.target.value})} style={{width:'100%',background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:12,padding:'12px',color:'#1e293b',fontSize:13,boxSizing:'border-box',outline:'none'}}/></div>
                         <div><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>PIN (4 Ziffern)</div><input placeholder="z.B. 1234" maxLength={4} inputMode="numeric" pattern="[0-9]*" value={newTeam.pin} onChange={e=>setNewTeam({...newTeam,pin:e.target.value.replace(/\D/g,'')})} style={{width:'100%',background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:12,padding:'12px',color:'#1e293b',fontSize:13,boxSizing:'border-box',outline:'none',letterSpacing:4,fontWeight:700}}/></div>
                         <div><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>Farbe</div><input type="color" value={newTeam.color} onChange={e=>setNewTeam({...newTeam,color:e.target.value})} style={{width:'100%',height:48,background:'transparent',border:'none',cursor:'pointer'}}/></div>
-                        <div><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:8}}>Kalender-Typen</div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{CAL_TYPE_OPTIONS.map(opt=>{const active=newTeam.calTypes.includes(opt.key);return(<button key={opt.key} onClick={()=>setNewTeam({...newTeam,calTypes:toggleCalType(newTeam.calTypes,opt.key)})} style={{flex:1,minWidth:90,padding:'10px 6px',borderRadius:12,border:active?'none':`2px solid ${opt.border}`,fontSize:10,fontWeight:800,textTransform:'uppercase',cursor:'pointer',background:active?opt.color:'#f8fafc',color:active?'#fff':opt.color}}>{opt.label}{active&&<span style={{fontSize:7,background:'rgba(255,255,255,0.3)',borderRadius:4,padding:'1px 5px',display:'block',marginTop:2}}>✓ Aktiv</span>}</button>);})}</div></div>
+                        <div><div style={{color:'#64748b',fontSize:9,fontWeight:800,textTransform:'uppercase',letterSpacing:1,marginBottom:8}}>Kalender-Typen</div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{CAL_TYPE_OPTIONS.map(opt=>{const active=newTeam.calTypes.includes(opt.key);return(<button key={opt.key} onClick={()=>setNewTeam({...newTeam,calTypes:toggleCalType(newTeam.calTypes,opt.key)})} style={{flex:1,minWidth:90,padding:'10px 6px',borderRadius:12,border:active?'none':`2px solid ${opt.border}`,fontSize:10,fontWeight:800,textTransform:'uppercase',cursor:'pointer',background:active?opt.color:'#f8fafc',color:active?'#fff':opt.color}}>{opt.label}</button>);})}</div></div>
                     </div>
                     <div style={{display:'flex',gap:12,marginTop:24}}><button onClick={()=>{setIsAdding(false);setNewTeam({name:'',pin:'',color:'#3b82f6',calTypes:['montage']});}} disabled={isSaving} style={{flex:1,padding:'13px',background:'#f1f5f9',border:'none',borderRadius:12,color:'#64748b',fontWeight:800,fontSize:11,cursor:'pointer'}}>Abbrechen</button><button onClick={handleAddTeam} disabled={isSaving||!newTeam.name.trim()||newTeam.pin.length!==4} style={{flex:1,padding:'13px',background:isSaving||!newTeam.name.trim()||newTeam.pin.length!==4?'#94a3b8':'linear-gradient(135deg,#3b82f6,#6366f1)',border:'none',borderRadius:12,color:'#fff',fontWeight:800,fontSize:11,cursor:isSaving||!newTeam.name.trim()||newTeam.pin.length!==4?'not-allowed':'pointer'}}>{isSaving?'⏳ Speichern...':'Erstellen'}</button></div>
                 </div>
@@ -1492,6 +1702,9 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
     );
 }
 
+// ============================================================
+// APP ROOT
+// ============================================================
 function App() {
     const [authState, setAuthState] = useState(null);
     const [teams, setTeams] = useState([]);

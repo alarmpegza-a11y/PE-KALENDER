@@ -88,8 +88,13 @@
         .admin-stat-card { background:white; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,0.06); border:1px solid rgba(226,232,240,0.8); }
         .admin-mesh { background-color:#f0f4ff; background-image:radial-gradient(at 20% 10%,rgba(99,102,241,0.08) 0px,transparent 50%),radial-gradient(at 80% 20%,rgba(59,130,246,0.06) 0px,transparent 50%),radial-gradient(at 50% 90%,rgba(168,85,247,0.05) 0px,transparent 50%); }
 
-        .billing-modal { background:#141b2d; border-radius:16px; overflow:hidden; }
-        .billing-modal-header { background:linear-gradient(135deg,#1a2540,#1e2d45); padding:20px 24px; border-bottom:1px solid rgba(255,255,255,0.07); }
+        /* ── BILLING MODAL – überarbeitet für alle Gruppen ── */
+        .billing-modal { background:#141b2d; border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
+        .billing-modal-header { background:linear-gradient(135deg,#1a2540,#1e2d45); padding:20px 24px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
+        /* Scrollbare Tab-Leiste */
+        .billing-team-tabs { display:flex; gap:0; overflow-x:auto; padding-bottom:0; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.1) transparent; flex-shrink:0; }
+        .billing-team-tabs::-webkit-scrollbar { height:4px; }
+        .billing-team-tabs::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:4px; }
 
         .cal-card-item { border-radius:6px; padding:7px 8px; border-left:3px solid; position:relative; font-size:11px; transition:all 0.15s; }
         .cal-card-item:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,0.15); }
@@ -101,11 +106,9 @@
         .move-active-card { outline: 2px solid #f59e0b; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(245,158,11,0.25) !important; animation: moveGlow 1.5s ease-in-out infinite; }
         @keyframes moveGlow { 0%,100%{box-shadow:0 0 0 4px rgba(245,158,11,0.25);} 50%{box-shadow:0 0 0 8px rgba(245,158,11,0.1);} }
 
-        /* ── grüner Punkt: nur wenn Fotos vorhanden ── */
         .green-dot { position:absolute; top:4px; right:4px; width:7px; height:7px; border-radius:50%; background:#10b981; animation:gd 2s infinite; }
         @keyframes gd { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.7);} 50%{box-shadow:0 0 6px 3px rgba(16,185,129,0.3);} }
 
-        /* ── PDF-Cursor-Hinweis für alle Karten (Monteur-Ansicht) ── */
         .pdf-clickable { cursor: pointer !important; }
         .pdf-clickable:hover { box-shadow:0 4px 16px rgba(59,130,246,0.25) !important; }
 
@@ -129,6 +132,16 @@
 
         .live-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:2px 8px; font-size:8px; font-weight:900; color:#10b981; text-transform:uppercase; letter-spacing:1px; }
         .live-dot { width:5px; height:5px; border-radius:50%; background:#10b981; animation:gd 1.5s infinite; }
+
+        /* ── Kalender-Suchleiste (Admin only) ── */
+        .cal-search-bar { display:flex; align-items:center; gap:8px; background:#0f172a; border-bottom:1px solid #1e293b; padding:8px 16px; }
+        .cal-search-input { flex:1; background:#1e293b; border:1.5px solid #334155; border-radius:10px; padding:8px 14px; color:#fff; font-size:11px; font-weight:600; outline:none; transition:border-color 0.2s; }
+        .cal-search-input:focus { border-color:#3b82f6; }
+        .cal-search-input::placeholder { color:#475569; }
+        .cal-search-results { position:absolute; top:100%; left:0; right:0; z-index:100; background:#1e293b; border:1px solid #334155; border-top:none; border-radius:0 0 12px 12px; max-height:320px; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.4); }
+        .cal-search-result-item { padding:10px 16px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; gap:10px; transition:background 0.1s; }
+        .cal-search-result-item:hover { background:rgba(59,130,246,0.12); }
+        .cal-search-result-item:last-child { border-bottom:none; }
 
         /* Search highlight */
         .search-highlight { outline: 3px solid #f59e0b !important; outline-offset: 2px; animation: searchPulse 1.5s ease-in-out 3; }
@@ -176,10 +189,9 @@ const daysBetween = (s,e) => { if(!s||!e) return 1; return Math.max(1,Math.round
 const addDaysToStr = (dateStr, n) => { const d = new Date(dateStr); d.setDate(d.getDate()+n); return toLocalDateStr(d); };
 const parseCalTypes = (calType) => { if (!calType||calType==='montage') return ['montage']; if (calType==='both'||calType==='all') return ['montage','beplankung','ausflocken']; if (calType==='beplankung') return ['beplankung']; if (calType==='ausflocken') return ['ausflocken']; try { const arr=JSON.parse(calType); if(Array.isArray(arr)) return arr; } catch(e) {} return ['montage']; };
 
-// ── Hilfsfunktion: images-Array normalisieren (rückwärtskompatibel) ──
 const getImages = (entry) => {
     if (Array.isArray(entry.images) && entry.images.length > 0) return entry.images;
-    if (entry.image) return [entry.image]; // altes Einzelfeld
+    if (entry.image) return [entry.image];
     return [];
 };
 
@@ -196,7 +208,7 @@ const Icon = memo(({ name, size=18, className="" }) => {
 });
 
 // ============================================================
-// PDF DOWNLOAD — 1 Foto pro Seite (Vollformat A4)
+// PDF DOWNLOAD
 // ============================================================
 function downloadEntryPDF(entry) {
     return new Promise(resolve => {
@@ -209,7 +221,6 @@ function downloadEntryPDF(entry) {
             const drawLine=(x1,y1,x2,y2,color=[0,0,0],w=0.5)=>{doc.setDrawColor(color[0],color[1],color[2]);doc.setLineWidth(w);doc.line(x1,y1,x2,y2);};
             const row=(label,value,yPos)=>{setFont(9,'bold',[80,80,80]);doc.text(label,margin,yPos);setFont(10,'normal',[0,0,0]);const lines=doc.splitTextToSize(String(value||'—'),contentW-38);doc.text(lines,margin+38,yPos);return yPos+(lines.length*5.5)+2;};
 
-            // ── Seite 1: Auftrags-Info ──
             doc.setFillColor(37,99,235); doc.rect(0,0,pageW,18,'F');
             setFont(13,'bold',[255,255,255]); doc.text('AUFTRAG',margin,12);
             setFont(9,'normal',[180,210,255]); doc.text('PE-MONTAGE',pageW-margin,12,{align:'right'});
@@ -249,7 +260,6 @@ function downloadEntryPDF(entry) {
                 y+=memoH+5;
             }
 
-            // Footer auf Seite 1
             const addFooter = (pageNum, totalPages) => {
                 doc.setPage(pageNum);
                 doc.setFillColor(245,248,255);doc.rect(0,288,pageW,10,'F');
@@ -258,37 +268,25 @@ function downloadEntryPDF(entry) {
                 doc.text(`${new Date().toLocaleDateString('de-DE')} · Seite ${pageNum}/${totalPages}`,pageW-margin,294,{align:'right'});
             };
 
-            // ── Fotos: je 1 Foto pro eigene A4-Seite ──
             const images = getImages(entry);
 
             if(images.length > 0){
                 images.forEach((imgSrc, idx) => {
                     doc.addPage();
-                    // Blauer Header-Streifen
                     doc.setFillColor(37,99,235); doc.rect(0,0,pageW,14,'F');
                     setFont(10,'bold',[255,255,255]);
                     doc.text(`${(entry.customer||'').toUpperCase()} — FOTO ${idx+1} / ${images.length}`,margin,10);
                     setFont(8,'normal',[180,210,255]);
                     doc.text(`PE-MONTAGE`,pageW-margin,10,{align:'right'});
-
-                    // Foto-Infoleiste
                     setFont(8,'normal',[100,100,100]);
                     const auftragsInfo = [cleanAuftragsNr(entry.auftragsNr),entry.address,formatDate(entry.deliveryDate)].filter(Boolean).join(' · ');
                     doc.text(auftragsInfo, margin, 20);
-
-                    // Foto-Bereich: von y=24mm bis y=282mm (Vollformat minus Footer)
-                    const photoY = 24;
-                    const photoH = 258; // mm Höhe verfügbar
-                    const photoW = contentW; // 180mm
-
+                    const photoY = 24; const photoH = 258; const photoW = contentW;
                     try {
                         let imgFormat = 'JPEG';
                         if(imgSrc.includes('image/png')) imgFormat = 'PNG';
                         else if(imgSrc.includes('image/gif')) imgFormat = 'GIF';
                         else if(imgSrc.includes('image/webp')) imgFormat = 'WEBP';
-
-                        // Seitenverhältnis ermitteln via temporäres Image-Objekt
-                        // Da wir synchron arbeiten, nutzen wir addImage mit containment
                         doc.addImage(imgSrc, imgFormat, margin, photoY, photoW, photoH, undefined, 'FAST');
                     } catch(imgErr) {
                         setFont(10,'normal',[200,50,50]);
@@ -297,7 +295,6 @@ function downloadEntryPDF(entry) {
                 });
             }
 
-            // Footer auf allen Seiten nachträglich setzen
             const totalPages = doc.internal.getNumberOfPages();
             for(let i=1;i<=totalPages;i++) addFooter(i, totalPages);
 
@@ -342,9 +339,7 @@ function MultiImageUpload({ images, onChange, maxImages=10 }) {
         onChange([...images, ...compressed]);
     };
 
-    const removeImage = (idx) => {
-        onChange(images.filter((_, i) => i !== idx));
-    };
+    const removeImage = (idx) => { onChange(images.filter((_, i) => i !== idx)); };
 
     return (
         <div>
@@ -506,7 +501,7 @@ Antworte NUR mit einem JSON-Array.`;
 }
 
 // ============================================================
-// GLOBAL SEARCH MODAL
+// GLOBAL SEARCH MODAL — zeigt jetzt Gruppenname deutlich
 // ============================================================
 function GlobalSearchModal({ teams, onClose, onNavigate }) {
     const [query, setQuery] = useState('');
@@ -522,26 +517,74 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
         return()=>unsubs.forEach(u=>u());
     },[teams]);
 
-    useEffect(()=>{if(!query.trim()){setResults([]);return;}const q=query.toLowerCase();setResults(allEntries.filter(e=>(e.customer||'').toLowerCase().includes(q)||(e.address||'').toLowerCase().includes(q)||(e.auftragsNr||'').toLowerCase().includes(q)||(e.memo||'').toLowerCase().includes(q)).slice(0,30));},[query,allEntries]);
+    useEffect(()=>{if(!query.trim()){setResults([]);return;}const q=query.toLowerCase();setResults(allEntries.filter(e=>(e.customer||'').toLowerCase().includes(q)||(e.address||'').toLowerCase().includes(q)||(e.auftragsNr||'').toLowerCase().includes(q)||(e.memo||'').toLowerCase().includes(q)).slice(0,50));},[query,allEntries]);
 
     const getKW=(dateStr)=>{if(!dateStr)return'?';return getWeekNumber(new Date(dateStr));};
     const team4entry=(e)=>teams.find(t=>t.id===e.teamId);
 
+    // Gruppiere Ergebnisse nach Team für bessere Übersicht
+    const groupedResults = useMemo(() => {
+        const groups = {};
+        results.forEach(e => {
+            if(!groups[e.teamId]) groups[e.teamId] = { teamName: e.teamName, teamColor: e.teamColor, entries: [] };
+            groups[e.teamId].entries.push(e);
+        });
+        return Object.values(groups);
+    }, [results]);
+
     return (
         <div style={{position:'fixed',inset:0,zIndex:90,background:'rgba(10,15,30,0.97)',display:'flex',flexDirection:'column',padding:16}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                <div><div style={{color:'#60a5fa',fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>🔍 GLOBALE SUCHE</div></div>
+                <div>
+                    <div style={{color:'#60a5fa',fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>🔍 GLOBALE SUCHE</div>
+                    <div style={{color:'#475569',fontSize:9,fontWeight:700,marginTop:2}}>Alle Gruppen · {allEntries.length} Aufträge total</div>
+                </div>
                 <button onClick={onClose} style={{background:'#334155',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
             </div>
             <input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Kunde, Adresse, Auftragsnr., Memo..." style={{width:'100%',background:'#1e293b',border:'2px solid #3b82f6',borderRadius:12,padding:'14px 16px',color:'#fff',fontSize:14,fontWeight:700,boxSizing:'border-box',marginBottom:12}}/>
             {loading&&<div style={{color:'#64748b',textAlign:'center',padding:20}}>Lade Daten...</div>}
-            {!loading&&query&&results.length===0&&<div style={{color:'#64748b',textAlign:'center',padding:40}}><div style={{fontSize:32,marginBottom:8}}>🔍</div><div style={{fontSize:12,fontWeight:700}}>Keine Ergebnisse</div></div>}
-            <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:8}}>
-                {results.map((e,i)=>{const t=team4entry(e);return(<div key={i} onClick={()=>{onNavigate(e,t);onClose();}} style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'12px 16px',cursor:'pointer',display:'flex',gap:12,alignItems:'center'}} onMouseEnter={ev=>ev.currentTarget.style.background='rgba(59,130,246,0.1)'} onMouseLeave={ev=>ev.currentTarget.style.background='rgba(255,255,255,0.04)'}>
-                    <div style={{width:8,height:8,borderRadius:'50%',background:t?.color||'#64748b',flexShrink:0}}></div>
-                    <div style={{flex:1}}><div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><span style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span><span style={{background:'rgba(59,130,246,0.2)',color:'#60a5fa',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>KW {getKW(e.deliveryDate)}</span></div><div style={{color:'#94a3b8',fontSize:10,marginTop:2}}>{e.address}</div></div>
-                    <div style={{color:'#60a5fa',fontSize:10,fontWeight:900,flexShrink:0}}>→</div>
-                </div>);})}
+            {!loading&&query&&results.length===0&&<div style={{color:'#64748b',textAlign:'center',padding:40}}><div style={{fontSize:32,marginBottom:8}}>🔍</div><div style={{fontSize:12,fontWeight:700}}>Keine Ergebnisse für „{query}"</div></div>}
+            {!loading&&query&&results.length>0&&(
+                <div style={{marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',fontSize:9,fontWeight:900,padding:'3px 10px',borderRadius:20}}>{results.length} Treffer in {groupedResults.length} Gruppe{groupedResults.length!==1?'n':''}</span>
+                </div>
+            )}
+            <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:12}}>
+                {groupedResults.map((group, gi) => (
+                    <div key={gi}>
+                        {/* Gruppen-Header */}
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,padding:'6px 12px',background:'rgba(255,255,255,0.04)',borderRadius:10,border:'1px solid rgba(255,255,255,0.07)'}}>
+                            <div style={{width:10,height:10,borderRadius:'50%',background:group.teamColor||'#64748b',flexShrink:0,boxShadow:`0 0 6px ${group.teamColor||'#64748b'}`}}></div>
+                            <span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:0.5}}>{group.teamName}</span>
+                            <span style={{background:'rgba(255,255,255,0.08)',color:'#94a3b8',fontSize:8,fontWeight:700,padding:'2px 7px',borderRadius:10}}>{group.entries.length} Treffer</span>
+                        </div>
+                        {/* Einträge der Gruppe */}
+                        <div style={{display:'flex',flexDirection:'column',gap:4,paddingLeft:8}}>
+                            {group.entries.map((e,i)=>{
+                                const t=team4entry(e);
+                                return(
+                                    <div key={i} onClick={()=>{onNavigate(e,t);onClose();}}
+                                        style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderLeft:`3px solid ${group.teamColor||'#64748b'}`,borderRadius:10,padding:'10px 14px',cursor:'pointer',display:'flex',gap:12,alignItems:'center',transition:'background 0.15s'}}
+                                        onMouseEnter={ev=>ev.currentTarget.style.background='rgba(59,130,246,0.1)'}
+                                        onMouseLeave={ev=>ev.currentTarget.style.background='rgba(255,255,255,0.04)'}>
+                                        <div style={{flex:1,minWidth:0}}>
+                                            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:3}}>
+                                                <span style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                                <span style={{background:'rgba(59,130,246,0.2)',color:'#60a5fa',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>KW {getKW(e.deliveryDate)}</span>
+                                                {e.isDone&&<span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>✓ Erledigt</span>}
+                                                {e.isProv&&<span style={{background:'rgba(234,179,8,0.2)',color:'#eab308',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>⚠ PROV</span>}
+                                            </div>
+                                            <div style={{color:'#94a3b8',fontSize:10}}>{e.address}</div>
+                                            {e.auftragsNr&&<div style={{color:'#475569',fontSize:9,fontFamily:'monospace',marginTop:2}}>#{cleanAuftragsNr(e.auftragsNr)}</div>}
+                                            {e.memo&&<div style={{color:'#fbbf24',fontSize:9,marginTop:2,fontWeight:700}}>📝 {e.memo}</div>}
+                                        </div>
+                                        <div style={{color:'#60a5fa',fontSize:10,fontWeight:900,flexShrink:0}}>→</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -643,7 +686,7 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
 }
 
 // ============================================================
-// CalCard — Mehrere Fotos (grüner Punkt + Anzahl-Badge)
+// CalCard
 // ============================================================
 function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive }) {
     const isProv = !!e.isProv;
@@ -673,7 +716,6 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
             style={{background:bg,borderLeftColor:border,borderLeft:`3px solid ${border}`,color:text,borderTop:`1.5px solid ${border}33`,borderBottom:`1.5px solid ${border}33`,cursor:isMoveActive?'grab':'pointer'}}
             onClick={isAdminAccess?handleAdminClick:handleMonteurClick}>
 
-            {/* Grüner Punkt + Anzahl-Badge wenn Fotos vorhanden */}
             {images.length > 0 && (
                 <div style={{position:'absolute',top:4,right:4,display:'flex',alignItems:'center',gap:3}}>
                     {images.length > 1 && (
@@ -714,12 +756,31 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
     );
 }
 
+// ============================================================
+// BILLING MODAL — überarbeitet: alle Gruppen + Memo
+// ============================================================
 function BillingModal({ teams, onClose }) {
     const [allEntries, setAllEntries] = useState([]);
     const [activeTeamTab, setActiveTeamTab] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [loadedTeams, setLoadedTeams] = useState(0);
 
-    useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;const unsubs=[];setAllEntries([]);teams.forEach(team=>{const unsub=onSnapshot(collection(db,`teams_cal_${team.id}`),(snap)=>{const entries=snap.docs.map(d=>({id:d.id,...d.data(),teamId:team.id,teamName:team.name,teamColor:team.color}));setAllEntries(prev=>[...prev.filter(e=>e.teamId!==team.id),...entries]);});unsubs.push(unsub);});if(teams.length>0&&!activeTeamTab)setActiveTeamTab(teams[0].id);return()=>unsubs.forEach(u=>u());},[teams]);
+    useEffect(()=>{
+        const{db,collection,onSnapshot}=window.FirebaseSDK;
+        const unsubs=[];
+        setAllEntries([]);
+        setLoadedTeams(0);
+        teams.forEach(team=>{
+            const unsub=onSnapshot(collection(db,`teams_cal_${team.id}`),(snap)=>{
+                const entries=snap.docs.map(d=>({id:d.id,...d.data(),teamId:team.id,teamName:team.name,teamColor:team.color}));
+                setAllEntries(prev=>[...prev.filter(e=>e.teamId!==team.id),...entries]);
+                setLoadedTeams(prev=>prev+1);
+            });
+            unsubs.push(unsub);
+        });
+        if(teams.length>0) setActiveTeamTab(teams[0].id);
+        return()=>unsubs.forEach(u=>u());
+    },[teams]);
 
     const doneEntries=useMemo(()=>allEntries.filter(e=>e.isDone&&!e.isBilled),[allEntries]);
     const billedEntries=useMemo(()=>allEntries.filter(e=>e.isBilled),[allEntries]);
@@ -728,6 +789,11 @@ function BillingModal({ teams, onClose }) {
     const currentTeamDone=activeTeamTab?doneForTeam(activeTeamTab):[];
     const currentTeamBilled=activeTeamTab?billedForTeam(activeTeamTab):[];
     const currentTeam=teams.find(t=>t.id===activeTeamTab);
+
+    // Gesamtstatistik
+    const totalDone = doneEntries.length;
+    const totalBilled = billedEntries.length;
+
     const toggleSelect=(id)=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
     const selectAll=()=>{if(selectedIds.size===currentTeamDone.length)setSelectedIds(new Set());else setSelectedIds(new Set(currentTeamDone.map(e=>e.id)));};
     const markBilled=async()=>{const{db,doc,updateDoc}=window.FirebaseSDK;for(const e of currentTeamDone.filter(e=>selectedIds.has(e.id)))await updateDoc(doc(db,`teams_cal_${e.teamId}`,e.id),{isBilled:true,billedAt:new Date().toISOString()});setSelectedIds(new Set());};
@@ -739,6 +805,7 @@ function BillingModal({ teams, onClose }) {
 
     return (
         <div style={{position:'fixed',inset:0,zIndex:80,background:'rgba(10,15,30,0.97)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+            {/* Hidden PDF content */}
             <div style={{position:'absolute',left:'-9999px',top:0}}>
                 <div id="billing-pdf-content" style={{background:'#fff',color:'#000',fontFamily:'Arial,sans-serif',width:'277mm',padding:'10mm 12mm'}}>
                     <div style={{background:'#2563eb',padding:'7mm 10mm',margin:'-10mm -12mm 7mm -12mm',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -748,41 +815,139 @@ function BillingModal({ teams, onClose }) {
                     <h1 style={{fontSize:'18pt',fontWeight:900,margin:'0 0 2mm 0',color:'#000'}}>FERTIGMONTAGE — {currentTeam?.name}</h1>
                     <div style={{color:'#444',fontSize:'8pt',marginBottom:'5mm'}}>Erstellt: {today} · Aufträge: {pdfEntries.length}</div>
                     <table style={{width:'100%',borderCollapse:'collapse',fontSize:'8.5pt'}}>
-                        <thead><tr style={{borderBottom:'1.5pt solid #000',background:'#f8fafc'}}><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'8mm'}}>#</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'22mm'}}>DATUM</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'52mm'}}>KUNDE</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'35mm'}}>AUFTRAGSNR.</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>ADRESSE</th><th style={{textAlign:'right',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'22mm'}}>STATUS</th></tr></thead>
-                        <tbody>{pdfEntries.map((e,i)=>(<tr key={e.id} style={{borderBottom:'0.5pt solid #e2e8f0',background:i%2===0?'#f8fafc':'#fff'}}><td style={{padding:'2.5mm 3mm',fontWeight:900,color:'#555',fontSize:'8pt'}}>{i+1}</td><td style={{padding:'2.5mm 3mm',fontSize:'8pt',color:'#000'}}>{formatDate(e.deliveryDate)}</td><td style={{padding:'2.5mm 3mm',fontWeight:700,fontSize:'9pt',color:'#000'}}>{e.customer}</td><td style={{padding:'2.5mm 3mm'}}><span style={{background:'#eff6ff',border:'1pt solid #bfdbfe',borderRadius:'4pt',padding:'1mm 3mm',fontWeight:900,fontSize:'8pt',color:'#1d4ed8',fontFamily:'monospace'}}>{cleanAuftragsNr(e.auftragsNr)||'—'}</span></td><td style={{padding:'2.5mm 3mm',color:'#333',fontSize:'8pt'}}>{e.address}</td><td style={{padding:'2.5mm 3mm',textAlign:'right'}}><span style={{background:'#f0fdf4',border:'1pt solid #86efac',borderRadius:'4pt',padding:'1mm 3mm',color:'#15803d',fontWeight:900,fontSize:'7pt',textTransform:'uppercase'}}>✓ FERTIG</span></td></tr>))}</tbody>
+                        <thead><tr style={{borderBottom:'1.5pt solid #000',background:'#f8fafc'}}><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'8mm'}}>#</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'22mm'}}>DATUM</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'52mm'}}>KUNDE</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'35mm'}}>AUFTRAGSNR.</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt'}}>ADRESSE</th><th style={{textAlign:'left',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'40mm'}}>MEMO</th><th style={{textAlign:'right',padding:'2mm 3mm',fontWeight:900,color:'#333',fontSize:'7pt',width:'22mm'}}>STATUS</th></tr></thead>
+                        <tbody>{pdfEntries.map((e,i)=>(<tr key={e.id} style={{borderBottom:'0.5pt solid #e2e8f0',background:i%2===0?'#f8fafc':'#fff'}}><td style={{padding:'2.5mm 3mm',fontWeight:900,color:'#555',fontSize:'8pt'}}>{i+1}</td><td style={{padding:'2.5mm 3mm',fontSize:'8pt',color:'#000'}}>{formatDate(e.deliveryDate)}</td><td style={{padding:'2.5mm 3mm',fontWeight:700,fontSize:'9pt',color:'#000'}}>{e.customer}</td><td style={{padding:'2.5mm 3mm'}}><span style={{background:'#eff6ff',border:'1pt solid #bfdbfe',borderRadius:'4pt',padding:'1mm 3mm',fontWeight:900,fontSize:'8pt',color:'#1d4ed8',fontFamily:'monospace'}}>{cleanAuftragsNr(e.auftragsNr)||'—'}</span></td><td style={{padding:'2.5mm 3mm',color:'#333',fontSize:'8pt'}}>{e.address}</td><td style={{padding:'2.5mm 3mm',color:'#92400e',fontSize:'8pt',fontStyle:e.memo?'normal':'italic'}}>{e.memo||'—'}</td><td style={{padding:'2.5mm 3mm',textAlign:'right'}}><span style={{background:'#f0fdf4',border:'1pt solid #86efac',borderRadius:'4pt',padding:'1mm 3mm',color:'#15803d',fontWeight:900,fontSize:'7pt',textTransform:'uppercase'}}>✓ FERTIG</span></td></tr>))}</tbody>
                     </table>
                 </div>
             </div>
-            <div className="billing-modal" style={{width:'100%',maxWidth:720,maxHeight:'90vh',display:'flex',flexDirection:'column',border:'1px solid rgba(255,255,255,0.08)',boxShadow:'0 40px 80px rgba(0,0,0,0.6)'}}>
+
+            <div className="billing-modal" style={{width:'100%',maxWidth:800,maxHeight:'92vh',border:'1px solid rgba(255,255,255,0.08)',boxShadow:'0 40px 80px rgba(0,0,0,0.6)'}}>
+                {/* Header */}
                 <div className="billing-modal-header">
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                        <div><div style={{color:'#94a3b8',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:4}}>ABRECHNUNGSLISTE</div><h2 style={{color:'#fff',fontSize:22,fontWeight:900,textTransform:'uppercase',margin:0}}>FERTIG MONTIERT</h2></div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+                        <div>
+                            <div style={{color:'#94a3b8',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:4}}>ABRECHNUNGSLISTE</div>
+                            <h2 style={{color:'#fff',fontSize:22,fontWeight:900,textTransform:'uppercase',margin:0}}>FERTIG MONTIERT</h2>
+                            <div style={{display:'flex',gap:12,marginTop:8}}>
+                                <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.25)',borderRadius:8,padding:'4px 10px'}}>
+                                    <div style={{width:6,height:6,borderRadius:'50%',background:'#10b981'}}></div>
+                                    <span style={{color:'#10b981',fontSize:9,fontWeight:900}}>{totalDone} offen</span>
+                                </div>
+                                <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(168,85,247,0.1)',border:'1px solid rgba(168,85,247,0.25)',borderRadius:8,padding:'4px 10px'}}>
+                                    <div style={{width:6,height:6,borderRadius:'50%',background:'#a855f7'}}></div>
+                                    <span style={{color:'#a855f7',fontSize:9,fontWeight:900}}>{totalBilled} abgerechnet</span>
+                                </div>
+                            </div>
+                        </div>
                         <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:36,height:36,cursor:'pointer',color:'#94a3b8',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                     </div>
-                    <div style={{display:'flex',gap:0,marginTop:16,borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
-                        {teams.map(t=>(<button key={t.id} onClick={()=>{setActiveTeamTab(t.id);setSelectedIds(new Set());}} style={{padding:'10px 20px',background:'transparent',border:'none',borderBottom:activeTeamTab===t.id?'2px solid #3b82f6':'2px solid transparent',color:activeTeamTab===t.id?'#fff':'#64748b',fontWeight:900,fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><div style={{width:8,height:8,borderRadius:'50%',background:activeTeamTab===t.id?t.color:'#334155'}}></div>{t.name}{doneForTeam(t.id).length>0&&<span style={{background:'#ef4444',color:'#fff',fontSize:8,fontWeight:900,padding:'1px 5px',borderRadius:10}}>{doneForTeam(t.id).length}</span>}</button>))}
+                    {/* Scrollbare Team-Tabs – alle Gruppen sichtbar */}
+                    <div className="billing-team-tabs" style={{borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
+                        {teams.map(t=>{
+                            const done=doneForTeam(t.id).length;
+                            const billed=billedForTeam(t.id).length;
+                            const isActive=activeTeamTab===t.id;
+                            return(
+                                <button key={t.id} onClick={()=>{setActiveTeamTab(t.id);setSelectedIds(new Set());}}
+                                    style={{padding:'10px 16px',background:isActive?'rgba(59,130,246,0.1)':'transparent',border:'none',borderBottom:isActive?`2px solid ${t.color||'#3b82f6'}`:'2px solid transparent',color:isActive?'#fff':'#64748b',fontWeight:900,fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',flexShrink:0,transition:'all 0.15s'}}>
+                                    <div style={{width:8,height:8,borderRadius:'50%',background:isActive?(t.color||'#3b82f6'):'#334155',boxShadow:isActive?`0 0 6px ${t.color||'#3b82f6'}`:'none'}}></div>
+                                    {t.name}
+                                    {done>0&&<span style={{background:'#ef4444',color:'#fff',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>{done}</span>}
+                                    {billed>0&&<span style={{background:'rgba(168,85,247,0.3)',color:'#a855f7',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>✓{billed}</span>}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
+
+                {/* Body */}
                 <div style={{flex:1,overflowY:'auto',padding:20}}>
                     {currentTeam&&<>
-                        <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginBottom:12}}>
-                            {selectedIds.size>0&&<button onClick={markBilled} style={{background:'#10b981',border:'none',borderRadius:8,padding:'7px 14px',color:'#fff',fontSize:9,fontWeight:900,cursor:'pointer'}}>✓ Abgerechnet ({selectedIds.size})</button>}
-                            <button onClick={exportPDF} style={{background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:8,padding:'7px 14px',color:'#3b82f6',fontSize:9,fontWeight:900,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="download" size={12}/>PDF Export</button>
+                        {/* Aktuelles Team Info */}
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+                            <div style={{display:'flex',alignItems:'center',gap:10}}>
+                                <div style={{width:12,height:12,borderRadius:'50%',background:currentTeam.color||'#3b82f6',boxShadow:`0 0 8px ${currentTeam.color||'#3b82f6'}`}}></div>
+                                <span style={{color:'#fff',fontSize:14,fontWeight:900}}>{currentTeam.name}</span>
+                                <span style={{color:'#64748b',fontSize:10}}>— {currentTeamDone.length} offen · {currentTeamBilled.length} abgerechnet</span>
+                            </div>
+                            <div style={{display:'flex',gap:8}}>
+                                {selectedIds.size>0&&<button onClick={markBilled} style={{background:'#10b981',border:'none',borderRadius:8,padding:'7px 14px',color:'#fff',fontSize:9,fontWeight:900,cursor:'pointer'}}>✓ Abgerechnet ({selectedIds.size})</button>}
+                                <button onClick={exportPDF} style={{background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:8,padding:'7px 14px',color:'#3b82f6',fontSize:9,fontWeight:900,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="download" size={12}/>PDF Export</button>
+                            </div>
                         </div>
-                        {currentTeamDone.length>0&&<div style={{marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                            <button onClick={selectAll} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:'6px 12px',color:'#cbd5e1',fontSize:9,fontWeight:900,cursor:'pointer'}}>ALLE WÄHLEN ({currentTeamDone.length})</button>
-                            <span style={{color:'#64748b',fontSize:9}}>{selectedIds.size} ausgewählt</span>
-                        </div>}
-                        {currentTeamDone.length===0&&currentTeamBilled.length===0?(<div style={{textAlign:'center',padding:40,color:'#475569'}}><div style={{fontSize:32,marginBottom:8}}>📋</div><div style={{fontSize:12,fontWeight:700}}>Keine erledigten Aufträge</div></div>):(
+
+                        {currentTeamDone.length>0&&(
+                            <div style={{marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                                <button onClick={selectAll} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:'6px 12px',color:'#cbd5e1',fontSize:9,fontWeight:900,cursor:'pointer'}}>ALLE WÄHLEN ({currentTeamDone.length})</button>
+                                <span style={{color:'#64748b',fontSize:9}}>{selectedIds.size} ausgewählt</span>
+                            </div>
+                        )}
+
+                        {currentTeamDone.length===0&&currentTeamBilled.length===0?(
+                            <div style={{textAlign:'center',padding:40,color:'#475569'}}>
+                                <div style={{fontSize:32,marginBottom:8}}>📋</div>
+                                <div style={{fontSize:12,fontWeight:700}}>Keine erledigten Aufträge</div>
+                                <div style={{fontSize:10,marginTop:4,color:'#334155'}}>Aufträge als „Erledigt" markieren um sie hier zu sehen</div>
+                            </div>
+                        ):(
                             <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                                {currentTeamDone.map(e=>(<div key={e.id} style={{background:selectedIds.has(e.id)?'rgba(59,130,246,0.1)':'rgba(255,255,255,0.04)',border:selectedIds.has(e.id)?'1px solid rgba(59,130,246,0.4)':'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 16px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}} onClick={()=>toggleSelect(e.id)}>
-                                    <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${selectedIds.has(e.id)?'#3b82f6':'rgba(255,255,255,0.15)'}`,background:selectedIds.has(e.id)?'#3b82f6':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{selectedIds.has(e.id)&&<span style={{color:'#fff',fontSize:11,fontWeight:900}}>✓</span>}</div>
-                                    <div style={{flex:1,minWidth:0}}><div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}><span style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span></div><div style={{color:'#64748b',fontSize:10}}>{e.address} · {formatDate(e.deliveryDate)}</div></div>
-                                    {e.auftragsNr&&<div style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:8,padding:'4px 10px'}}><span style={{color:'#3b82f6',fontSize:11,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span></div>}
-                                    <button onClick={(ev)=>{ev.stopPropagation();deleteEntry(e);}} style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,padding:'6px 10px',cursor:'pointer',color:'#ef4444',fontSize:9,fontWeight:900,display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="trash-2" size={12}/>LÖSCHEN</button>
-                                </div>))}
-                                {currentTeamBilled.length>0&&<><div style={{color:'#a855f7',fontSize:9,fontWeight:900,textTransform:'uppercase',margin:'12px 0 8px',display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div>Bereits Abgerechnet ({currentTeamBilled.length})<div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div></div>
-                                {currentTeamBilled.map(e=>(<div key={e.id} onClick={()=>unmarkBilled(e)} style={{background:'rgba(168,85,247,0.05)',border:'1px solid rgba(168,85,247,0.15)',borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',opacity:0.7}}><div style={{flex:1}}><div style={{color:'#cbd5e1',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</div></div>{e.auftragsNr&&<span style={{color:'#a855f7',fontSize:10,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}</div>))}</>}
+                                {currentTeamDone.map(e=>(
+                                    <div key={e.id}
+                                        style={{background:selectedIds.has(e.id)?'rgba(59,130,246,0.1)':'rgba(255,255,255,0.04)',border:selectedIds.has(e.id)?'1px solid rgba(59,130,246,0.4)':'1px solid rgba(255,255,255,0.07)',borderRadius:12,padding:'12px 16px',display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer'}}
+                                        onClick={()=>toggleSelect(e.id)}>
+                                        <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${selectedIds.has(e.id)?'#3b82f6':'rgba(255,255,255,0.15)'}`,background:selectedIds.has(e.id)?'#3b82f6':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2}}>
+                                            {selectedIds.has(e.id)&&<span style={{color:'#fff',fontSize:11,fontWeight:900}}>✓</span>}
+                                        </div>
+                                        <div style={{flex:1,minWidth:0}}>
+                                            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                                                <span style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                                <span style={{color:'#64748b',fontSize:9}}>· {formatDate(e.deliveryDate)}</span>
+                                                {e.auftragsNr&&(
+                                                    <div style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:6,padding:'2px 8px'}}>
+                                                        <span style={{color:'#3b82f6',fontSize:10,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div style={{color:'#64748b',fontSize:10,marginBottom:e.memo?6:0}}>{e.address}</div>
+                                            {/* ── MEMO ANZEIGE IN ABRECHNUNG ── */}
+                                            {e.memo&&(
+                                                <div style={{display:'flex',alignItems:'flex-start',gap:6,background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.2)',borderLeft:'3px solid #f59e0b',borderRadius:'0 6px 6px 0',padding:'5px 8px',marginTop:4}}>
+                                                    <span style={{fontSize:10}}>📝</span>
+                                                    <span style={{color:'#fbbf24',fontSize:10,fontWeight:700,lineHeight:1.4}}>{e.memo}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button onClick={(ev)=>{ev.stopPropagation();deleteEntry(e);}}
+                                            style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,padding:'6px 10px',cursor:'pointer',color:'#ef4444',fontSize:9,fontWeight:900,display:'flex',alignItems:'center',gap:4,flexShrink:0,alignSelf:'flex-start'}}>
+                                            <Icon name="trash-2" size={12}/>LÖSCHEN
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {currentTeamBilled.length>0&&(
+                                    <>
+                                        <div style={{color:'#a855f7',fontSize:9,fontWeight:900,textTransform:'uppercase',margin:'12px 0 8px',display:'flex',alignItems:'center',gap:8}}>
+                                            <div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div>
+                                            Bereits Abgerechnet ({currentTeamBilled.length})
+                                            <div style={{flex:1,height:1,background:'rgba(168,85,247,0.2)'}}></div>
+                                        </div>
+                                        {currentTeamBilled.map(e=>(
+                                            <div key={e.id} onClick={()=>unmarkBilled(e)}
+                                                style={{background:'rgba(168,85,247,0.05)',border:'1px solid rgba(168,85,247,0.15)',borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',opacity:0.7}}>
+                                                <div style={{flex:1,minWidth:0}}>
+                                                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:2}}>
+                                                        <span style={{color:'#cbd5e1',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                                        {e.auftragsNr&&<span style={{color:'#a855f7',fontSize:10,fontWeight:900,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}
+                                                    </div>
+                                                    <div style={{color:'#475569',fontSize:9}}>{formatDate(e.deliveryDate)} · {e.address}</div>
+                                                    {/* Memo auch bei abgerechneten */}
+                                                    {e.memo&&<div style={{color:'#78350f',fontSize:9,fontWeight:700,marginTop:3}}>📝 {e.memo}</div>}
+                                                </div>
+                                                <span style={{color:'#64748b',fontSize:8,flexShrink:0,marginTop:2}}>Klick zum Rückbuchen</span>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
                             </div>
                         )}
                     </>}
@@ -792,6 +957,9 @@ function BillingModal({ teams, onClose }) {
     );
 }
 
+// ============================================================
+// CALENDAR VIEW mit Admin-Suchleiste
+// ============================================================
 function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initialCalType, scrollToEntry=null }) {
     const [calEntries, setCalEntries] = useState([]);
     const [calWeek, setCalWeek] = useState(() => { if(scrollToEntry)return new Date(scrollToEntry.deliveryDate); return new Date(); });
@@ -807,6 +975,12 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     const [standbyDateModal, setStandbyDateModal] = useState(null);
     const [highlightId, setHighlightId] = useState(scrollToEntry?.id||null);
 
+    // ── KALENDER-SUCHE (Admin only) ──
+    const [calSearchQuery, setCalSearchQuery] = useState('');
+    const [calSearchOpen, setCalSearchOpen] = useState(false);
+    const [calSearchFocused, setCalSearchFocused] = useState(false);
+    const calSearchRef = useRef(null);
+
     const teamCalTypes = parseCalTypes(team.calType);
     const [activeCalType, setActiveCalType] = useState(initialCalType||teamCalTypes[0]||'montage');
 
@@ -821,6 +995,36 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;const unsub=onSnapshot(collection(db,`teams_cal_${team.id}`),snap=>{setCalEntries(snap.docs.map(d=>({id:d.id,...d.data()})));});return unsub;},[team.id]);
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'standby_items'),snap=>{setStandbyItems(snap.docs.map(d=>({id:d.id,...d.data()})));});},[]);
     useEffect(()=>{if(!highlightId)return;const timer=setTimeout(()=>{const el=document.getElementById(`cal-entry-${highlightId}`);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('search-highlight');setTimeout(()=>el.classList.remove('search-highlight'),4500);}setHighlightId(null);},300);return()=>clearTimeout(timer);},[highlightId,calEntries]);
+
+    // Kalender-Suchergebnisse (alle Einträge des Teams)
+    const calSearchResults = useMemo(() => {
+        if(!calSearchQuery.trim() || calSearchQuery.length < 2) return [];
+        const q = calSearchQuery.toLowerCase();
+        return calEntries.filter(e =>
+            (e.customer||'').toLowerCase().includes(q) ||
+            (e.address||'').toLowerCase().includes(q) ||
+            (e.auftragsNr||'').toLowerCase().includes(q) ||
+            (e.memo||'').toLowerCase().includes(q)
+        ).sort((a,b) => (a.deliveryDate||'') > (b.deliveryDate||'') ? 1 : -1).slice(0, 20);
+    }, [calSearchQuery, calEntries]);
+
+    const navigateToEntry = (entry) => {
+        setCalWeek(new Date(entry.deliveryDate));
+        setHighlightId(entry.id);
+        setCalSearchQuery('');
+        setCalSearchFocused(false);
+    };
+
+    // Click outside to close
+    useEffect(() => {
+        const handleClick = (e) => {
+            if(calSearchRef.current && !calSearchRef.current.contains(e.target)) {
+                setCalSearchFocused(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
 
     const filteredEntries = useMemo(()=>calEntries.filter(e=>(e.calType||'montage')===activeCalType).sort((a,b)=>{const da=a.deliveryDate||'',db_=b.deliveryDate||'';if(da<db_)return -1;if(da>db_)return 1;return(a.createdAt||'')<(b.createdAt||'')?-1:1;}),[calEntries,activeCalType]);
 
@@ -849,7 +1053,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,
                 deliveryDate:entry.deliveryDate,endDate:entry.endDate||null,
                 isMultiDay:!!(entry.endDate&&entry.endDate>entry.deliveryDate),
-                images, image: images[0]||null, // rückwärtskompatibel
+                images, image: images[0]||null,
                 calType:entry.calType||'montage',isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||''
             });
             setEditCalEntry(null);
@@ -938,6 +1142,61 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             </div>
 
+            {/* ── ADMIN SUCHLEISTE ── */}
+            {isAdminAccess && (
+                <div className="cal-search-bar" ref={calSearchRef} style={{position:'relative'}}>
+                    <div style={{position:'relative',flex:1,display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{color:'#475569',fontSize:13,flexShrink:0}}>🔍</span>
+                        <input
+                            className="cal-search-input"
+                            placeholder={`Aufträge in „${team.name}" suchen... (Kunde, Adresse, Nr., Memo)`}
+                            value={calSearchQuery}
+                            onChange={e=>setCalSearchQuery(e.target.value)}
+                            onFocus={()=>setCalSearchFocused(true)}
+                            style={{width:'100%'}}
+                        />
+                        {calSearchQuery && (
+                            <button onClick={()=>{setCalSearchQuery('');setCalSearchFocused(false);}} style={{background:'#334155',border:'none',borderRadius:6,width:22,height:22,cursor:'pointer',color:'#94a3b8',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>✕</button>
+                        )}
+                    </div>
+                    {calSearchQuery && (
+                        <span style={{color:'#475569',fontSize:9,fontWeight:700,flexShrink:0}}>
+                            {calSearchResults.length} Treffer
+                        </span>
+                    )}
+                    {/* Dropdown-Ergebnisse */}
+                    {calSearchFocused && calSearchQuery.length >= 2 && (
+                        <div className="cal-search-results" style={{top:'100%',left:0,right:0}}>
+                            {calSearchResults.length === 0 ? (
+                                <div style={{padding:'16px',textAlign:'center',color:'#475569',fontSize:11}}>Keine Treffer für „{calSearchQuery}"</div>
+                            ) : (
+                                calSearchResults.map((e,i) => {
+                                    const ci = colorIndex[e.id] >= 0 ? colorIndex[e.id] : 0;
+                                    const border = e.isProv ? PROV_BORDER : CARD_BORDER[ci];
+                                    return (
+                                        <div key={i} className="cal-search-result-item" onClick={()=>navigateToEntry(e)}>
+                                            <div style={{width:4,height:32,borderRadius:2,background:border,flexShrink:0}}></div>
+                                            <div style={{flex:1,minWidth:0}}>
+                                                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                                                    <span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                                    <span style={{background:'rgba(59,130,246,0.15)',color:'#60a5fa',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:4}}>KW {getWeekNumber(new Date(e.deliveryDate))}</span>
+                                                    <span style={{color:'#64748b',fontSize:9}}>{formatDate(e.deliveryDate)}</span>
+                                                    {e.isDone&&<span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,padding:'1px 5px',borderRadius:4}}>✓</span>}
+                                                    {e.isProv&&<span style={{background:'rgba(234,179,8,0.2)',color:'#eab308',fontSize:8,fontWeight:900,padding:'1px 5px',borderRadius:4}}>⚠ PROV</span>}
+                                                </div>
+                                                <div style={{color:'#94a3b8',fontSize:9}}>{e.address}{e.auftragsNr?` · #${cleanAuftragsNr(e.auftragsNr)}`:''}</div>
+                                                {e.memo&&<div style={{color:'#fbbf24',fontSize:9,marginTop:1}}>📝 {e.memo}</div>}
+                                            </div>
+                                            <span style={{color:'#334155',fontSize:10,flexShrink:0}}>→ Springen</span>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div style={{background:currentCalConfig.bg,padding:'5px 16px',textAlign:'center',fontSize:9,fontWeight:900,color:'#fff',textTransform:'uppercase',letterSpacing:2}}>
                 {currentCalConfig.banner} — KW {kw} — {formatDate(weekStart)} bis {formatDate(weekEnd)}
             </div>
@@ -986,7 +1245,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             </div>
 
-            {/* ── EDIT MODAL mit Multi-Image Upload ── */}
+            {/* EDIT MODAL */}
             {editCalEntry&&isAdminAccess&&(
                 <div style={{position:'fixed',inset:0,zIndex:50,background:'rgba(15,23,42,0.96)',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:16,overflowY:'auto'}}>
                     <div style={{width:'100%',maxWidth:460,background:'rgba(51,65,85,0.98)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:24,padding:24,display:'flex',flexDirection:'column',gap:12,marginTop:8,marginBottom:8}}>
@@ -1030,7 +1289,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         </div>
                         {editCalEntry.endDate&&editCalEntry.endDate>editCalEntry.deliveryDate&&(<div style={{background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:8,padding:'8px 12px',fontSize:9,color:'#f59e0b',fontWeight:700}}>📅 {daysBetween(editCalEntry.deliveryDate,editCalEntry.endDate)} Tage</div>)}
 
-                        {/* ── MULTI-IMAGE UPLOAD ── */}
                         <div style={{background:'rgba(0,0,0,0.2)',borderRadius:12,padding:12,border:'1px solid rgba(255,255,255,0.08)'}}>
                             <MultiImageUpload
                                 images={Array.isArray(editCalEntry.images) ? editCalEntry.images : (editCalEntry.image ? [editCalEntry.image] : [])}

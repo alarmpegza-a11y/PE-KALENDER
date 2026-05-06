@@ -88,14 +88,12 @@
         .admin-stat-card { background:white; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,0.06); border:1px solid rgba(226,232,240,0.8); }
         .admin-mesh { background-color:#f0f4ff; background-image:radial-gradient(at 20% 10%,rgba(99,102,241,0.08) 0px,transparent 50%),radial-gradient(at 80% 20%,rgba(59,130,246,0.06) 0px,transparent 50%),radial-gradient(at 50% 90%,rgba(168,85,247,0.05) 0px,transparent 50%); }
 
-        /* BILLING MODAL */
         .billing-modal { background:#141b2d; border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
         .billing-modal-header { background:linear-gradient(135deg,#1a2540,#1e2d45); padding:20px 24px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
         .billing-team-tabs { display:flex; gap:0; overflow-x:auto; padding-bottom:0; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.1) transparent; flex-shrink:0; }
         .billing-team-tabs::-webkit-scrollbar { height:4px; }
         .billing-team-tabs::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:4px; }
 
-        /* MONTEUR BILLING MODAL – eigener Stil */
         .monteur-billing-overlay { position:fixed; inset:0; z-index:80; background:rgba(10,15,30,0.98); display:flex; flex-direction:column; }
         .monteur-billing-header { background:linear-gradient(135deg,#0f172a,#1e293b); padding:16px 20px; border-bottom:2px solid rgba(16,185,129,0.2); flex-shrink:0; }
         .monteur-billing-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
@@ -142,13 +140,11 @@
         .live-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:2px 8px; font-size:8px; font-weight:900; color:#10b981; text-transform:uppercase; letter-spacing:1px; }
         .live-dot { width:5px; height:5px; border-radius:50%; background:#10b981; animation:gd 1.5s infinite; }
 
-        /* Abrechnung Button für Monteure – auffällig */
         .monteur-billing-btn { background:linear-gradient(135deg,#10b981,#059669); border:none; border-radius:10px; padding:8px 16px; color:#fff; font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:1px; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(16,185,129,0.35); transition:all 0.2s; position:relative; }
         .monteur-billing-btn:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(16,185,129,0.45); }
         .monteur-billing-badge { position:absolute; top:-6px; right:-6px; background:#ef4444; color:#fff; font-size:8px; font-weight:900; border-radius:10px; padding:1px 5px; min-width:18px; text-align:center; animation:badgePulse 2s ease-in-out infinite; }
         @keyframes badgePulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
 
-        /* Cal search bar */
         .cal-search-bar { display:flex; align-items:center; gap:8px; background:#0f172a; border-bottom:1px solid #1e293b; padding:8px 16px; }
         .cal-search-input { flex:1; background:#1e293b; border:1.5px solid #334155; border-radius:10px; padding:8px 14px; color:#fff; font-size:11px; font-weight:600; outline:none; transition:border-color 0.2s; }
         .cal-search-input:focus { border-color:#3b82f6; }
@@ -174,7 +170,6 @@
         @media print { body * { visibility:hidden; } #billing-pdf-content, #billing-pdf-content * { visibility:visible; } #billing-pdf-content { position:fixed; left:0; top:0; width:100%; } }
         @keyframes slideUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
 
-        /* Monteur Abrechnung Stats */
         .monteur-stat-box { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px 16px; display:flex; flex-direction:column; gap:4px; flex:1; }
     </style>
 </head>
@@ -223,7 +218,7 @@ const Icon = memo(({ name, size=18, className="" }) => {
 });
 
 // ============================================================
-// PDF DOWNLOAD
+// PDF DOWNLOAD — FIXED: customStartLabel wird jetzt angezeigt
 // ============================================================
 function downloadEntryPDF(entry) {
     return new Promise(resolve => {
@@ -248,6 +243,36 @@ function downloadEntryPDF(entry) {
 
             const nr=cleanAuftragsNr(entry.auftragsNr);
             if(nr){setFont(9,'bold',[80,80,80]);doc.text('AUFTRAGSNR.',margin,y);setFont(11,'bold',[37,99,235]);doc.text(nr,margin+38,y);y+=8;}
+
+            // ── START-LABEL / customStartLabel prominent im PDF ──
+            // Gleiche Logik wie CalCard startLabel
+            const rawLabel = entry.customStartLabel || '';
+            const pdfStartLabel =
+                entry.isProv && !rawLabel
+                    ? 'PROVISORISCH'
+                    : rawLabel
+                        ? (rawLabel.toUpperCase().startsWith('START') ? rawLabel.toUpperCase() : 'START + ' + rawLabel.toUpperCase())
+                        : (entry.isMultiDay && entry.endDate)
+                            ? 'START (MEHRTAGIG)'
+                            : (entry.entryType || 'LIEFERUNG').toUpperCase();
+
+            // Immer als farbiger Banner anzeigen — Monteur sieht sofort den Auftragstyp
+            {
+                const isProv = !!entry.isProv;
+                const hasSpecial = rawLabel || (entry.isMultiDay && entry.endDate);
+                // Hintergrundfarbe: gelb für PROV, blau sonst
+                if (isProv) {
+                    doc.setFillColor(234,179,8);
+                } else if (hasSpecial) {
+                    doc.setFillColor(37,99,235);
+                } else {
+                    doc.setFillColor(71,85,105); // grau für normalen Typ
+                }
+                doc.roundedRect(margin, y-1, contentW, 13, 2, 2, 'F');
+                setFont(12, 'bold', [255,255,255]);
+                doc.text(pdfStartLabel, margin+5, y+8);
+                y += 18;
+            }
 
             y=row('ADRESSE',entry.address,y);
             y=row('DATUM',formatDate(entry.deliveryDate)+(entry.endDate?' – '+formatDate(entry.endDate):''),y);
@@ -334,13 +359,11 @@ function downloadMonteurBillingPDF(entries, teamName) {
             const setFont=(size,style='normal',color=[0,0,0])=>{doc.setFontSize(size);doc.setFont('helvetica',style);doc.setTextColor(color[0],color[1],color[2]);};
             const today=new Date().toLocaleDateString('de-DE');
 
-            // Header
             doc.setFillColor(16,185,129); doc.rect(0,0,pageW,20,'F');
             setFont(14,'bold',[255,255,255]); doc.text('ABRECHNUNG — FERTIGMONTIERTE AUFTRÄGE',margin,13);
             setFont(9,'normal',[200,255,230]); doc.text(`Gruppe: ${teamName} · Erstellt: ${today} · ${entries.length} Aufträge`,pageW-margin,13,{align:'right'});
             y=28;
 
-            // Table header
             doc.setFillColor(240,253,244); doc.rect(margin,y-4,contentW,8,'F');
             doc.setDrawColor(16,185,129); doc.setLineWidth(0.5); doc.line(margin,y+4,pageW-margin,y+4);
             setFont(7,'bold',[20,100,60]);
@@ -391,7 +414,6 @@ function downloadMonteurBillingPDF(entries, teamName) {
                 y+=rowH;
             });
 
-            // Footer
             const totalPages=doc.internal.getNumberOfPages();
             for(let i=1;i<=totalPages;i++){
                 doc.setPage(i);
@@ -673,9 +695,7 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
 }
 
 // ============================================================
-// MONTEUR BILLING MODAL — Eigene Abrechnung für Monteure
-// Unabhängig vom Admin — speichert in teams_cal_{teamId} als
-// monteurBilled / monteurBilledAt Felder
+// MONTEUR BILLING MODAL
 // ============================================================
 function MonteurBillingModal({ team, onClose }) {
     const [entries, setEntries] = useState([]);
@@ -690,7 +710,6 @@ function MonteurBillingModal({ team, onClose }) {
         });
     },[team.id]);
 
-    // Aufträge die als erledigt markiert sind (vom Monteur oder Admin)
     const doneEntries = useMemo(()=>entries.filter(e=>e.isDone&&!e.monteurBilled).sort((a,b)=>a.deliveryDate>b.deliveryDate?-1:1),[entries]);
     const billedEntries = useMemo(()=>entries.filter(e=>e.monteurBilled).sort((a,b)=>(b.monteurBilledAt||'')>(a.monteurBilledAt||'')?1:-1),[entries]);
 
@@ -755,7 +774,6 @@ function MonteurBillingModal({ team, onClose }) {
 
     return (
         <div className="monteur-billing-overlay">
-            {/* Header */}
             <div className="monteur-billing-header">
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
                     <div>
@@ -768,8 +786,6 @@ function MonteurBillingModal({ team, onClose }) {
                     </div>
                     <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:36,height:36,cursor:'pointer',color:'#94a3b8',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                 </div>
-
-                {/* Stats */}
                 <div style={{display:'flex',gap:10,marginBottom:12}}>
                     <div className="monteur-stat-box">
                         <div style={{color:'#10b981',fontSize:22,fontWeight:900,lineHeight:1}}>{doneEntries.length}</div>
@@ -784,8 +800,6 @@ function MonteurBillingModal({ team, onClose }) {
                         <div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Total Erledigt</div>
                     </div>
                 </div>
-
-                {/* Actions */}
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                     {doneEntries.length > 0 && (
                         <button onClick={selectAll} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'7px 14px',color:'#cbd5e1',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>
@@ -807,8 +821,6 @@ function MonteurBillingModal({ team, onClose }) {
                     )}
                 </div>
             </div>
-
-            {/* Body */}
             <div className="monteur-billing-body">
                 {doneEntries.length === 0 && billedEntries.length === 0 && (
                     <div style={{textAlign:'center',padding:60,color:'#475569'}}>
@@ -817,8 +829,6 @@ function MonteurBillingModal({ team, onClose }) {
                         <div style={{fontSize:11,marginTop:8,color:'#334155',lineHeight:1.6}}>Aufträge im Kalender als „Erledigt" markieren,<br/>um sie hier in der Abrechnung zu sehen.</div>
                     </div>
                 )}
-
-                {/* Offene Abrechnungen */}
                 {doneEntries.length > 0 && (
                     <div>
                         <div style={{color:'#10b981',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
@@ -831,7 +841,6 @@ function MonteurBillingModal({ team, onClose }) {
                                     className={`monteur-entry-card ${selectedIds.has(e.id)?'selected':''}`}
                                     onClick={()=>toggleSelect(e.id)}>
                                     <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
-                                        {/* Checkbox */}
                                         <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${selectedIds.has(e.id)?'#10b981':'rgba(255,255,255,0.2)'}`,background:selectedIds.has(e.id)?'#10b981':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2,transition:'all 0.15s'}}>
                                             {selectedIds.has(e.id)&&<span style={{color:'#fff',fontSize:13,fontWeight:900,lineHeight:1}}>✓</span>}
                                         </div>
@@ -861,8 +870,6 @@ function MonteurBillingModal({ team, onClose }) {
                         </div>
                     </div>
                 )}
-
-                {/* Abgerechnete Aufträge */}
                 {billedEntries.length > 0 && (
                     <div style={{marginTop:doneEntries.length>0?16:0}}>
                         <div style={{color:'#a855f7',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
@@ -1038,7 +1045,6 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
 
             {e.isDone&&<div className="done-stamp">✓ Erledigt</div>}
             {e.isBilled&&<div className="billed-stamp">✓ Abgerechnet</div>}
-            {/* Monteur-eigene Abrechnungsmarkierung */}
             {!e.isBilled&&e.monteurBilled&&<div className="monteur-billed-stamp">✓ Abgerechn.</div>}
 
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,flexWrap:'wrap'}}>
@@ -1231,10 +1237,8 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     const [standbySearch, setStandbySearch] = useState('');
     const [standbyDateModal, setStandbyDateModal] = useState(null);
     const [highlightId, setHighlightId] = useState(scrollToEntry?.id||null);
-    // MONTEUR ABRECHNUNG
     const [showMonteurBilling, setShowMonteurBilling] = useState(false);
 
-    // Cal search (Admin only)
     const [calSearchQuery, setCalSearchQuery] = useState('');
     const [calSearchFocused, setCalSearchFocused] = useState(false);
     const calSearchRef = useRef(null);
@@ -1254,10 +1258,8 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'standby_items'),snap=>{setStandbyItems(snap.docs.map(d=>({id:d.id,...d.data()})));});},[]);
     useEffect(()=>{if(!highlightId)return;const timer=setTimeout(()=>{const el=document.getElementById(`cal-entry-${highlightId}`);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('search-highlight');setTimeout(()=>el.classList.remove('search-highlight'),4500);}setHighlightId(null);},300);return()=>clearTimeout(timer);},[highlightId,calEntries]);
 
-    // Count done entries for badge
     const donePendingBillingCount = useMemo(()=>calEntries.filter(e=>e.isDone&&!e.monteurBilled).length,[calEntries]);
 
-    // Kalender-Suche
     const calSearchResults = useMemo(() => {
         if(!calSearchQuery.trim() || calSearchQuery.length < 2) return [];
         const q = calSearchQuery.toLowerCase();
@@ -1338,7 +1340,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
 
     return (
         <div style={{minHeight:'100vh',background:'#0f172a',display:'flex',flexDirection:'column'}}>
-            {/* PDF hidden week view */}
             <div style={{position:'absolute',left:'-9999px',top:0}}>
                 <div id="cal-week-pdf-content" style={{padding:'8mm',background:'#fff',fontFamily:'Arial,sans-serif',width:'420mm',color:'#000'}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5mm',borderBottom:'1.5pt solid #000',paddingBottom:'3mm'}}>
@@ -1349,14 +1350,16 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         {days.map((day,di)=>{
                             const dayStr=toLocalDateStr(day),dayEnt=entriesForDay(dayStr);
                             return <div key={di}><div style={{background:'#e2e8f0',borderRadius:'4pt',padding:'3mm',marginBottom:'2mm',textAlign:'center',border:'1pt solid #94a3b8'}}><div style={{fontSize:'9pt',fontWeight:900,textTransform:'uppercase',color:'#000'}}>{DAY_NAMES[di]}</div><div style={{fontSize:'7pt',color:'#1e293b',fontWeight:700}}>{formatDate(dayStr)}</div></div>
-                            {dayEnt.map((e,ei)=>{const ci=colorIndex[e.id];const bg=e.isProv?PROV_BG:CARD_COLORS[ci>=0?ci:0];const bd=e.isProv?PROV_BORDER:CARD_BORDER[ci>=0?ci:0];const pdfText=e.isProv?'#5a2d00':CARD_TEXT[ci>=0?ci:0];const imgs=getImages(e);return <div key={ei} style={{background:bg,borderLeft:`2pt solid ${bd}`,border:`1pt solid ${bd}66`,borderRadius:'4pt',padding:'2mm 3mm',marginBottom:'2mm'}}><div style={{fontSize:'8pt',fontWeight:900,color:pdfText}}>{e.customer}{e.isProv?' ⚠ PROV':''}{imgs.length>0?` 📸${imgs.length}`:''}</div>{e.auftragsNr&&<div style={{fontSize:'6.5pt',color:'#333',fontFamily:'monospace',marginBottom:'0.5mm'}}>{cleanAuftragsNr(e.auftragsNr)}</div>}<div style={{fontSize:'7pt',color:'#222'}}>{e.address}</div>{e.memo&&<div style={{fontSize:'7pt',fontWeight:800,borderLeft:`1.5pt solid ${bd}`,paddingLeft:'2mm',marginTop:'1mm',color:pdfText}}>📝 {e.memo}</div>}</div>;})}
+                            {dayEnt.map((e,ei)=>{const ci=colorIndex[e.id];const bg=e.isProv?PROV_BG:CARD_COLORS[ci>=0?ci:0];const bd=e.isProv?PROV_BORDER:CARD_BORDER[ci>=0?ci:0];const pdfText=e.isProv?'#5a2d00':CARD_TEXT[ci>=0?ci:0];const imgs=getImages(e);
+                            // START-Label für Wochen-PDF
+                            const wkLabel = e.isProv&&!e.customStartLabel?'PROV.':e.customStartLabel?`START+${e.customStartLabel}`:e.isMultiDay&&e.endDate?'START':(e.entryType||'LIEFERUNG');
+                            return <div key={ei} style={{background:bg,borderLeft:`2pt solid ${bd}`,border:`1pt solid ${bd}66`,borderRadius:'4pt',padding:'2mm 3mm',marginBottom:'2mm'}}><div style={{fontSize:'7pt',fontWeight:900,background:bd,color:'#fff',display:'inline-block',padding:'0.5mm 2mm',borderRadius:'2pt',marginBottom:'1mm'}}>{wkLabel}{e.isProv?' ⚠':''}{imgs.length>0?` 📸${imgs.length}`:''}</div><div style={{fontSize:'8pt',fontWeight:900,color:pdfText}}>{e.customer}</div>{e.auftragsNr&&<div style={{fontSize:'6.5pt',color:'#333',fontFamily:'monospace',marginBottom:'0.5mm'}}>{cleanAuftragsNr(e.auftragsNr)}</div>}<div style={{fontSize:'7pt',color:'#222'}}>{e.address}</div>{e.memo&&<div style={{fontSize:'7pt',fontWeight:800,borderLeft:`1.5pt solid ${bd}`,paddingLeft:'2mm',marginTop:'1mm',color:pdfText}}>📝 {e.memo}</div>}</div>;})}
                             </div>;
                         })}
                     </div>
                 </div>
             </div>
 
-            {/* HEADER */}
             <div style={{background:'#1e293b',padding:'10px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:40,borderBottom:'2px solid #334155',flexShrink:0}}>
                 <div style={{display:'flex',alignItems:'center',gap:10,flex:'0 0 auto'}}>
                     <button onClick={onBack} style={{background:'#334155',border:'none',borderRadius:10,width:34,height:34,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><Icon name="arrow-left" size={16} className="text-blue-400"/></button>
@@ -1376,7 +1379,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                     <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()+7);setCalWeek(d);}} style={{background:'#334155',border:'none',borderRadius:8,width:30,height:30,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-right" size={14} className="text-blue-400"/></button>
                     <button onClick={triggerWeekPDF} style={{background:'#475569',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="download" size={12}/>A3 PDF</button>
 
-                    {/* ── MONTEUR ABRECHNUNG BUTTON ── nur für Monteure */}
                     {!isAdminAccess && (
                         <button className="monteur-billing-btn" onClick={()=>setShowMonteurBilling(true)}>
                             <Icon name="receipt" size={13}/>
@@ -1396,7 +1398,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             </div>
 
-            {/* Admin Suchleiste */}
             {isAdminAccess && (
                 <div className="cal-search-bar" ref={calSearchRef} style={{position:'relative'}}>
                     <div style={{position:'relative',flex:1,display:'flex',alignItems:'center',gap:8}}>
@@ -1414,7 +1415,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             )}
 
-            {/* Monteur Info-Banner */}
             {!isAdminAccess&&(
                 <div style={{background:'rgba(16,185,129,0.06)',borderBottom:'1px solid rgba(16,185,129,0.12)',padding:'5px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <span style={{fontSize:9,fontWeight:700,color:'#10b981'}}>
@@ -1439,7 +1439,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             )}
 
-            {/* CALENDAR GRID */}
             <div style={{flex:1,overflowX:'auto',overflowY:'auto',background:'#f1f5f9'}}>
                 <div style={{minWidth:760}}>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'2px solid #000',background:'#1e293b'}}>
@@ -1472,7 +1471,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             </div>
 
-            {/* EDIT MODAL (Admin) */}
             {editCalEntry&&isAdminAccess&&(
                 <div style={{position:'fixed',inset:0,zIndex:50,background:'rgba(15,23,42,0.96)',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:16,overflowY:'auto'}}>
                     <div style={{width:'100%',maxWidth:460,background:'rgba(51,65,85,0.98)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:24,padding:24,display:'flex',flexDirection:'column',gap:12,marginTop:8,marginBottom:8}}>
@@ -1508,7 +1506,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             )}
 
-            {/* Standby picker */}
             {showStandbyPicker&&isAdminAccess&&(
                 <div style={{position:'fixed',inset:0,zIndex:55,background:'rgba(15,23,42,0.99)',display:'flex',flexDirection:'column'}}>
                     <div style={{background:'#1e293b',padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'2px solid #f59e0b44'}}><div style={{color:'#f59e0b',fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>📦 Standby — Auftrag auswählen</div><button onClick={()=>{setShowStandbyPicker(null);setStandbySearch('');}} style={{background:'#334155',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button></div>
@@ -1526,7 +1523,6 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
 
             {calImportResult!==null&&(<div style={{position:'fixed',inset:0,zIndex:60,background:'rgba(15,23,42,0.95)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}><div style={{background:'rgba(51,65,85,0.98)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:24,padding:32,width:'100%',maxWidth:300,display:'flex',flexDirection:'column',alignItems:'center',gap:20}}><div style={{width:64,height:64,background:'#10b981',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="check" size={32} className="text-white"/></div><div style={{textAlign:'center'}}><div style={{color:'#fff',fontSize:48,fontWeight:900,lineHeight:1}}>{calImportResult}</div><div style={{color:'#10b981',fontSize:11,fontWeight:900,textTransform:'uppercase',marginTop:4}}>Aufträge erfasst</div></div><button onClick={()=>setCalImportResult(null)} style={{width:'100%',padding:'14px',background:'#3b82f6',border:'none',borderRadius:12,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>OK</button></div></div>)}
 
-            {/* MONTEUR BILLING MODAL */}
             {showMonteurBilling&&!isAdminAccess&&(
                 <MonteurBillingModal team={team} onClose={()=>setShowMonteurBilling(false)}/>
             )}

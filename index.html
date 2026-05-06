@@ -167,6 +167,10 @@
         .img-thumb-add { border:2px dashed rgba(255,255,255,0.2); border-radius:8px; aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; gap:4px; background:rgba(255,255,255,0.03); transition:all 0.15s; }
         .img-thumb-add:hover { border-color:#3b82f6; background:rgba(59,130,246,0.08); }
 
+
+        .blocked-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#f97316; border:1.5px solid #f97316; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(249,115,22,0.1); pointer-events:none; white-space:nowrap; }
+        .blocked-card { border-left-color:#f97316 !important; opacity:0.85; }
+        .blocked-overlay { position:fixed; inset:0; z-index:75; background:rgba(10,15,30,0.98); display:flex; flex-direction:column; }
         @media print { body * { visibility:hidden; } #billing-pdf-content, #billing-pdf-content * { visibility:visible; } #billing-pdf-content { position:fixed; left:0; top:0; width:100%; } }
         @keyframes slideUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
 
@@ -501,6 +505,148 @@ function MultiImageUpload({ images, onChange, maxImages=10 }) {
     );
 }
 
+
+// ============================================================
+// BLOCKIERT MODAL — Monteur meldet Blockierung mit Text + Fotos
+// ============================================================
+function BlockModal({ entry, team, onClose }) {
+    const [reason, setReason] = useState(entry.blockReason || '');
+    const [images, setImages] = useState(entry.blockImages || []);
+    const [saving, setSaving] = useState(false);
+    const fileRef = React.useRef(null);
+
+    const compressImage = (file) => new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const c = document.createElement('canvas');
+                let w = img.width, h = img.height;
+                const maxSize = 1400;
+                if(w > maxSize || h > maxSize) {
+                    if(w > h) { h = Math.round(h * maxSize/w); w = maxSize; }
+                    else { w = Math.round(w * maxSize/h); h = maxSize; }
+                }
+                c.width = w; c.height = h;
+                c.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(c.toDataURL('image/jpeg', 0.82));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    const handleFiles = async (files) => {
+        const fileArr = Array.from(files).slice(0, 8 - images.length);
+        if(!fileArr.length) return;
+        const compressed = await Promise.all(fileArr.map(compressImage));
+        setImages(prev => [...prev, ...compressed]);
+    };
+
+    const removeImg = (idx) => setImages(prev => prev.filter((_,i) => i !== idx));
+
+    const saveBlock = async () => {
+        setSaving(true);
+        const { db, doc, updateDoc } = window.FirebaseSDK;
+        await updateDoc(doc(db, `teams_cal_${team.id}`, entry.id), {
+            isBlocked: true,
+            blockReason: reason.trim(),
+            blockImages: images,
+            blockedAt: new Date().toISOString(),
+        });
+        setSaving(false);
+        onClose();
+    };
+
+    const unblock = async () => {
+        const { db, doc, updateDoc } = window.FirebaseSDK;
+        await updateDoc(doc(db, `teams_cal_${team.id}`, entry.id), {
+            isBlocked: false,
+            blockReason: '',
+            blockImages: [],
+            blockedAt: null,
+        });
+        onClose();
+    };
+
+    return (
+        <div className="blocked-overlay" style={{padding:0}}>
+            {/* Header */}
+            <div style={{background:'linear-gradient(135deg,#1c0a00,#2d1400)',padding:'16px 20px',borderBottom:'2px solid rgba(249,115,22,0.35)',flexShrink:0}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                        <div style={{width:36,height:36,borderRadius:10,background:'rgba(249,115,22,0.2)',border:'1.5px solid #f97316',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>🚧</div>
+                        <div>
+                            <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>AUFTRAG BLOCKIERT</div>
+                            <div style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase',marginTop:1}}>{entry.customer}</div>
+                        </div>
+                    </div>
+                    <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                </div>
+                <div style={{color:'#78350f',fontSize:10,fontWeight:700}}>{entry.address}</div>
+            </div>
+
+            {/* Body — scrollbar */}
+            <div style={{flex:1,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:14}}>
+                {/* Grund */}
+                <div>
+                    <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>🚧 Grund der Blockierung *</div>
+                    <textarea
+                        autoFocus
+                        rows={4}
+                        value={reason}
+                        onChange={e=>setReason(e.target.value)}
+                        placeholder="z.B. Baustelle gesperrt / kein Zugang / Material fehlt / Kunde nicht erreichbar..."
+                        style={{width:'100%',background:'#1a0d00',border:'2px solid rgba(249,115,22,0.4)',borderRadius:12,padding:'12px 14px',color:'#fed7aa',fontSize:13,fontWeight:700,resize:'none',boxSizing:'border-box',outline:'none',lineHeight:1.5}}
+                    />
+                </div>
+
+                {/* Fotos */}
+                <div>
+                    <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:8,display:'flex',justifyContent:'space-between'}}>
+                        <span>📷 FOTOS ({images.length}/8)</span>
+                        <span style={{color:'#78350f',fontSize:8,fontWeight:700}}>Optional — z.B. gesperrte Zufahrt</span>
+                    </div>
+                    <input type="file" ref={fileRef} accept="image/*" multiple capture="environment" style={{display:'none'}}
+                        onChange={e=>{handleFiles(e.target.files);e.target.value='';}}/>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+                        {images.map((src,idx)=>(
+                            <div key={idx} style={{position:'relative',borderRadius:10,overflow:'hidden',border:'2px solid rgba(249,115,22,0.3)',aspectRatio:'1'}}>
+                                <img src={src} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+                                <button onClick={()=>removeImg(idx)} style={{position:'absolute',top:3,right:3,background:'#ef4444',border:'none',borderRadius:'50%',width:20,height:20,cursor:'pointer',color:'#fff',fontSize:11,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                            </div>
+                        ))}
+                        {images.length < 8 && (
+                            <div onClick={()=>fileRef.current?.click()}
+                                style={{border:'2px dashed rgba(249,115,22,0.35)',borderRadius:10,aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',gap:4,background:'rgba(249,115,22,0.04)'}}>
+                                <span style={{fontSize:24}}>📷</span>
+                                <span style={{fontSize:8,color:'#78350f',fontWeight:700,textAlign:'center'}}>Foto aufnehmen</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Bereits blockiert — Aufheben */}
+                {entry.isBlocked && (
+                    <button onClick={unblock}
+                        style={{padding:'13px',background:'rgba(16,185,129,0.12)',border:'2px solid rgba(16,185,129,0.3)',borderRadius:14,color:'#10b981',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:'pointer',letterSpacing:1}}>
+                        ✓ Blockierung aufheben
+                    </button>
+                )}
+            </div>
+
+            {/* Footer */}
+            <div style={{padding:'12px 20px',borderTop:'1px solid rgba(249,115,22,0.2)',background:'#0f172a',flexShrink:0,display:'flex',gap:10}}>
+                <button onClick={onClose} style={{flex:1,padding:'14px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,color:'#64748b',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:'pointer'}}>Abbrechen</button>
+                <button onClick={saveBlock} disabled={saving || !reason.trim()}
+                    style={{flex:2,padding:'14px',background:reason.trim()&&!saving?'#f97316':'#1e293b',border:'none',borderRadius:14,color:reason.trim()&&!saving?'#fff':'#475569',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:reason.trim()&&!saving?'pointer':'not-allowed',boxShadow:reason.trim()?'0 4px 14px rgba(249,115,22,0.35)':'none'}}>
+                    {saving ? '⏳ Speichern...' : '🚧 Als blockiert melden'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // ============================================================
 // AI IMPORT MODAL
 // ============================================================
@@ -712,6 +858,7 @@ function MonteurBillingModal({ team, onClose }) {
 
     const doneEntries = useMemo(()=>entries.filter(e=>e.isDone&&!e.monteurBilled).sort((a,b)=>a.deliveryDate>b.deliveryDate?-1:1),[entries]);
     const billedEntries = useMemo(()=>entries.filter(e=>e.monteurBilled).sort((a,b)=>(b.monteurBilledAt||'')>(a.monteurBilledAt||'')?1:-1),[entries]);
+    const blockedEntries = useMemo(()=>entries.filter(e=>e.isBlocked).sort((a,b)=>a.deliveryDate>b.deliveryDate?-1:1),[entries]);
 
     const toggleSelect=(id)=>setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
     const selectAll=()=>{if(selectedIds.size===doneEntries.length)setSelectedIds(new Set());else setSelectedIds(new Set(doneEntries.map(e=>e.id)));};
@@ -799,6 +946,10 @@ function MonteurBillingModal({ team, onClose }) {
                         <div style={{color:'#f59e0b',fontSize:22,fontWeight:900,lineHeight:1}}>{entries.filter(e=>e.isDone).length}</div>
                         <div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Total Erledigt</div>
                     </div>
+                    <div className="monteur-stat-box">
+                        <div style={{color:'#f97316',fontSize:22,fontWeight:900,lineHeight:1}}>{blockedEntries.length}</div>
+                        <div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Blockiert</div>
+                    </div>
                 </div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                     {doneEntries.length > 0 && (
@@ -822,11 +973,51 @@ function MonteurBillingModal({ team, onClose }) {
                 </div>
             </div>
             <div className="monteur-billing-body">
-                {doneEntries.length === 0 && billedEntries.length === 0 && (
+                {doneEntries.length === 0 && billedEntries.length === 0 && blockedEntries.length === 0 && (
                     <div style={{textAlign:'center',padding:60,color:'#475569'}}>
                         <div style={{fontSize:48,marginBottom:12}}>📋</div>
                         <div style={{fontSize:14,fontWeight:900,color:'#64748b'}}>Keine erledigten Aufträge</div>
                         <div style={{fontSize:11,marginTop:8,color:'#334155',lineHeight:1.6}}>Aufträge im Kalender als „Erledigt" markieren,<br/>um sie hier in der Abrechnung zu sehen.</div>
+                    </div>
+                )}
+                {blockedEntries.length > 0 && (
+                    <div>
+                        <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+                            <div style={{width:6,height:6,borderRadius:'50%',background:'#f97316'}}></div>
+                            🚧 Blockierte Aufträge
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                            {blockedEntries.map(e=>(
+                                <div key={e.id} style={{background:'rgba(249,115,22,0.07)',border:'1px solid rgba(249,115,22,0.3)',borderLeft:'3px solid #f97316',borderRadius:12,padding:'12px 16px'}}>
+                                    <div style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:e.blockReason?8:0}}>
+                                        <div style={{flex:1}}>
+                                            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                                                <span style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                                <span style={{background:'rgba(249,115,22,0.2)',color:'#f97316',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>🚧 BLOCKIERT</span>
+                                                {e.isProv&&<span style={{background:'rgba(234,179,8,0.2)',color:'#eab308',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>⚠ PROV</span>}
+                                            </div>
+                                            <div style={{color:'#78350f',fontSize:10,marginBottom:4}}>{e.address}</div>
+                                            <span style={{color:'#475569',fontSize:9}}>{formatDate(e.deliveryDate)}</span>
+                                        </div>
+                                    </div>
+                                    {e.blockReason&&(
+                                        <div style={{background:'rgba(249,115,22,0.1)',border:'1px solid rgba(249,115,22,0.2)',borderRadius:8,padding:'8px 12px',marginTop:4}}>
+                                            <div style={{color:'#f97316',fontSize:8,fontWeight:900,textTransform:'uppercase',marginBottom:3}}>Grund:</div>
+                                            <div style={{color:'#fed7aa',fontSize:11,fontWeight:700,lineHeight:1.4}}>{e.blockReason}</div>
+                                        </div>
+                                    )}
+                                    {e.blockImages&&e.blockImages.length>0&&(
+                                        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginTop:8}}>
+                                            {e.blockImages.map((src,idx)=>(
+                                                <div key={idx} style={{borderRadius:8,overflow:'hidden',border:'1px solid rgba(249,115,22,0.25)',aspectRatio:'1'}}>
+                                                    <img src={src} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
                 {doneEntries.length > 0 && (
@@ -1006,7 +1197,7 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
 // ============================================================
 // CalCard
 // ============================================================
-function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive }) {
+function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive, setBlockEntry }) {
     const isProv = !!e.isProv;
     const bg = isProv ? PROV_BG : CARD_COLORS[ci];
     const border = isProv ? PROV_BORDER : CARD_BORDER[ci];
@@ -1030,7 +1221,7 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
     const handleAdminClick = (ev) => { ev.stopPropagation(); if(isMoveActive)return; setEditCalEntry({...e}); };
 
     return (
-        <div className={`cal-card-item${e.isDone?' done-card':''}${isProv?' cal-card-prov':''}${isMoveActive?' move-active-card':''}${!isAdminAccess?' pdf-clickable':''}`}
+        <div className={`cal-card-item${e.isDone?' done-card':''}${isProv?' cal-card-prov':''}${e.isBlocked?' blocked-card':''}${isMoveActive?' move-active-card':''}${!isAdminAccess?' pdf-clickable':''}`}
             style={{background:bg,borderLeftColor:border,borderLeft:`3px solid ${border}`,color:text,borderTop:`1.5px solid ${border}33`,borderBottom:`1.5px solid ${border}33`,cursor:isMoveActive?'grab':'pointer'}}
             onClick={isAdminAccess?handleAdminClick:handleMonteurClick}>
 
@@ -1046,11 +1237,13 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
             {e.isDone&&<div className="done-stamp">✓ Erledigt</div>}
             {e.isBilled&&<div className="billed-stamp">✓ Abgerechnet</div>}
             {!e.isBilled&&e.monteurBilled&&<div className="monteur-billed-stamp">✓ Abgerechn.</div>}
+            {e.isBlocked&&<div className="blocked-stamp">🚧 Blockiert</div>}
 
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,flexWrap:'wrap'}}>
                 {isStart?(<div style={{fontSize:8,fontWeight:900,letterSpacing:1,textTransform:'uppercase',padding:'1px 5px',background:border,color:'#fff',borderRadius:2,display:'inline-block'}}>{startLabel}</div>):(<div style={{fontSize:8,fontWeight:900,letterSpacing:1,textTransform:'uppercase',padding:'1px 5px',background:border+'bb',color:'#fff',borderRadius:2,display:'inline-block'}}>TAG {dayNumber}</div>)}
                 {e.isMultiDay&&e.endDate&&<div className="multiday-badge" style={{background:border+'33',color:border}}>📅 {totalDays} Tage</div>}
                 {isProv&&<div style={{fontSize:8,fontWeight:900,background:'#eab308',color:'#fff',borderRadius:3,padding:'1px 5px'}}>⚠ PROV.</div>}
+                {e.isBlocked&&<div style={{fontSize:8,fontWeight:900,background:'#f97316',color:'#fff',borderRadius:3,padding:'1px 5px'}}>🚧 BLOCKIERT</div>}
             </div>
 
             {e.auftragsNr&&<div style={{fontSize:8,fontWeight:900,opacity:0.75,marginBottom:2,textTransform:'uppercase'}}>{cleanAuftragsNr(e.auftragsNr)}</div>}
@@ -1059,9 +1252,11 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
             {e.memo&&<div className="memo-block" style={{background:border+'22',borderLeftColor:border,color:text}}><span style={{fontSize:7,fontWeight:900,textTransform:'uppercase',letterSpacing:1,opacity:0.6,display:'block',marginBottom:1}}>📝 MEMO</span><span style={{fontSize:11,fontWeight:800}}>{e.memo}</span></div>}
             {e.isMultiDay&&e.endDate&&isStart&&<div style={{fontSize:8,color:border,fontWeight:700,marginTop:3}}>{formatDate(e.deliveryDate)} – {formatDate(e.endDate)}</div>}
             {e.target>0&&<div style={{marginTop:3,display:'inline-block',background:border,color:'#fff',fontSize:8,fontWeight:900,padding:'1px 5px',borderRadius:3}}>{e.target} ELE</div>}
+            {e.isBlocked&&e.blockReason&&<div style={{marginTop:4,background:'rgba(249,115,22,0.12)',borderLeft:'2.5px solid #f97316',borderRadius:'0 5px 5px 0',padding:'3px 7px',fontSize:9,fontWeight:800,color:'#f97316',lineHeight:1.4}}>🚧 {e.blockReason}</div>}
 
             <div style={{display:'flex',gap:3,marginTop:5,justifyContent:'flex-end',alignItems:'center'}}>
                 {!isAdminAccess&&(<span style={{fontSize:8,color:border,fontWeight:900,opacity:0.7,display:'flex',alignItems:'center',gap:2}}>📄 PDF{images.length>0?` (${images.length} Fotos)`:''}</span>)}
+                {!isAdminAccess&&canMarkDone&&<button onClick={(ev)=>{ev.stopPropagation();setBlockEntry&&setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.25)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f97316',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}}>{e.isBlocked?'🚧 Blockiert':'⚠ Blockieren'}</button>}
                 {canMarkDone&&<button onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.25)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.3)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#10b981',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setMoveEntry({...e});}} style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f59e0b',lineHeight:1,fontWeight:900}}>↕ Verschieben</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setCopyEntry({...e});}} style={{background:'rgba(37,99,235,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#2563eb',lineHeight:1}}>⧉</button>}
@@ -1163,6 +1358,7 @@ function BillingModal({ teams, onClose }) {
                                     {t.name}
                                     {done>0&&<span style={{background:'#ef4444',color:'#fff',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>{done}</span>}
                                     {billed>0&&<span style={{background:'rgba(168,85,247,0.3)',color:'#a855f7',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>✓{billed}</span>}
+                                    {billedForTeam(t.id).length===0&&allEntries.filter(e=>e.teamId===t.id&&e.isBlocked).length>0&&<span style={{background:'rgba(249,115,22,0.25)',color:'#f97316',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:10}}>🚧</span>}
                                 </button>
                             );
                         })}
@@ -1238,6 +1434,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     const [standbyDateModal, setStandbyDateModal] = useState(null);
     const [highlightId, setHighlightId] = useState(scrollToEntry?.id||null);
     const [showMonteurBilling, setShowMonteurBilling] = useState(false);
+    const [blockEntry, setBlockEntry] = useState(null);
 
     const [calSearchQuery, setCalSearchQuery] = useState('');
     const [calSearchFocused, setCalSearchFocused] = useState(false);
@@ -1259,6 +1456,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     useEffect(()=>{if(!highlightId)return;const timer=setTimeout(()=>{const el=document.getElementById(`cal-entry-${highlightId}`);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('search-highlight');setTimeout(()=>el.classList.remove('search-highlight'),4500);}setHighlightId(null);},300);return()=>clearTimeout(timer);},[highlightId,calEntries]);
 
     const donePendingBillingCount = useMemo(()=>calEntries.filter(e=>e.isDone&&!e.monteurBilled).length,[calEntries]);
+    const blockedCount = useMemo(()=>calEntries.filter(e=>e.isBlocked).length,[calEntries]);
 
     const calSearchResults = useMemo(() => {
         if(!calSearchQuery.trim() || calSearchQuery.length < 2) return [];
@@ -1383,8 +1581,8 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         <button className="monteur-billing-btn" onClick={()=>setShowMonteurBilling(true)}>
                             <Icon name="receipt" size={13}/>
                             💰 Abrechnung
-                            {donePendingBillingCount > 0 && (
-                                <span className="monteur-billing-badge">{donePendingBillingCount}</span>
+                            {(donePendingBillingCount + blockedCount) > 0 && (
+                                <span className="monteur-billing-badge">{donePendingBillingCount + blockedCount}</span>
                             )}
                         </button>
                     )}
@@ -1420,10 +1618,11 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                     <span style={{fontSize:9,fontWeight:700,color:'#10b981'}}>
                         📄 Auftrag anklicken = PDF · ✓ Aufträge erledigen = erscheinen in Abrechnung
                     </span>
-                    {donePendingBillingCount > 0 && (
-                        <span style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:10,padding:'2px 10px',color:'#10b981',fontSize:9,fontWeight:900,cursor:'pointer'}} onClick={()=>setShowMonteurBilling(true)}>
-                            {donePendingBillingCount} Aufträge offen zur Abrechnung →
-                        </span>
+                    {(donePendingBillingCount > 0 || blockedCount > 0) && (
+                        <div style={{display:'flex',gap:6}}>
+                            {donePendingBillingCount > 0 && <span style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:10,padding:'2px 10px',color:'#10b981',fontSize:9,fontWeight:900,cursor:'pointer'}} onClick={()=>setShowMonteurBilling(true)}>{donePendingBillingCount} zur Abrechnung →</span>}
+                            {blockedCount > 0 && <span style={{background:'rgba(249,115,22,0.15)',border:'1px solid rgba(249,115,22,0.3)',borderRadius:10,padding:'2px 10px',color:'#f97316',fontSize:9,fontWeight:900,cursor:'pointer'}} onClick={()=>setShowMonteurBilling(true)}>🚧 {blockedCount} blockiert</span>}
+                        </div>
                     )}
                 </div>
             )}
@@ -1461,7 +1660,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                                     const canMark=isAdminAccess||(e.isMultiDay&&e.endDate?dayStr===e.deliveryDate.substring(0,10):true);
                                     const isMoveActiveCard=!!(moveEntry&&moveEntry.id===e.id);
                                     return(<div key={di} id={`cal-entry-${e.id}`} style={{borderRight,borderBottom,padding:'4px',boxSizing:'border-box',background:isActionTarget?'rgba(245,158,11,0.04)':'#fff',cursor:(isActionTarget&&!isMoveActiveCard)?'crosshair':'default'}} onClick={(ev)=>{if(isMoveTarget&&!isMoveActiveCard&&isStart){ev.stopPropagation();executeMoveEntry(moveEntry,dayStr);}else if(isCopyTarget){pasteCopyToDay(dayStr);}}}>
-                                        <CalCard e={e} dayStr={dayStr} ci={ci} isStart={isStart} totalDays={totalDays2} isAdminAccess={isAdminAccess} toggleDone={toggleDone} setCopyEntry={setCopyEntry} deleteCalEntry={deleteCalEntry} setEditCalEntry={setEditCalEntry} canMarkDone={canMark} setMoveEntry={setMoveEntry} isMoveActive={isMoveActiveCard}/>
+                                        <CalCard e={e} dayStr={dayStr} ci={ci} isStart={isStart} totalDays={totalDays2} isAdminAccess={isAdminAccess} toggleDone={toggleDone} setCopyEntry={setCopyEntry} deleteCalEntry={deleteCalEntry} setEditCalEntry={setEditCalEntry} canMarkDone={canMark} setMoveEntry={setMoveEntry} isMoveActive={isMoveActiveCard} setBlockEntry={setBlockEntry}/>
                                     </div>);
                                 })}
                             </React.Fragment>
@@ -1525,6 +1724,10 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
 
             {showMonteurBilling&&!isAdminAccess&&(
                 <MonteurBillingModal team={team} onClose={()=>setShowMonteurBilling(false)}/>
+            )}
+
+            {blockEntry&&(
+                <BlockModal entry={blockEntry} team={team} onClose={()=>setBlockEntry(null)}/>
             )}
         </div>
     );

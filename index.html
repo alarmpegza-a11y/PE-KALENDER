@@ -171,6 +171,31 @@
         .blocked-stamp { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-15deg); font-size:9px; font-weight:900; color:#f97316; border:1.5px solid #f97316; padding:1px 6px; border-radius:3px; text-transform:uppercase; letter-spacing:1px; background:rgba(249,115,22,0.1); pointer-events:none; white-space:nowrap; }
         .blocked-card { border-left-color:#f97316 !important; opacity:0.85; }
         .blocked-overlay { position:fixed; inset:0; z-index:75; background:rgba(10,15,30,0.98); display:flex; flex-direction:column; }
+
+        /* ── MOBILE CALENDAR VIEW ── */
+        .mobile-day-header { background:linear-gradient(135deg,#1e293b,#263548); border-radius:12px; padding:10px 14px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; border-left:4px solid; }
+        .mobile-day-name { font-size:13px; font-weight:900; color:#fff; text-transform:uppercase; letter-spacing:1px; }
+        .mobile-day-date { font-size:11px; color:#94a3b8; font-weight:700; margin-top:1px; }
+        .mobile-day-count { font-size:9px; font-weight:900; color:#60a5fa; background:rgba(59,130,246,0.15); border-radius:10px; padding:2px 8px; }
+        .mobile-today { background:linear-gradient(135deg,#1e3a5f,#1e4d8c) !important; border-color:#3b82f6 !important; }
+        .mobile-today .mobile-day-name { color:#60a5fa; }
+        .mobile-cal-card { border-radius:10px; padding:10px 12px; border-left:4px solid; position:relative; margin-bottom:8px; }
+        .mobile-tag-badge { display:inline-block; font-size:8px; font-weight:900; padding:2px 7px; border-radius:4px; color:#fff; margin-bottom:6px; text-transform:uppercase; letter-spacing:1px; }
+        .mobile-customer { font-size:14px; font-weight:900; text-transform:uppercase; line-height:1.3; }
+        .mobile-address { font-size:11px; font-weight:700; opacity:0.8; margin-top:2px; line-height:1.3; }
+        .mobile-memo { margin-top:6px; padding:6px 8px; border-radius:6px; font-size:11px; font-weight:800; border-left:3px solid; line-height:1.4; }
+        .mobile-actions { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+        .mobile-btn { padding:8px 12px; border-radius:8px; font-size:10px; font-weight:900; border:none; cursor:pointer; display:flex; align-items:center; gap:5px; text-transform:uppercase; letter-spacing:0.5px; flex:1; justify-content:center; min-height:36px; }
+        .mobile-empty-day { text-align:center; padding:16px; color:#334155; font-size:10px; font-weight:700; font-style:italic; }
+        .mobile-days-grid { display:flex; flex-direction:column; gap:0; }
+        @media (min-width: 600px) and (max-width: 1023px) {
+            .mobile-days-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+            .mobile-cal-card { font-size:12px; }
+            .mobile-customer { font-size:13px !important; }
+            .mobile-btn { padding:7px 8px !important; font-size:9px !important; }
+        }
+        @media (min-width: 1024px) { .mobile-cal-view { display:none !important; } .desktop-cal-view { display:block !important; } }
+        @media (max-width: 1023px) { .mobile-cal-view { display:block !important; } .desktop-cal-view { display:none !important; } }
         @media print { body * { visibility:hidden; } #billing-pdf-content, #billing-pdf-content * { visibility:visible; } #billing-pdf-content { position:fixed; left:0; top:0; width:100%; } }
         @keyframes slideUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
 
@@ -1558,12 +1583,12 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             </div>
 
-            <div style={{background:'#1e293b',padding:'10px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:40,borderBottom:'2px solid #334155',flexShrink:0}}>
+            <div style={{background:'#1e293b',padding:'8px 10px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:40,borderBottom:'2px solid #334155',flexShrink:0,flexWrap:'wrap',gap:4}}>
                 <div style={{display:'flex',alignItems:'center',gap:10,flex:'0 0 auto'}}>
                     <button onClick={onBack} style={{background:'#334155',border:'none',borderRadius:10,width:34,height:34,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><Icon name="arrow-left" size={16} className="text-blue-400"/></button>
                     <div>
                         <div style={{color:'#94a3b8',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:2}}>{isAdminAccess?'ADMIN':'TEAM'}</div>
-                        <div style={{display:'flex',alignItems:'baseline',gap:6}}><span style={{color:'#60a5fa',fontSize:26,fontWeight:900,lineHeight:1,letterSpacing:-1}}>KW {kw}</span></div>
+                        <div style={{display:'flex',alignItems:'baseline',gap:6}}><span style={{color:'#60a5fa',fontSize:26,fontWeight:900,lineHeight:1,letterSpacing:-1,whiteSpace:'nowrap'}}>KW {kw}</span></div>
                         <div style={{color:'#fff',fontSize:12,fontWeight:900,fontStyle:'italic',marginTop:1}}>{team.name}</div>
                     </div>
                     <span className="live-badge"><span className="live-dot"></span>LIVE</span>
@@ -1628,7 +1653,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             )}
 
             <div style={{background:currentCalConfig.bg,padding:'5px 16px',textAlign:'center',fontSize:9,fontWeight:900,color:'#fff',textTransform:'uppercase',letterSpacing:2}}>
-                {currentCalConfig.banner} — KW {kw} — {formatDate(weekStart)} bis {formatDate(weekEnd)}
+                <span style={{display:'inline-block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%'}}>{currentCalConfig.banner} — KW {kw} — {formatDate(weekStart)} bis {formatDate(weekEnd)}</span>
             </div>
 
             {isAnyActionMode&&isAdminAccess&&(
@@ -1638,7 +1663,92 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                 </div>
             )}
 
-            <div style={{flex:1,overflowX:'auto',overflowY:'auto',background:'#f1f5f9'}}>
+            {/* ── MOBILE VIEW ── */}
+            <div className="mobile-cal-view" style={{flex:1,overflowY:'auto',background:'#f1f5f9',padding:'8px'}}>
+                <div className="mobile-days-grid">
+                {days.map((day,di)=>{
+                    const dayStr=toLocalDateStr(day);
+                    const dayEntries=laneVisibleEntries.filter(e=>{
+                        const s=(e.deliveryDate||'').substring(0,10);
+                        const en=(e.endDate||'').substring(0,10)||s;
+                        return dayStr>=s&&dayStr<=en;
+                    });
+                    const isToday=dayStr===toLocalDateStr(new Date());
+                    const dayColors=['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#64748b'];
+                    return (
+                        <div key={di} style={{marginBottom:12}}>
+                            <div className={`mobile-day-header${isToday?' mobile-today':''}`} style={{borderLeftColor:dayColors[di]||'#3b82f6'}}>
+                                <div>
+                                    <div className="mobile-day-name">{isToday?'📍 Heute — ':''}{DAY_NAMES[di]}</div>
+                                    <div className="mobile-day-date">{formatDate(dayStr)}</div>
+                                </div>
+                                <div className="mobile-day-count">{dayEntries.length} Auftrag{dayEntries.length!==1?'e':''}</div>
+                            </div>
+                            {dayEntries.length===0?(
+                                <div className="mobile-empty-day">Keine Aufträge</div>
+                            ):(
+                                dayEntries.map(e=>{
+                                    const ci=colorIndex[e.id]>=0?colorIndex[e.id]:0;
+                                    const bg=e.isProv?PROV_BG:CARD_COLORS[ci];
+                                    const border=e.isProv?PROV_BORDER:CARD_BORDER[ci];
+                                    const textCol=e.isProv?PROV_TEXT:CARD_TEXT[ci];
+                                    const imgs=getImages(e);
+                                    const isStart=dayStr===(e.deliveryDate||'').substring(0,10)||!e.isMultiDay;
+                                    const dayNum=e.isMultiDay&&e.endDate?Math.round((new Date(dayStr)-new Date(e.deliveryDate.substring(0,10)))/86400000)+1:null;
+                                    const totalD=e.isMultiDay&&e.endDate?daysBetween(e.deliveryDate.substring(0,10),e.endDate.substring(0,10)):1;
+                                    const sl=e.isProv&&!e.customStartLabel?'PROV.':e.customStartLabel?`START + ${e.customStartLabel}`:e.isMultiDay&&e.endDate?'START':e.entryType||'LIEFERUNG';
+                                    const canMark=isAdminAccess||(e.isMultiDay&&e.endDate?dayStr===e.deliveryDate.substring(0,10):true);
+                                    return (
+                                        <div key={e.id} className="mobile-cal-card" style={{background:bg,borderLeftColor:border,opacity:e.isDone?0.65:1,position:'relative'}}>
+                                            {e.isDone&&<div className="done-stamp">✓ Erledigt</div>}
+                                            {e.isBlocked&&<div className="blocked-stamp">🚧 Blockiert</div>}
+                                            {!e.isBilled&&e.monteurBilled&&<div className="monteur-billed-stamp">✓ Abgr.</div>}
+                                            {/* Badge row */}
+                                            <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6,flexWrap:'wrap'}}>
+                                                <span className="mobile-tag-badge" style={{background:border}}>{isStart?sl:`TAG ${dayNum}`}</span>
+                                                {e.isMultiDay&&e.endDate&&<span style={{background:border+'33',color:border,fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>📅 {totalD} Tage</span>}
+                                                {e.isProv&&<span style={{background:'#eab308',color:'#fff',fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>⚠ PROV</span>}
+                                                {e.isBlocked&&<span style={{background:'#f97316',color:'#fff',fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>🚧 BLOCKIERT</span>}
+                                                {imgs.length>0&&<span style={{background:'#10b981',color:'#fff',fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>📷 {imgs.length}</span>}
+                                            </div>
+                                            {/* Auftragsnr */}
+                                            {e.auftragsNr&&<div style={{fontSize:10,fontWeight:900,color:textCol,opacity:0.7,marginBottom:2,fontFamily:'monospace'}}>{cleanAuftragsNr(e.auftragsNr)}</div>}
+                                            {/* Customer */}
+                                            <div className="mobile-customer" style={{color:textCol}}>{e.customer}</div>
+                                            {/* Address */}
+                                            {e.address&&<div className="mobile-address" style={{color:textCol}}>{e.address}</div>}
+                                            {/* Datum für mehrtägige */}
+                                            {e.isMultiDay&&e.endDate&&isStart&&<div style={{fontSize:10,color:border,fontWeight:700,marginTop:3}}>{formatDate(e.deliveryDate)} – {formatDate(e.endDate)}</div>}
+                                            {/* Memo */}
+                                            {e.memo&&<div className="mobile-memo" style={{background:border+'22',borderLeftColor:border,color:textCol}}>
+                                                <div style={{fontSize:8,fontWeight:900,textTransform:'uppercase',opacity:0.6,marginBottom:2}}>📝 MEMO</div>
+                                                <div style={{fontSize:12}}>{e.memo}</div>
+                                            </div>}
+                                            {/* Blockierungsgrund */}
+                                            {e.isBlocked&&e.blockReason&&<div style={{marginTop:6,background:'rgba(249,115,22,0.15)',borderLeft:'3px solid #f97316',borderRadius:'0 6px 6px 0',padding:'5px 8px',fontSize:11,fontWeight:800,color:'#f97316'}}>🚧 {e.blockReason}</div>}
+                                            {/* ELE */}
+                                            {e.target>0&&<div style={{marginTop:4,display:'inline-block',background:border,color:'#fff',fontSize:9,fontWeight:900,padding:'2px 7px',borderRadius:4}}>{e.target} ELE</div>}
+                                            {/* Action buttons */}
+                                            <div className="mobile-actions">
+                                                {!isAdminAccess&&<button className="mobile-btn" onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{background:'rgba(59,130,246,0.12)',border:`1px solid ${border}55`,color:textCol,flex:'0 0 auto',minWidth:60}}>📄 PDF{imgs.length>0?` (${imgs.length})`:''}</button>}
+                                                {!isAdminAccess&&canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.2)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,color:'#f97316'}}>🚧 {e.isBlocked?'Blockiert':'Block'}</button>}
+                                                {canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.2)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.35)'}`,color:'#10b981'}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
+                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setEditCalEntry({...e});}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>✏️ Bearbeiten</button>}
+                                                {isAdminAccess&&<button className="mobile-btn" onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>📄{imgs.length>0?` ${imgs.length}`:''}</button>}
+                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();if(confirm(`"${e.customer}" löschen?`))deleteCalEntry(e.id);}} style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.3)',color:'#ef4444',flex:'0 0 auto'}}>✕</button>}
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    );
+                })}
+                </div>{/* end mobile-days-grid */}
+            </div>
+
+            {/* ── DESKTOP VIEW ── */}
+            <div className="desktop-cal-view" style={{flex:1,overflowX:'auto',overflowY:'auto',background:'#f1f5f9'}}>
                 <div style={{minWidth:760}}>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'2px solid #000',background:'#1e293b'}}>
                         {DAY_NAMES.map((name,di)=>(<div key={di} style={{textAlign:'center',padding:'6px 4px',borderRight:di<5?'1px solid #334155':'none'}}><div style={{fontSize:10,fontWeight:900,color:'#fff',textTransform:'uppercase',letterSpacing:1}}>{name}</div><div style={{fontSize:9,color:'#94a3b8',marginTop:1}}>{formatDate(toLocalDateStr(days[di]))}</div><div style={{fontSize:9,color:'#60a5fa',marginTop:1}}>{entriesForDay(toLocalDateStr(days[di])).length} Aufträge</div></div>))}
@@ -1668,7 +1778,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                         {numLanes===0&&days.map((day,di)=>{const dayStr=toLocalDateStr(day),isCopyTarget=!!(copyEntry&&isAdminAccess),isMoveTarget=!!(moveEntry&&isAdminAccess),isActionTarget=isCopyTarget||isMoveTarget;return(<div key={di} style={{borderRight:di<5?'1px solid #e2e8f0':'none',minHeight:80,padding:4,cursor:isActionTarget?'crosshair':'default'}} onClick={()=>{if(isCopyTarget)pasteCopyToDay(dayStr);else if(isMoveTarget)executeMoveEntry(moveEntry,dayStr);}}><div style={{height:60,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:9,color:'#cbd5e1',fontStyle:'italic'}}>—</span></div></div>);})}
                     </div>
                 </div>
-            </div>
+            </div>{/* end desktop-cal-view */}
 
             {editCalEntry&&isAdminAccess&&(
                 <div style={{position:'fixed',inset:0,zIndex:50,background:'rgba(15,23,42,0.96)',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:16,overflowY:'auto'}}>

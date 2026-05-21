@@ -196,6 +196,12 @@
         }
         @media (min-width: 1024px) { .mobile-cal-view { display:none !important; } .desktop-cal-view { display:block !important; } }
         @media (max-width: 1023px) { .mobile-cal-view { display:block !important; } .desktop-cal-view { display:none !important; } }
+
+        .cross-copy-overlay { position:fixed; inset:0; z-index:85; background:rgba(10,15,30,0.98); display:flex; flex-direction:column; }
+        .cross-copy-header { background:linear-gradient(135deg,#1a2540,#1e3a5f); padding:16px 20px; border-bottom:2px solid rgba(37,99,235,0.35); flex-shrink:0; }
+        .cross-copy-team-btn { border-radius:12px; padding:14px 16px; border:2px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:12px; }
+        .cross-copy-team-btn:hover { background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4); transform:translateX(3px); }
+        .cross-copy-team-btn.selected { background:rgba(59,130,246,0.15); border-color:#3b82f6; }
         @media print { body * { visibility:hidden; } #billing-pdf-content, #billing-pdf-content * { visibility:visible; } #billing-pdf-content { position:fixed; left:0; top:0; width:100%; } }
         @keyframes slideUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
 
@@ -220,12 +226,14 @@ const DAY_NAMES = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samsta
 const genId = () => { try { const uuid = crypto.randomUUID(); if (uuid) return uuid; } catch(e) {} return Math.random().toString(36).slice(2)+Date.now().toString(36)+Math.random().toString(36).slice(2); };
 const genTeamId = (name) => { const s=(name||'').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').substring(0,30); const sf=Date.now().toString(36); return s?`${s}-${sf}`:`team-${sf}`; };
 const cleanAuftragsNr = (nr) => { if (!nr) return nr; return nr.replace(/\s*\/\s*SLI\s*/gi,'').trim(); };
-const formatDate = (s) => { if (!s) return 'N/A'; const d=new Date(s); return isNaN(d.getTime())?'N/A':d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}); };
+const formatDate = (s) => { if (!s) return 'N/A'; const p=String(s).substring(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(p)) return 'N/A'; const [y,mo,d]=p.split('-').map(Number); return `${String(d).padStart(2,'0')}.${String(mo).padStart(2,'0')}.${y}`; };
 const getWeekNumber = (d) => { d=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7)); const ys=new Date(Date.UTC(d.getUTCFullYear(),0,1)); return Math.ceil((((d-ys)/86400000)+1)/7); };
 const getCalWeekDays = (base) => { const d=new Date(base); const day=d.getDay(); const diff=(day===0)?-6:1-day; const mon=new Date(d.getFullYear(),d.getMonth(),d.getDate()+diff); return Array.from({length:6},(_,i)=>new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i)); };
 const toLocalDateStr = (dateObj) => { const y=dateObj.getFullYear(),m=String(dateObj.getMonth()+1).padStart(2,'0'),d=String(dateObj.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; };
-const daysBetween = (s,e) => { if(!s||!e) return 1; return Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1); };
-const addDaysToStr = (dateStr, n) => { const d = new Date(dateStr); d.setDate(d.getDate()+n); return toLocalDateStr(d); };
+const daysBetween = (s,e) => { if(!s||!e) return 1; return Math.max(1,Math.round((parseDateSafe(e)-parseDateSafe(s))/86400000)+1); };
+const addDaysToStr = (dateStr, n) => { const d = parseDateSafe(dateStr); d.setDate(d.getDate()+n); return toLocalDateStr(d); };
+// Timezone-safe: parse YYYY-MM-DD as local noon to avoid UTC offset issues
+const parseDateSafe = (s) => { if(!s) return new Date(); const p=String(s).substring(0,10); return new Date(p+'T12:00:00'); };
 const parseCalTypes = (calType) => { if (!calType||calType==='montage') return ['montage']; if (calType==='both'||calType==='all') return ['montage','beplankung','ausflocken']; if (calType==='beplankung') return ['beplankung']; if (calType==='ausflocken') return ['ausflocken']; try { const arr=JSON.parse(calType); if(Array.isArray(arr)) return arr; } catch(e) {} return ['montage']; };
 
 const getImages = (entry) => {
@@ -804,7 +812,7 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
 
     useEffect(()=>{if(!query.trim()){setResults([]);return;}const q=query.toLowerCase();setResults(allEntries.filter(e=>(e.customer||'').toLowerCase().includes(q)||(e.address||'').toLowerCase().includes(q)||(e.auftragsNr||'').toLowerCase().includes(q)||(e.memo||'').toLowerCase().includes(q)).slice(0,50));},[query,allEntries]);
 
-    const getKW=(dateStr)=>{if(!dateStr)return'?';return getWeekNumber(new Date(dateStr));};
+    const getKW=(dateStr)=>{if(!dateStr)return'?';return getWeekNumber(parseDateSafe(dateStr));};
     const team4entry=(e)=>teams.find(t=>t.id===e.teamId);
 
     const groupedResults = useMemo(() => {
@@ -821,7 +829,7 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
                 <div>
                     <div style={{color:'#60a5fa',fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>🔍 GLOBALE SUCHE</div>
-                    <div style={{color:'#475569',fontSize:9,fontWeight:700,marginTop:2}}>Alle Gruppen · {allEntries.length} Aufträge total</div>
+                    <div style={{color:'#475569',fontSize:9,fontWeight:700,marginTop:2}}>Alle Gruppen · {allEntries.length} Aufträge · Klick auf Ergebnis = direkt zum Auftrag springen</div>
                 </div>
                 <button onClick={onClose} style={{background:'#334155',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
             </div>
@@ -841,19 +849,30 @@ function GlobalSearchModal({ teams, onClose, onNavigate }) {
                             {group.entries.map((e,i)=>{
                                 const t=team4entry(e);
                                 return(
-                                    <div key={i} onClick={()=>{onNavigate(e,t);onClose();}}
-                                        style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderLeft:`3px solid ${group.teamColor||'#64748b'}`,borderRadius:10,padding:'10px 14px',cursor:'pointer',display:'flex',gap:12,alignItems:'center'}}
-                                        onMouseEnter={ev=>ev.currentTarget.style.background='rgba(59,130,246,0.1)'}
-                                        onMouseLeave={ev=>ev.currentTarget.style.background='rgba(255,255,255,0.04)'}>
+                                    <div key={i}
+                                        onClick={()=>{onNavigate(e,t);}}
+                                        style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderLeft:`4px solid ${group.teamColor||'#64748b'}`,borderRadius:12,padding:'12px 14px',cursor:'pointer',display:'flex',gap:12,alignItems:'center',transition:'all 0.15s'}}
+                                        onMouseEnter={ev=>{ev.currentTarget.style.background='rgba(59,130,246,0.12)';ev.currentTarget.style.borderColor='#3b82f6';ev.currentTarget.style.transform='translateX(2px)';}}
+                                        onMouseLeave={ev=>{ev.currentTarget.style.background='rgba(255,255,255,0.04)';ev.currentTarget.style.borderColor='transparent';ev.currentTarget.style.transform='translateX(0)';}}>
                                         <div style={{flex:1,minWidth:0}}>
-                                            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:3}}>
-                                                <span style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
-                                                <span style={{background:'rgba(59,130,246,0.2)',color:'#60a5fa',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>KW {getKW(e.deliveryDate)}</span>
-                                                {e.isDone&&<span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px'}}>✓ Erledigt</span>}
+                                            <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:4}}>
+                                                <span style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                                <span style={{background:'rgba(59,130,246,0.2)',color:'#60a5fa',fontSize:8,fontWeight:900,borderRadius:4,padding:'2px 7px'}}>KW {getKW(e.deliveryDate)}</span>
+                                                <span style={{background:'rgba(255,255,255,0.08)',color:'#94a3b8',fontSize:8,fontWeight:700,borderRadius:4,padding:'2px 7px'}}>{(e.calType||'montage').toUpperCase()}</span>
+                                                {e.isDone&&<span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,borderRadius:4,padding:'2px 7px'}}>✓ Erledigt</span>}
+                                                {e.isBlocked&&<span style={{background:'rgba(249,115,22,0.2)',color:'#f97316',fontSize:8,fontWeight:900,borderRadius:4,padding:'2px 7px'}}>🚧 Blockiert</span>}
+                                                {e.isProv&&<span style={{background:'rgba(234,179,8,0.2)',color:'#eab308',fontSize:8,fontWeight:900,borderRadius:4,padding:'2px 7px'}}>⚠ PROV</span>}
                                             </div>
-                                            <div style={{color:'#94a3b8',fontSize:10}}>{e.address}</div>
+                                            <div style={{color:'#94a3b8',fontSize:10,marginBottom:2}}>{e.address}</div>
+                                            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                                                <span style={{color:'#475569',fontSize:9}}>{formatDate(e.deliveryDate)}{e.endDate?' – '+formatDate(e.endDate):''}</span>
+                                                {e.auftragsNr&&<span style={{color:'#334155',fontSize:9,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}
+                                                {e.memo&&<span style={{color:'#78350f',fontSize:9,fontWeight:700}}>📝 {e.memo.substring(0,40)}{e.memo.length>40?'…':''}</span>}
+                                            </div>
                                         </div>
-                                        <div style={{color:'#60a5fa',fontSize:10,fontWeight:900,flexShrink:0}}>→</div>
+                                        <div style={{background:'#3b82f6',borderRadius:8,padding:'8px 12px',color:'#fff',fontSize:10,fontWeight:900,flexShrink:0,display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
+                                            ↗ Öffnen
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -1222,7 +1241,7 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
 // ============================================================
 // CalCard
 // ============================================================
-function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive, setBlockEntry }) {
+function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive, setBlockEntry, setCrossCopyEntry }) {
     const isProv = !!e.isProv;
     const bg = isProv ? PROV_BG : CARD_COLORS[ci];
     const border = isProv ? PROV_BORDER : CARD_BORDER[ci];
@@ -1232,7 +1251,7 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
 
     const dayNumber = useMemo(()=>{
         if(!e.isMultiDay||!e.endDate)return null;
-        return Math.round((new Date(dayStr)-new Date(e.deliveryDate.substring(0,10)))/86400000)+1;
+        return Math.round((parseDateSafe(dayStr)-parseDateSafe(e.deliveryDate.substring(0,10)))/86400000)+1;
     },[e,dayStr]);
 
     const startLabel = useMemo(() => {
@@ -1284,7 +1303,8 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
                 {!isAdminAccess&&canMarkDone&&<button onClick={(ev)=>{ev.stopPropagation();setBlockEntry&&setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.25)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f97316',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}}>{e.isBlocked?'🚧 Blockiert':'⚠ Blockieren'}</button>}
                 {canMarkDone&&<button onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.25)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.3)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#10b981',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setMoveEntry({...e});}} style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f59e0b',lineHeight:1,fontWeight:900}}>↕ Verschieben</button>}
-                {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setCopyEntry({...e});}} style={{background:'rgba(37,99,235,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#2563eb',lineHeight:1}}>⧉</button>}
+                {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setCopyEntry({...e});}} style={{background:'rgba(37,99,235,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#2563eb',lineHeight:1}} title='In dieser Gruppe kopieren'>⧉</button>}
+                {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setCrossCopyEntry&&setCrossCopyEntry({...e});}} style={{background:'rgba(99,102,241,0.2)',border:'1px solid rgba(99,102,241,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#818cf8',lineHeight:1,fontWeight:900}} title='In andere Gruppe kopieren'>⧉→</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();if(confirm(`"${e.customer}" löschen?`))deleteCalEntry(e.id);}} style={{background:'rgba(220,38,38,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#dc2626',lineHeight:1,fontWeight:900}}>✕</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{background:'rgba(59,130,246,0.15)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#3b82f6',lineHeight:1,fontWeight:900}}>📄{images.length>0?` ${images.length}`:''}</button>}
                 {isAdminAccess&&isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setMoveEntry(null);}} style={{background:'rgba(220,38,38,0.2)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:3,padding:'2px 6px',cursor:'pointer',fontSize:8,color:'#ef4444',lineHeight:1,fontWeight:900}}>✕ Abbrechen</button>}
@@ -1441,12 +1461,211 @@ function BillingModal({ teams, onClose }) {
     );
 }
 
+
+// ============================================================
+// CROSS-TEAM COPY MODAL — Auftrag in andere Gruppe kopieren
+// ============================================================
+function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
+    const [selectedTeam, setSelectedTeam] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(entry.deliveryDate?.substring(0,10)||toLocalDateStr(new Date()));
+    const [selectedEndDate, setSelectedEndDate] = useState(entry.endDate?.substring(0,10)||'');
+    const [selectedCalType, setSelectedCalType] = useState(entry.calType || 'montage');
+    const [saving, setSaving] = useState(false);
+    const [done, setDone] = useState(false);
+
+    const CAL_TYPE_OPTIONS = [
+        {key:'montage',    label:'🔧 Montage',    color:'#2563eb', bg:'rgba(37,99,235,0.15)',  border:'rgba(37,99,235,0.4)'},
+        {key:'beplankung', label:'🏗 Beplankung', color:'#059669', bg:'rgba(5,150,105,0.15)',  border:'rgba(5,150,105,0.4)'},
+        {key:'ausflocken', label:'❄️ Ausflocken', color:'#b45309', bg:'rgba(180,83,9,0.15)',   border:'rgba(180,83,9,0.4)'},
+    ];
+
+    const otherTeams = teams.filter(t => t.id !== currentTeam.id);
+
+    // When team is selected, check if they support the chosen calType
+    // If not, auto-switch to first available type
+    const handleSelectTeam = (t) => {
+        setSelectedTeam(t);
+        const teamTypes = parseCalTypes(t.calType);
+        if(!teamTypes.includes(selectedCalType)) {
+            setSelectedCalType(teamTypes[0] || 'montage');
+        }
+    };
+
+    const doCopy = async () => {
+        if(!selectedTeam) return;
+        setSaving(true);
+        try {
+            const { db, doc, setDoc } = window.FirebaseSDK;
+            const id = `cal-${genId()}`;
+            const isMultiDay = !!(selectedEndDate && selectedEndDate > selectedDate);
+            await setDoc(doc(db, `teams_cal_${selectedTeam.id}`, id), {
+                ...entry,
+                id,
+                deliveryDate: selectedDate,
+                endDate: isMultiDay ? selectedEndDate : null,
+                isMultiDay,
+                isDone: false,
+                isBilled: false,
+                monteurBilled: false,
+                isBlocked: false,
+                blockReason: '',
+                blockImages: [],
+                blockedAt: null,
+                createdAt: new Date().toISOString(),
+                calType: selectedCalType,
+            });
+            setDone(true);
+            setTimeout(() => { onCopied(selectedTeam.name, selectedCalType); }, 800);
+        } catch(err) {
+            alert('Fehler: ' + err.message);
+        }
+        setSaving(false);
+    };
+
+    if(done) return (
+        <div className="cross-copy-overlay" style={{alignItems:'center',justifyContent:'center',padding:32}}>
+            <div style={{textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
+                <div style={{width:72,height:72,background:'rgba(59,130,246,0.2)',border:'2px solid #3b82f6',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36}}>✓</div>
+                <div style={{color:'#60a5fa',fontSize:16,fontWeight:900}}>Kopiert nach {selectedTeam?.name}!</div>
+                <div style={{color:'#94a3b8',fontSize:11,fontWeight:700}}>{CAL_TYPE_OPTIONS.find(o=>o.key===selectedCalType)?.label}</div>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="cross-copy-overlay">
+            {/* Header */}
+            <div className="cross-copy-header">
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                        <div style={{width:36,height:36,borderRadius:10,background:'rgba(37,99,235,0.25)',border:'1.5px solid #3b82f6',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>⧉</div>
+                        <div>
+                            <div style={{color:'#60a5fa',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>AUFTRAG KOPIEREN</div>
+                            <div style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase'}}>{entry.customer}</div>
+                        </div>
+                    </div>
+                    <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                </div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    <span style={{background:'rgba(255,255,255,0.06)',borderRadius:6,padding:'3px 10px',color:'#94a3b8',fontSize:9,fontWeight:700}}>Von: {currentTeam.name}</span>
+                    <span style={{background:'rgba(255,255,255,0.06)',borderRadius:6,padding:'3px 10px',color:'#94a3b8',fontSize:9,fontWeight:700}}>{entry.address}</span>
+                    {entry.auftragsNr&&<span style={{background:'rgba(59,130,246,0.15)',borderRadius:6,padding:'3px 10px',color:'#60a5fa',fontSize:9,fontWeight:700,fontFamily:'monospace'}}>#{cleanAuftragsNr(entry.auftragsNr)}</span>}
+                </div>
+            </div>
+
+            {/* Body */}
+            <div style={{flex:1,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:16}}>
+
+                {/* Ziel-Gruppe wählen */}
+                <div>
+                    <div style={{color:'#60a5fa',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:10}}>1. Ziel-Gruppe wählen</div>
+                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                        {otherTeams.length === 0 && (
+                            <div style={{color:'#475569',fontSize:12,padding:16,textAlign:'center'}}>Keine anderen Gruppen vorhanden.</div>
+                        )}
+                        {otherTeams.map(t => (
+                            <div key={t.id}
+                                className={`cross-copy-team-btn${selectedTeam?.id===t.id?' selected':''}`}
+                                onClick={()=>handleSelectTeam(t)}>
+                                <div style={{width:14,height:14,borderRadius:'50%',background:t.color||'#3b82f6',flexShrink:0}}></div>
+                                <div style={{flex:1}}>
+                                    <div style={{color:'#fff',fontSize:13,fontWeight:900}}>{t.name}</div>
+                                    <div style={{color:'#475569',fontSize:9,marginTop:1}}>{parseCalTypes(t.calType).join(' · ').toUpperCase()}</div>
+                                </div>
+                                {selectedTeam?.id===t.id && <span style={{color:'#3b82f6',fontSize:16,fontWeight:900}}>✓</span>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Kalender-Typ wählen */}
+                <div>
+                    <div style={{color:'#60a5fa',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:10}}>2. Ziel-Kalender wählen</div>
+                    <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        {CAL_TYPE_OPTIONS.map(opt => {
+                            // Check if selected team supports this type
+                            const teamSupports = !selectedTeam || parseCalTypes(selectedTeam.calType).includes(opt.key);
+                            const isSelected = selectedCalType === opt.key;
+                            return (
+                                <button key={opt.key}
+                                    onClick={()=>teamSupports&&setSelectedCalType(opt.key)}
+                                    style={{flex:1,minWidth:90,padding:'12px 8px',borderRadius:12,
+                                        border:`2px solid ${isSelected?opt.color:teamSupports?'rgba(255,255,255,0.1)':'rgba(255,255,255,0.03)'}`,
+                                        background:isSelected?opt.bg:'rgba(255,255,255,0.04)',
+                                        color:isSelected?opt.color:teamSupports?'#64748b':'#2d3748',
+                                        fontWeight:900,fontSize:11,cursor:teamSupports?'pointer':'not-allowed',
+                                        display:'flex',flexDirection:'column',alignItems:'center',gap:4,
+                                        opacity:teamSupports?1:0.35,transition:'all 0.15s',
+                                        boxShadow:isSelected?`0 0 0 1px ${opt.color}44`:'none'}}>
+                                    <span style={{fontSize:18}}>{opt.label.split(' ')[0]}</span>
+                                    <span style={{fontSize:9,textTransform:'uppercase',letterSpacing:1}}>{opt.label.split(' ').slice(1).join(' ')}</span>
+                                    {isSelected&&<span style={{fontSize:8,background:opt.color,color:'#fff',borderRadius:3,padding:'1px 5px'}}>✓ GEWÄHLT</span>}
+                                    {!teamSupports&&<span style={{fontSize:7,color:'#4b5563'}}>nicht verfügbar</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Datum wählen */}
+                <div>
+                    <div style={{color:'#60a5fa',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:10}}>3. Datum im Ziel-Kalender</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                        <div>
+                            <div style={{color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',marginBottom:5}}>Start-Datum</div>
+                            <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}
+                                style={{width:'100%',background:'#1e293b',border:'2px solid #3b82f6',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:12,boxSizing:'border-box'}}/>
+                        </div>
+                        <div>
+                            <div style={{color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',marginBottom:5}}>End-Datum (optional)</div>
+                            <input type="date" value={selectedEndDate} min={selectedDate} onChange={e=>setSelectedEndDate(e.target.value)}
+                                style={{width:'100%',background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:12,boxSizing:'border-box'}}/>
+                        </div>
+                    </div>
+                    {selectedEndDate&&selectedEndDate>selectedDate&&(
+                        <div style={{marginTop:8,background:'rgba(37,99,235,0.1)',border:'1px solid rgba(37,99,235,0.2)',borderRadius:8,padding:'6px 12px',fontSize:9,color:'#60a5fa',fontWeight:700}}>
+                            📅 {daysBetween(selectedDate,selectedEndDate)} Tage
+                        </div>
+                    )}
+                </div>
+
+                {/* Vorschau */}
+                {selectedTeam && (
+                    <div style={{background:'rgba(37,99,235,0.07)',border:'1px solid rgba(37,99,235,0.2)',borderRadius:12,padding:'12px 16px'}}>
+                        <div style={{color:'#60a5fa',fontSize:8,fontWeight:900,textTransform:'uppercase',marginBottom:8}}>Vorschau</div>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                            <span style={{fontSize:11,color:'#94a3b8'}}>Von</span>
+                            <span style={{background:currentTeam.color+'22',border:`1px solid ${currentTeam.color}44`,borderRadius:6,padding:'2px 8px',color:'#fff',fontSize:10,fontWeight:900}}>{currentTeam.name}</span>
+                            <span style={{color:'#3b82f6',fontSize:14,fontWeight:900}}>→</span>
+                            <span style={{background:selectedTeam.color+'22',border:`1px solid ${selectedTeam.color}44`,borderRadius:6,padding:'2px 8px',color:'#fff',fontSize:10,fontWeight:900}}>{selectedTeam.name}</span>
+                        </div>
+                        {(()=>{const ct=CAL_TYPE_OPTIONS.find(o=>o.key===selectedCalType);return ct?<span style={{display:'inline-block',background:ct.bg,border:`1px solid ${ct.border}`,borderRadius:6,padding:'2px 10px',color:ct.color,fontSize:9,fontWeight:900,marginBottom:6}}>{ct.label}</span>:null;})()}
+                        <div style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{entry.customer}</div>
+                        <div style={{color:'#94a3b8',fontSize:10,marginTop:2}}>{entry.address}</div>
+                        <div style={{color:'#60a5fa',fontSize:10,marginTop:2,fontWeight:700}}>{formatDate(selectedDate)}{selectedEndDate&&selectedEndDate>selectedDate?' – '+formatDate(selectedEndDate):''}</div>
+                        {entry.memo&&<div style={{marginTop:6,color:'#fbbf24',fontSize:10,fontWeight:700}}>📝 {entry.memo}</div>}
+                    </div>
+                )}
+            </div>
+
+            {/* Footer */}
+            <div style={{padding:'12px 20px',borderTop:'1px solid rgba(37,99,235,0.2)',background:'#0f172a',flexShrink:0,display:'flex',gap:10}}>
+                <button onClick={onClose} style={{flex:1,padding:'14px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,color:'#64748b',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:'pointer'}}>Abbrechen</button>
+                <button onClick={doCopy} disabled={!selectedTeam||saving}
+                    style={{flex:2,padding:'14px',background:selectedTeam&&!saving?'#3b82f6':'#1e293b',border:'none',borderRadius:14,color:selectedTeam&&!saving?'#fff':'#475569',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:selectedTeam&&!saving?'pointer':'not-allowed',boxShadow:selectedTeam?'0 4px 14px rgba(37,99,235,0.4)':'none'}}>
+                    {saving?'⏳ Kopiere...':(()=>{const ct=CAL_TYPE_OPTIONS.find(o=>o.key===selectedCalType);return `⧉ → ${selectedTeam?selectedTeam.name:'Gruppe wählen'} · ${ct?ct.label.split(' ').slice(1).join(' '):'?'}`;})()}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // ============================================================
 // CALENDAR VIEW
 // ============================================================
-function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initialCalType, scrollToEntry=null }) {
+function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalType: initialCalType, scrollToEntry=null }) {
     const [calEntries, setCalEntries] = useState([]);
-    const [calWeek, setCalWeek] = useState(() => { if(scrollToEntry)return new Date(scrollToEntry.deliveryDate); return new Date(); });
+    const [calWeek, setCalWeek] = useState(() => { if(scrollToEntry)return parseDateSafe(scrollToEntry.deliveryDate); return new Date(); });
     const [editCalEntry, setEditCalEntry] = useState(null);
     const [showCalImport, setShowCalImport] = useState(false);
     const [showAIImport, setShowAIImport] = useState(false);
@@ -1460,6 +1679,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     const [highlightId, setHighlightId] = useState(scrollToEntry?.id||null);
     const [showMonteurBilling, setShowMonteurBilling] = useState(false);
     const [blockEntry, setBlockEntry] = useState(null);
+    const [crossCopyEntry, setCrossCopyEntry] = useState(null);
 
     const [calSearchQuery, setCalSearchQuery] = useState('');
     const [calSearchFocused, setCalSearchFocused] = useState(false);
@@ -1478,7 +1698,28 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
 
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;const unsub=onSnapshot(collection(db,`teams_cal_${team.id}`),snap=>{setCalEntries(snap.docs.map(d=>({id:d.id,...d.data()})));});return unsub;},[team.id]);
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'standby_items'),snap=>{setStandbyItems(snap.docs.map(d=>({id:d.id,...d.data()})));});},[]);
-    useEffect(()=>{if(!highlightId)return;const timer=setTimeout(()=>{const el=document.getElementById(`cal-entry-${highlightId}`);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('search-highlight');setTimeout(()=>el.classList.remove('search-highlight'),4500);}setHighlightId(null);},300);return()=>clearTimeout(timer);},[highlightId,calEntries]);
+    // Robust scroll-to: retries until element appears (waits for calType tab switch + data load)
+    useEffect(()=>{
+        if(!highlightId) return;
+        let attempts=0;
+        const tryScroll=()=>{
+            const el=document.getElementById(`cal-entry-${highlightId}`);
+            if(el){
+                el.scrollIntoView({behavior:'smooth',block:'center'});
+                el.classList.add('search-highlight');
+                setTimeout(()=>el.classList.remove('search-highlight'),4500);
+                setHighlightId(null);
+            } else if(attempts<30){
+                attempts++;
+                setTimeout(tryScroll,200);
+            } else {
+                setHighlightId(null);
+            }
+        };
+        // Longer initial delay to allow calType tab + React re-render
+        const t=setTimeout(tryScroll,400);
+        return()=>clearTimeout(t);
+    },[highlightId]);
 
     const donePendingBillingCount = useMemo(()=>calEntries.filter(e=>e.isDone&&!e.monteurBilled).length,[calEntries]);
     const blockedCount = useMemo(()=>calEntries.filter(e=>e.isBlocked).length,[calEntries]);
@@ -1495,7 +1736,11 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
     }, [calSearchQuery, calEntries]);
 
     const navigateToEntry = (entry) => {
-        setCalWeek(new Date(entry.deliveryDate));
+        // Switch to the correct calType tab first
+        if(entry.calType && entry.calType !== activeCalType) {
+            setActiveCalType(entry.calType);
+        }
+        setCalWeek(parseDateSafe(entry.deliveryDate));
         setHighlightId(entry.id);
         setCalSearchQuery('');
         setCalSearchFocused(false);
@@ -1632,7 +1877,28 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                     {calSearchFocused&&calSearchQuery.length>=2&&(
                         <div className="cal-search-results" style={{top:'100%',left:0,right:0}}>
                             {calSearchResults.length===0?(<div style={{padding:'16px',textAlign:'center',color:'#475569',fontSize:11}}>Keine Treffer für „{calSearchQuery}"</div>):
-                            calSearchResults.map((e,i)=>{const ci=colorIndex[e.id]>=0?colorIndex[e.id]:0;const border=e.isProv?PROV_BORDER:CARD_BORDER[ci];return(<div key={i} className="cal-search-result-item" onClick={()=>navigateToEntry(e)}><div style={{width:4,height:32,borderRadius:2,background:border,flexShrink:0}}></div><div style={{flex:1,minWidth:0}}><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}><span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span><span style={{background:'rgba(59,130,246,0.15)',color:'#60a5fa',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:4}}>KW {getWeekNumber(new Date(e.deliveryDate))}</span></div><div style={{color:'#94a3b8',fontSize:9}}>{e.address}</div></div><span style={{color:'#334155',fontSize:10,flexShrink:0}}>→ Springen</span></div>);})}
+                            calSearchResults.map((e,i)=>{
+                            const ci=colorIndex[e.id]>=0?colorIndex[e.id]:0;
+                            const border=e.isProv?PROV_BORDER:CARD_BORDER[ci];
+                            const calTypeCfg={'montage':{label:'🔧 Montage',color:'#3b82f6'},'beplankung':{label:'🏗 Beplankung',color:'#10b981'},'ausflocken':{label:'❄️ Ausflocken',color:'#f59e0b'}};
+                            const ctCfg=calTypeCfg[e.calType||'montage']||calTypeCfg.montage;
+                            const isOtherTab=e.calType&&e.calType!==activeCalType;
+                            return(
+                                <div key={i} className="cal-search-result-item" onClick={()=>navigateToEntry(e)}
+                                    style={{borderLeft:`3px solid ${border}`,paddingLeft:12}}>
+                                    <div style={{flex:1,minWidth:0}}>
+                                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}>
+                                            <span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</span>
+                                            <span style={{background:'rgba(59,130,246,0.15)',color:'#60a5fa',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:4}}>KW {getWeekNumber(parseDateSafe(e.deliveryDate))}</span>
+                                            <span style={{background:ctCfg.color+'22',color:ctCfg.color,fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:4,border:`1px solid ${ctCfg.color}44`}}>{ctCfg.label}</span>
+                                            {isOtherTab&&<span style={{background:'rgba(245,158,11,0.15)',color:'#f59e0b',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:4}}>⚡ Tab wechselt</span>}
+                                        </div>
+                                        <div style={{color:'#94a3b8',fontSize:9}}>{e.address} · {formatDate(e.deliveryDate)}</div>
+                                    </div>
+                                    <span style={{background:'#3b82f6',color:'#fff',fontSize:9,fontWeight:900,padding:'4px 8px',borderRadius:6,flexShrink:0,whiteSpace:'nowrap'}}>↗ Springen</span>
+                                </div>
+                            );
+                        })}
                         </div>
                     )}
                 </div>
@@ -1694,7 +1960,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                                     const textCol=e.isProv?PROV_TEXT:CARD_TEXT[ci];
                                     const imgs=getImages(e);
                                     const isStart=dayStr===(e.deliveryDate||'').substring(0,10)||!e.isMultiDay;
-                                    const dayNum=e.isMultiDay&&e.endDate?Math.round((new Date(dayStr)-new Date(e.deliveryDate.substring(0,10)))/86400000)+1:null;
+                                    const dayNum=e.isMultiDay&&e.endDate?Math.round((parseDateSafe(dayStr)-parseDateSafe(e.deliveryDate.substring(0,10)))/86400000)+1:null;
                                     const totalD=e.isMultiDay&&e.endDate?daysBetween(e.deliveryDate.substring(0,10),e.endDate.substring(0,10)):1;
                                     const sl=e.isProv&&!e.customStartLabel?'PROV.':e.customStartLabel?`START + ${e.customStartLabel}`:e.isMultiDay&&e.endDate?'START':e.entryType||'LIEFERUNG';
                                     const canMark=isAdminAccess||(e.isMultiDay&&e.endDate?dayStr===e.deliveryDate.substring(0,10):true);
@@ -1770,7 +2036,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
                                     const canMark=isAdminAccess||(e.isMultiDay&&e.endDate?dayStr===e.deliveryDate.substring(0,10):true);
                                     const isMoveActiveCard=!!(moveEntry&&moveEntry.id===e.id);
                                     return(<div key={di} id={`cal-entry-${e.id}`} style={{borderRight,borderBottom,padding:'4px',boxSizing:'border-box',background:isActionTarget?'rgba(245,158,11,0.04)':'#fff',cursor:(isActionTarget&&!isMoveActiveCard)?'crosshair':'default'}} onClick={(ev)=>{if(isMoveTarget&&!isMoveActiveCard&&isStart){ev.stopPropagation();executeMoveEntry(moveEntry,dayStr);}else if(isCopyTarget){pasteCopyToDay(dayStr);}}}>
-                                        <CalCard e={e} dayStr={dayStr} ci={ci} isStart={isStart} totalDays={totalDays2} isAdminAccess={isAdminAccess} toggleDone={toggleDone} setCopyEntry={setCopyEntry} deleteCalEntry={deleteCalEntry} setEditCalEntry={setEditCalEntry} canMarkDone={canMark} setMoveEntry={setMoveEntry} isMoveActive={isMoveActiveCard} setBlockEntry={setBlockEntry}/>
+                                        <CalCard e={e} dayStr={dayStr} ci={ci} isStart={isStart} totalDays={totalDays2} isAdminAccess={isAdminAccess} toggleDone={toggleDone} setCopyEntry={setCopyEntry} deleteCalEntry={deleteCalEntry} setEditCalEntry={setEditCalEntry} canMarkDone={canMark} setMoveEntry={setMoveEntry} isMoveActive={isMoveActiveCard} setBlockEntry={setBlockEntry} setCrossCopyEntry={setCrossCopyEntry}/>
                                     </div>);
                                 })}
                             </React.Fragment>
@@ -1830,7 +2096,7 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
             {showCalImport&&isAdminAccess&&(<ImportModal calWeek={calWeek} team={team} currentCalLabel={currentCalConfig.label} activeCalType={activeCalType} days={days} onClose={()=>setShowCalImport(false)} onDone={(count)=>{setShowCalImport(false);setCalImportResult(count);}}/>)}
             {showAIImport&&isAdminAccess&&(<AIImportModal team={team} activeCalType={activeCalType} onClose={()=>setShowAIImport(false)} onDone={(count)=>{setShowAIImport(false);setCalImportResult(count);}}/>)}
 
-            {calImportResult!==null&&(<div style={{position:'fixed',inset:0,zIndex:60,background:'rgba(15,23,42,0.95)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}><div style={{background:'rgba(51,65,85,0.98)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:24,padding:32,width:'100%',maxWidth:300,display:'flex',flexDirection:'column',alignItems:'center',gap:20}}><div style={{width:64,height:64,background:'#10b981',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="check" size={32} className="text-white"/></div><div style={{textAlign:'center'}}><div style={{color:'#fff',fontSize:48,fontWeight:900,lineHeight:1}}>{calImportResult}</div><div style={{color:'#10b981',fontSize:11,fontWeight:900,textTransform:'uppercase',marginTop:4}}>Aufträge erfasst</div></div><button onClick={()=>setCalImportResult(null)} style={{width:'100%',padding:'14px',background:'#3b82f6',border:'none',borderRadius:12,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>OK</button></div></div>)}
+            {calImportResult!==null&&(<div style={{position:'fixed',inset:0,zIndex:60,background:'rgba(15,23,42,0.95)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}><div style={{background:'rgba(51,65,85,0.98)',backdropFilter:'blur(12px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:24,padding:32,width:'100%',maxWidth:300,display:'flex',flexDirection:'column',alignItems:'center',gap:20}}><div style={{width:64,height:64,background:typeof calImportResult==='string'?'#3b82f6':'#10b981',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="check" size={32} className="text-white"/></div><div style={{textAlign:'center'}}>{typeof calImportResult==='string'?(<><div style={{color:'#60a5fa',fontSize:16,fontWeight:900,lineHeight:1.3,marginBottom:4}}>✓ {calImportResult}</div></>):(<><div style={{color:'#fff',fontSize:48,fontWeight:900,lineHeight:1}}>{calImportResult}</div><div style={{color:'#10b981',fontSize:11,fontWeight:900,textTransform:'uppercase',marginTop:4}}>Aufträge erfasst</div></>)}</div><button onClick={()=>setCalImportResult(null)} style={{width:'100%',padding:'14px',background:'#3b82f6',border:'none',borderRadius:12,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>OK</button></div></div>)}
 
             {showMonteurBilling&&!isAdminAccess&&(
                 <MonteurBillingModal team={team} onClose={()=>setShowMonteurBilling(false)}/>
@@ -1838,6 +2104,19 @@ function CalendarView({ team, onBack, isAdminAccess=false, activeCalType: initia
 
             {blockEntry&&(
                 <BlockModal entry={blockEntry} team={team} onClose={()=>setBlockEntry(null)}/>
+            )}
+
+            {crossCopyEntry&&isAdminAccess&&(
+                <CrossTeamCopyModal
+                    entry={crossCopyEntry}
+                    currentTeam={team}
+                    teams={teams}
+                    onClose={()=>setCrossCopyEntry(null)}
+                    onCopied={(targetName)=>{
+                        setCrossCopyEntry(null);
+                        setCalImportResult(`Kopiert nach: ${targetName}`);
+                    }}
+                />
             )}
         </div>
     );
@@ -2025,10 +2304,10 @@ function App() {
     if(!authState)return <LoginScreen teams={teams} onLogin={(role,team)=>setAuthState({role,team})}/>;
 
     if(authState.role==='admin'){
-        if(authState.showStandby)return <StandbyView onBack={()=>setAuthState({...authState,showStandby:false})}/>;
-        if(authState.showSearch)return <GlobalSearchModal teams={teams} onClose={()=>setAuthState({...authState,showSearch:false})} onNavigate={(entry,team)=>{setAuthState({...authState,showSearch:false,adminViewingTeam:team,adminCalType:entry.calType||'montage',scrollToEntry:entry});}}/>;
-        if(authState.adminViewingTeam)return <CalendarView team={authState.adminViewingTeam} isAdminAccess={true} activeCalType={authState.adminCalType||'montage'} scrollToEntry={authState.scrollToEntry||null} onBack={()=>setAuthState({...authState,adminViewingTeam:null,adminCalType:null,scrollToEntry:null})}/>;
-        return <AdminPanel teams={teams} onLogout={()=>setAuthState(null)} onSelectTeam={(team,calType)=>setAuthState({...authState,adminViewingTeam:team,adminCalType:calType,scrollToEntry:null})} onOpenStandby={()=>setAuthState({...authState,showStandby:true})} onSearch={()=>setAuthState({...authState,showSearch:true})}/>;
+        if(authState.showStandby)return <StandbyView onBack={()=>setAuthState(prev=>({...prev,showStandby:false}))}/>;
+        if(authState.showSearch)return <GlobalSearchModal teams={teams} onClose={()=>setAuthState(prev=>({...prev,showSearch:false}))} onNavigate={(entry,team)=>{setAuthState(prev=>({...prev,showSearch:false,adminViewingTeam:team,adminCalType:entry.calType||'montage',scrollToEntry:entry}));}}/>;
+        if(authState.adminViewingTeam)return <CalendarView key={authState.scrollToEntry?.id||authState.adminViewingTeam} team={authState.adminViewingTeam} teams={teams} isAdminAccess={true} activeCalType={authState.adminCalType||'montage'} scrollToEntry={authState.scrollToEntry||null} onBack={()=>setAuthState(prev=>({...prev,adminViewingTeam:null,adminCalType:null,scrollToEntry:null}))}/>;
+        return <AdminPanel teams={teams} onLogout={()=>setAuthState(null)} onSelectTeam={(team,calType)=>setAuthState(prev=>({...prev,adminViewingTeam:team,adminCalType:calType,scrollToEntry:null}))} onOpenStandby={()=>setAuthState(prev=>({...prev,showStandby:true}))} onSearch={()=>setAuthState(prev=>({...prev,showSearch:true}))}/>;
     }
 
     const team=authState.team;

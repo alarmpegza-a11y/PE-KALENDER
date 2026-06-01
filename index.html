@@ -542,11 +542,108 @@ function MultiImageUpload({ images, onChange, maxImages=10 }) {
 // ============================================================
 // BLOCKIERT MODAL — Monteur meldet Blockierung mit Text + Fotos
 // ============================================================
+function downloadBlockPDF(entry, team) {
+    return new Promise(resolve => {
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+            const pageW=210, margin=15, contentW=pageW-margin*2;
+            const setFont=(size,style='normal',color=[0,0,0])=>{doc.setFontSize(size);doc.setFont('helvetica',style);doc.setTextColor(color[0],color[1],color[2]);};
+            const today = new Date().toLocaleDateString('de-DE');
+            const timeNow = new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+
+            // Header — Orange Blockierungs-Design
+            doc.setFillColor(249,115,22); doc.rect(0,0,pageW,22,'F');
+            setFont(14,'bold',[255,255,255]); doc.text('🚧 BLOCKIERUNGSMELDUNG',margin,13);
+            setFont(8,'normal',[255,220,180]); doc.text('PE-MONTAGE',pageW-margin,10,{align:'right'});
+            setFont(8,'normal',[255,220,180]); doc.text(`${today} ${timeNow} Uhr`,pageW-margin,16,{align:'right'});
+            let y=30;
+
+            // Gruppe
+            if(team&&team.name){
+                doc.setFillColor(255,237,213); doc.roundedRect(margin,y,contentW,9,2,2,'F');
+                setFont(9,'bold',[180,70,0]); doc.text(`GRUPPE: ${team.name.toUpperCase()}`,margin+4,y+6);
+                y+=14;
+            }
+
+            // Kundenname gross
+            setFont(18,'bold',[0,0,0]);
+            const custLines=doc.splitTextToSize((entry.customer||'').toUpperCase(),contentW);
+            doc.text(custLines,margin,y); y+=custLines.length*9+2;
+            doc.setDrawColor(249,115,22); doc.setLineWidth(1); doc.line(margin,y,pageW-margin,y); y+=7;
+
+            // Auftragsdaten
+            const dataRows=[
+                ['AUFTRAGSNR.', cleanAuftragsNr(entry.auftragsNr)||'—'],
+                ['ADRESSE', entry.address||'—'],
+                ['DATUM', formatDate(entry.deliveryDate)+(entry.endDate?' – '+formatDate(entry.endDate):'')],
+            ];
+            dataRows.forEach(([label,val])=>{
+                setFont(8,'bold',[130,60,0]); doc.text(label,margin,y);
+                setFont(9,'normal',[0,0,0]);
+                const lines=doc.splitTextToSize(String(val),contentW-38);
+                doc.text(lines,margin+38,y); y+=lines.length*5.5+3;
+            });
+            y+=5;
+
+            // Blockierungsgrund Box
+            doc.setFillColor(255,237,213); doc.setDrawColor(249,115,22); doc.setLineWidth(0.5);
+            doc.roundedRect(margin,y,contentW,9,2,2,'F');
+            setFont(9,'bold',[180,60,0]); doc.text('🚧 GRUND DER BLOCKIERUNG',margin+4,y+6); y+=14;
+
+            const reasonText = entry.blockReason||'(Kein Grund angegeben)';
+            const reasonLines = doc.splitTextToSize(reasonText, contentW-10);
+            const reasonH = Math.max(reasonLines.length*6.5+10, 18);
+            doc.setFillColor(255,249,245); doc.setDrawColor(249,115,22); doc.setLineWidth(0.5);
+            doc.roundedRect(margin,y,contentW,reasonH,3,3,'FD');
+            doc.setFillColor(249,115,22); doc.rect(margin,y,3,reasonH,'F');
+            setFont(11,'bold',[80,30,0]); doc.text(reasonLines,margin+7,y+7); y+=reasonH+10;
+
+            // Fotos Hinweis
+            const blockImgs = entry.blockImages||[];
+            if(blockImgs.length>0){
+                doc.setFillColor(255,237,213); doc.roundedRect(margin,y,contentW,9,2,2,'F');
+                setFont(9,'bold',[180,60,0]); doc.text(`📷 FOTOS: ${blockImgs.length} Bild${blockImgs.length>1?'er':''} (folgende Seiten)`,margin+4,y+6); y+=14;
+            }
+
+            // Footer Seite 1
+            doc.setFillColor(255,237,213); doc.rect(0,282,pageW,15,'F');
+            setFont(8,'bold',[180,60,0]); doc.text('PE-MONTAGE – Blockierungsmeldung',margin,289);
+            setFont(7,'normal',[150,80,0]); doc.text('Bitte Bauleitung / Disponenten kontaktieren.',margin,294);
+            setFont(7,'normal',[150,80,0]); doc.text(`${today} ${timeNow}`,pageW-margin,294,{align:'right'});
+
+            // Foto-Seiten
+            blockImgs.forEach((imgSrc,idx)=>{
+                doc.addPage();
+                doc.setFillColor(249,115,22); doc.rect(0,0,pageW,18,'F');
+                setFont(11,'bold',[255,255,255]); doc.text(`🚧 BLOCKIERUNG — FOTO ${idx+1}/${blockImgs.length}`,margin,12);
+                setFont(8,'normal',[255,220,180]); doc.text((entry.customer||'').toUpperCase(),pageW-margin,12,{align:'right'});
+                try {
+                    let fmt='JPEG';
+                    if(imgSrc.includes('image/png')) fmt='PNG';
+                    doc.addImage(imgSrc,fmt,margin,22,contentW,262,undefined,'FAST');
+                } catch(e){
+                    setFont(10,'normal',[200,50,50]); doc.text('(Bild konnte nicht geladen werden)',margin,50);
+                }
+                doc.setFillColor(255,237,213); doc.rect(0,287,pageW,10,'F');
+                setFont(7,'normal',[150,80,0]);
+                doc.text(`PE-MONTAGE · ${entry.customer||''} · ${today}`,margin,293);
+            });
+
+            const fname=`Blockierung_${(cleanAuftragsNr(entry.auftragsNr)||entry.customer||'meldung').replace(/[^a-zA-Z0-9]/g,'_')}_${today.replace(/\./g,'-')}.pdf`;
+            doc.save(fname);
+            resolve();
+        } catch(err){ console.error('Block-PDF Fehler:',err); resolve(); }
+    });
+}
+
 function BlockModal({ entry, team, onClose }) {
     const [reason, setReason] = useState(entry.blockReason || '');
     const [images, setImages] = useState(entry.blockImages || []);
     const [saving, setSaving] = useState(false);
+    const [pdfLoading, setPdfLoading] = useState(false);
     const fileRef = React.useRef(null);
+    const MAX_PHOTOS = 3;
 
     const compressImage = (file) => new Promise(resolve => {
         const reader = new FileReader();
@@ -570,7 +667,9 @@ function BlockModal({ entry, team, onClose }) {
     });
 
     const handleFiles = async (files) => {
-        const fileArr = Array.from(files).slice(0, 8 - images.length);
+        const remaining = MAX_PHOTOS - images.length;
+        if(remaining <= 0) return;
+        const fileArr = Array.from(files).slice(0, remaining);
         if(!fileArr.length) return;
         const compressed = await Promise.all(fileArr.map(compressImage));
         setImages(prev => [...prev, ...compressed]);
@@ -579,19 +678,23 @@ function BlockModal({ entry, team, onClose }) {
     const removeImg = (idx) => setImages(prev => prev.filter((_,i) => i !== idx));
 
     const saveBlock = async () => {
+        if(!reason.trim()) return;
         setSaving(true);
-        const { db, doc, updateDoc } = window.FirebaseSDK;
-        await updateDoc(doc(db, `teams_cal_${team.id}`, entry.id), {
-            isBlocked: true,
-            blockReason: reason.trim(),
-            blockImages: images,
-            blockedAt: new Date().toISOString(),
-        });
+        try {
+            const { db, doc, updateDoc } = window.FirebaseSDK;
+            await updateDoc(doc(db, `teams_cal_${team.id}`, entry.id), {
+                isBlocked: true,
+                blockReason: reason.trim(),
+                blockImages: images,
+                blockedAt: new Date().toISOString(),
+            });
+            onClose();
+        } catch(e) { alert('Fehler beim Speichern: ' + e.message); }
         setSaving(false);
-        onClose();
     };
 
     const unblock = async () => {
+        if(!confirm('Blockierung wirklich aufheben?')) return;
         const { db, doc, updateDoc } = window.FirebaseSDK;
         await updateDoc(doc(db, `teams_cal_${team.id}`, entry.id), {
             isBlocked: false,
@@ -602,94 +705,111 @@ function BlockModal({ entry, team, onClose }) {
         onClose();
     };
 
+    const handlePDF = async () => {
+        const previewEntry = { ...entry, blockReason: reason.trim(), blockImages: images };
+        setPdfLoading(true);
+        await downloadBlockPDF(previewEntry, team);
+        setPdfLoading(false);
+    };
+
     return (
         <div className="blocked-overlay" style={{padding:0}}>
-            {/* Header */}
-            <div style={{background:'linear-gradient(135deg,#1c0a00,#2d1400)',padding:'16px 20px',borderBottom:'2px solid rgba(249,115,22,0.35)',flexShrink:0}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            {/* Header — KEIN keepOriginal Button hier */}
+            <div style={{background:'linear-gradient(135deg,#1c0a00,#2d1400)',padding:'14px 18px',borderBottom:'2px solid rgba(249,115,22,0.4)',flexShrink:0}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
-                        <div style={{width:36,height:36,borderRadius:10,background:'rgba(249,115,22,0.2)',border:'1.5px solid #f97316',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>🚧</div>
+                        <div style={{width:38,height:38,borderRadius:10,background:'rgba(249,115,22,0.2)',border:'2px solid #f97316',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>🚧</div>
                         <div>
-                            <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>AUFTRAG BLOCKIERT</div>
-                            <div style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase',marginTop:1}}>{entry.customer}</div>
+                            <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>AUFTRAG BLOCKIEREN</div>
+                            <div style={{color:'#fff',fontSize:14,fontWeight:900,textTransform:'uppercase',marginTop:1}}>{entry.customer}</div>
                         </div>
                     </div>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        {/* Toggle: In beiden behalten */}
-                        <button onClick={()=>setKeepOriginal(k=>!k)}
-                            title={keepOriginal ? 'Auftrag bleibt bei beiden Gruppen' : 'Auftrag wird verschoben (Standard)'}
-                            style={{
-                                display:'flex',alignItems:'center',gap:6,
-                                background:keepOriginal?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.06)',
-                                border:`1.5px solid ${keepOriginal?'#10b981':'rgba(255,255,255,0.12)'}`,
-                                borderRadius:10,padding:'6px 12px',cursor:'pointer',
-                                color:keepOriginal?'#10b981':'#64748b',
-                                fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,
-                                transition:'all 0.2s',whiteSpace:'nowrap'
-                            }}>
-                            <span style={{fontSize:12}}>{keepOriginal?'🔗':'✂️'}</span>
-                            {keepOriginal?'In beiden behalten':'Verschieben'}
-                        </button>
-                        <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
-                    </div>
+                    <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                 </div>
-                <div style={{color:'#78350f',fontSize:10,fontWeight:700}}>{entry.address}</div>
+                <div style={{color:'#78350f',fontSize:10,fontWeight:700}}>{entry.address} · {formatDate(entry.deliveryDate)}</div>
             </div>
 
-            {/* Body — scrollbar */}
-            <div style={{flex:1,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:14}}>
-                {/* Grund */}
+            {/* Body */}
+            <div style={{flex:1,overflowY:'auto',padding:'16px 18px',display:'flex',flexDirection:'column',gap:14}}>
+
+                {/* Grund Textarea */}
                 <div>
-                    <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>🚧 Grund der Blockierung *</div>
+                    <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>
+                        🚧 Grund der Blockierung *
+                    </div>
                     <textarea
                         autoFocus
                         rows={4}
                         value={reason}
                         onChange={e=>setReason(e.target.value)}
                         placeholder="z.B. Baustelle gesperrt / kein Zugang / Material fehlt / Kunde nicht erreichbar..."
-                        style={{width:'100%',background:'#1a0d00',border:'2px solid rgba(249,115,22,0.4)',borderRadius:12,padding:'12px 14px',color:'#fed7aa',fontSize:13,fontWeight:700,resize:'none',boxSizing:'border-box',outline:'none',lineHeight:1.5}}
+                        style={{width:'100%',background:'#1a0d00',border:`2px solid ${reason.trim()?'#f97316':'rgba(249,115,22,0.35)'}`,borderRadius:12,padding:'12px 14px',color:'#fed7aa',fontSize:13,fontWeight:700,resize:'none',boxSizing:'border-box',outline:'none',lineHeight:1.5,transition:'border-color 0.2s'}}
                     />
+                    {!reason.trim() && <div style={{color:'#ef4444',fontSize:9,fontWeight:700,marginTop:4}}>⚠ Bitte Grund eingeben</div>}
                 </div>
 
-                {/* Fotos */}
+                {/* Fotos — max. 3 */}
                 <div>
-                    <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:8,display:'flex',justifyContent:'space-between'}}>
-                        <span>📷 FOTOS ({images.length}/8)</span>
-                        <span style={{color:'#78350f',fontSize:8,fontWeight:700}}>Optional — z.B. gesperrte Zufahrt</span>
+                    <div style={{color:'#f97316',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <span>📷 FOTOS ({images.length}/{MAX_PHOTOS})</span>
+                        <span style={{color:'#78350f',fontSize:8,fontWeight:700}}>Optional · z.B. gesperrte Zufahrt</span>
                     </div>
                     <input type="file" ref={fileRef} accept="image/*" multiple capture="environment" style={{display:'none'}}
                         onChange={e=>{handleFiles(e.target.files);e.target.value='';}}/>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
                         {images.map((src,idx)=>(
-                            <div key={idx} style={{position:'relative',borderRadius:10,overflow:'hidden',border:'2px solid rgba(249,115,22,0.3)',aspectRatio:'1'}}>
+                            <div key={idx} style={{position:'relative',borderRadius:10,overflow:'hidden',border:'2px solid rgba(249,115,22,0.4)',aspectRatio:'1',background:'#0f172a'}}>
                                 <img src={src} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
-                                <button onClick={()=>removeImg(idx)} style={{position:'absolute',top:3,right:3,background:'#ef4444',border:'none',borderRadius:'50%',width:20,height:20,cursor:'pointer',color:'#fff',fontSize:11,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                                <button onClick={()=>removeImg(idx)} style={{position:'absolute',top:3,right:3,background:'#ef4444',border:'none',borderRadius:'50%',width:22,height:22,cursor:'pointer',color:'#fff',fontSize:12,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>✕</button>
+                                <div style={{position:'absolute',bottom:3,left:3,background:'rgba(249,115,22,0.85)',borderRadius:4,padding:'1px 6px',fontSize:8,color:'#fff',fontWeight:900}}>#{idx+1}</div>
                             </div>
                         ))}
-                        {images.length < 8 && (
+                        {images.length < MAX_PHOTOS && (
                             <div onClick={()=>fileRef.current?.click()}
-                                style={{border:'2px dashed rgba(249,115,22,0.35)',borderRadius:10,aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',gap:4,background:'rgba(249,115,22,0.04)'}}>
-                                <span style={{fontSize:24}}>📷</span>
-                                <span style={{fontSize:8,color:'#78350f',fontWeight:700,textAlign:'center'}}>Foto aufnehmen</span>
+                                style={{border:'2px dashed rgba(249,115,22,0.4)',borderRadius:10,aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',gap:6,background:'rgba(249,115,22,0.04)',transition:'all 0.15s'}}
+                                onMouseEnter={e=>{e.currentTarget.style.background='rgba(249,115,22,0.1)';e.currentTarget.style.borderColor='#f97316';}}
+                                onMouseLeave={e=>{e.currentTarget.style.background='rgba(249,115,22,0.04)';e.currentTarget.style.borderColor='rgba(249,115,22,0.4)';}}>
+                                <span style={{fontSize:26}}>📷</span>
+                                <span style={{fontSize:8,color:'#78350f',fontWeight:800,textAlign:'center'}}>Foto{images.length>0?' hinzu':'aufnehmen'}</span>
+                                <span style={{fontSize:7,color:'#78350f',opacity:0.7}}>{MAX_PHOTOS-images.length} verbleibend</span>
                             </div>
                         )}
                     </div>
+                    {images.length===MAX_PHOTOS&&(
+                        <div style={{marginTop:6,background:'rgba(249,115,22,0.1)',border:'1px solid rgba(249,115,22,0.25)',borderRadius:8,padding:'5px 10px',fontSize:8,color:'#f97316',fontWeight:900,textAlign:'center'}}>
+                            ✓ Maximum {MAX_PHOTOS} Fotos erreicht
+                        </div>
+                    )}
                 </div>
 
-                {/* Bereits blockiert — Aufheben */}
+                {/* PDF Download — für Kunde / Bauleitung */}
+                {reason.trim() && (
+                    <div style={{background:'rgba(249,115,22,0.07)',border:'1px solid rgba(249,115,22,0.2)',borderRadius:12,padding:'12px 14px'}}>
+                        <div style={{color:'#f97316',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>📄 BLOCKIERUNGS-PDF</div>
+                        <div style={{color:'#fed7aa',fontSize:10,fontWeight:700,marginBottom:10,lineHeight:1.4}}>
+                            PDF mit Grund{images.length>0?` und ${images.length} Foto${images.length>1?'s':''}`:''} — für Kunde oder Bauleitung
+                        </div>
+                        <button onClick={handlePDF} disabled={pdfLoading}
+                            style={{width:'100%',padding:'11px',background:pdfLoading?'rgba(249,115,22,0.3)':'rgba(249,115,22,0.9)',border:'none',borderRadius:10,color:'#fff',fontWeight:900,fontSize:10,textTransform:'uppercase',letterSpacing:1,cursor:pdfLoading?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,transition:'all 0.2s'}}>
+                            {pdfLoading ? '⏳ Erstelle PDF...' : `📄 PDF herunterladen${images.length>0?' ('+images.length+' Foto'+(images.length>1?'s':'')+')':''}`}
+                        </button>
+                    </div>
+                )}
+
+                {/* Blockierung aufheben */}
                 {entry.isBlocked && (
                     <button onClick={unblock}
-                        style={{padding:'13px',background:'rgba(16,185,129,0.12)',border:'2px solid rgba(16,185,129,0.3)',borderRadius:14,color:'#10b981',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:'pointer',letterSpacing:1}}>
+                        style={{padding:'12px',background:'rgba(16,185,129,0.1)',border:'2px solid rgba(16,185,129,0.3)',borderRadius:12,color:'#10b981',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer',letterSpacing:1}}>
                         ✓ Blockierung aufheben
                     </button>
                 )}
             </div>
 
             {/* Footer */}
-            <div style={{padding:'12px 20px',borderTop:'1px solid rgba(249,115,22,0.2)',background:'#0f172a',flexShrink:0,display:'flex',gap:10}}>
-                <button onClick={onClose} style={{flex:1,padding:'14px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:14,color:'#64748b',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:'pointer'}}>Abbrechen</button>
+            <div style={{padding:'12px 18px',borderTop:'1px solid rgba(249,115,22,0.2)',background:'rgba(15,10,0,0.9)',flexShrink:0,display:'flex',gap:10}}>
+                <button onClick={onClose} style={{flex:1,padding:'13px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'#64748b',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:'pointer'}}>Abbrechen</button>
                 <button onClick={saveBlock} disabled={saving || !reason.trim()}
-                    style={{flex:2,padding:'14px',background:reason.trim()&&!saving?'#f97316':'#1e293b',border:'none',borderRadius:14,color:reason.trim()&&!saving?'#fff':'#475569',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:reason.trim()&&!saving?'pointer':'not-allowed',boxShadow:reason.trim()?'0 4px 14px rgba(249,115,22,0.35)':'none'}}>
+                    style={{flex:2,padding:'13px',background:reason.trim()&&!saving?'#f97316':'#1e293b',border:'none',borderRadius:12,color:reason.trim()&&!saving?'#fff':'#475569',fontWeight:900,fontSize:10,textTransform:'uppercase',cursor:reason.trim()&&!saving?'pointer':'not-allowed',boxShadow:reason.trim()?'0 4px 16px rgba(249,115,22,0.4)':'none',transition:'all 0.2s'}}>
                     {saving ? '⏳ Speichern...' : '🚧 Als blockiert melden'}
                 </button>
             </div>

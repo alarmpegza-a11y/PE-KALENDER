@@ -468,6 +468,83 @@ function downloadMonteurBillingPDF(entries, teamName) {
 }
 
 // ============================================================
+// EXCEL EXPORT — ALLE GRUPPEN KLAR GETRENNT
+// ============================================================
+function downloadAllGroupsExcel(allEntries, teams) {
+    // Build CSV content (Excel-kompatibel, UTF-8 BOM)
+    const today = new Date().toLocaleDateString('de-DE');
+    const rows = [];
+
+    // Titel-Zeile
+    rows.push(['PE-MONTAGE — Admin Abrechnung', '', '', '', '', '', '']);
+    rows.push([`Erstellt: ${today}`, '', '', '', '', '', '']);
+    rows.push(['', '', '', '', '', '', '']);
+
+    teams.forEach(team => {
+        const teamEntries = allEntries.filter(e => e.teamId === team.id && e.isDone && !e.isBilled);
+        const teamBilled  = allEntries.filter(e => e.teamId === team.id && e.isBilled);
+
+        // Gruppen-Header
+        rows.push([`▶ GRUPPE: ${team.name.toUpperCase()}`, '', '', '', '', '', '']);
+        rows.push(['#', 'DATUM', 'KUNDE', 'AUFTRAGSNR.', 'ADRESSE', 'MEMO', 'STATUS']);
+
+        if (teamEntries.length === 0 && teamBilled.length === 0) {
+            rows.push(['—', '—', 'Keine erledigten Aufträge', '—', '—', '—', '—']);
+        } else {
+            teamEntries.forEach((e, i) => {
+                rows.push([
+                    i + 1,
+                    formatDate(e.deliveryDate),
+                    (e.customer || '').toUpperCase(),
+                    cleanAuftragsNr(e.auftragsNr) || '—',
+                    e.address || '',
+                    e.memo || '',
+                    'OFFEN / FERTIG'
+                ]);
+            });
+            if (teamBilled.length > 0) {
+                rows.push(['', '', `— Bereits abgerechnet (${teamBilled.length}) —`, '', '', '', '']);
+                teamBilled.forEach((e, i) => {
+                    rows.push([
+                        i + 1,
+                        formatDate(e.deliveryDate),
+                        (e.customer || '').toUpperCase(),
+                        cleanAuftragsNr(e.auftragsNr) || '—',
+                        e.address || '',
+                        e.memo || '',
+                        'ABGERECHNET'
+                    ]);
+                });
+            }
+        }
+        // Leerzeilen als Trenner zwischen Gruppen
+        rows.push(['', '', '', '', '', '', '']);
+        rows.push(['', '', '', '', '', '', '']);
+    });
+
+    // CSV-String bauen
+    const escape = (v) => {
+        const s = String(v === null || v === undefined ? '' : v);
+        if (s.includes(';') || s.includes('"') || s.includes('\n')) {
+            return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+    };
+    const csvContent = '\uFEFF' + rows.map(r => r.map(escape).join(';')).join('\r\n');
+
+    // Download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Admin_Abrechnung_Alle_Gruppen_${today.replace(/\./g,'-')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ============================================================
 // MULTI-IMAGE UPLOAD COMPONENT
 // ============================================================
 function MultiImageUpload({ images, onChange, maxImages=10 }) {
@@ -615,6 +692,21 @@ function BlockModal({ entry, team, onClose }) {
                         </div>
                     </div>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        {/* Toggle: In beiden behalten */}
+                        <button onClick={()=>setKeepOriginal(k=>!k)}
+                            title={keepOriginal ? 'Auftrag bleibt bei beiden Gruppen' : 'Auftrag wird verschoben (Standard)'}
+                            style={{
+                                display:'flex',alignItems:'center',gap:6,
+                                background:keepOriginal?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.06)',
+                                border:`1.5px solid ${keepOriginal?'#10b981':'rgba(255,255,255,0.12)'}`,
+                                borderRadius:10,padding:'6px 12px',cursor:'pointer',
+                                color:keepOriginal?'#10b981':'#64748b',
+                                fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,
+                                transition:'all 0.2s',whiteSpace:'nowrap'
+                            }}>
+                            <span style={{fontSize:12}}>{keepOriginal?'🔗':'✂️'}</span>
+                            {keepOriginal?'In beiden behalten':'Verschieben'}
+                        </button>
                         <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                     </div>
                 </div>
@@ -1280,9 +1372,10 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
                 </div>
             )}
 
-            {e.isDone&&<div className="done-stamp">✓ Erledigt</div>}
+            {e.isDone&&!e.isBilled&&!e.monteurBilled&&<div className="done-stamp">✓ Erledigt</div>}
             {e.isBilled&&<div className="billed-stamp">✓ Abgerechnet</div>}
-            {!e.isBilled&&e.monteurBilled&&<div className="monteur-billed-stamp">✓ Abgerechn.</div>}
+            {!e.isBilled&&e.monteurBilled&&isAdminAccess&&<div className="monteur-billed-stamp">✓ Monteur Abgr.</div>}
+            {!e.isBilled&&e.monteurBilled&&!isAdminAccess&&<div className="done-stamp">✓ Erledigt</div>}
             {e.isBlocked&&<div className="blocked-stamp">🚧 Blockiert</div>}
 
             <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3,flexWrap:'wrap'}}>
@@ -1320,8 +1413,9 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
 // ============================================================
 function BillingModal({ teams, onClose }) {
     const [allEntries, setAllEntries] = useState([]);
-    const [activeTeamTab, setActiveTeamTab] = useState(null);
+    const [activeTeamTab, setActiveTeamTab] = useState('__alle__');
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [exporting, setExporting] = useState(false);
 
     useEffect(()=>{
         const{db,collection,onSnapshot}=window.FirebaseSDK;
@@ -1334,7 +1428,6 @@ function BillingModal({ teams, onClose }) {
             });
             unsubs.push(unsub);
         });
-        if(teams.length>0) setActiveTeamTab(teams[0].id);
         return()=>unsubs.forEach(u=>u());
     },[teams]);
 
@@ -1342,9 +1435,11 @@ function BillingModal({ teams, onClose }) {
     const billedEntries=useMemo(()=>allEntries.filter(e=>e.isBilled),[allEntries]);
     const doneForTeam=useCallback((id)=>doneEntries.filter(e=>e.teamId===id),[doneEntries]);
     const billedForTeam=useCallback((id)=>billedEntries.filter(e=>e.teamId===id),[billedEntries]);
-    const currentTeamDone=activeTeamTab?doneForTeam(activeTeamTab):[];
-    const currentTeamBilled=activeTeamTab?billedForTeam(activeTeamTab):[];
-    const currentTeam=teams.find(t=>t.id===activeTeamTab);
+
+    const isAlleTab = activeTeamTab === '__alle__';
+    const currentTeam = isAlleTab ? null : teams.find(t=>t.id===activeTeamTab);
+    const currentTeamDone = isAlleTab ? [] : doneForTeam(activeTeamTab);
+    const currentTeamBilled = isAlleTab ? [] : billedForTeam(activeTeamTab);
     const totalDone=doneEntries.length;
     const totalBilled=billedEntries.length;
 
@@ -1354,8 +1449,18 @@ function BillingModal({ teams, onClose }) {
     const unmarkBilled=async(e)=>{const{db,doc,updateDoc}=window.FirebaseSDK;await updateDoc(doc(db,`teams_cal_${e.teamId}`,e.id),{isBilled:false,billedAt:null});};
     const deleteEntry=async(e)=>{if(!confirm(`"${e.customer}" löschen?`))return;const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,`teams_cal_${e.teamId}`,e.id));};
     const exportPDF=()=>{const el=document.getElementById('admin-billing-pdf-content');if(!el)return;html2pdf().set({margin:8,filename:`Fertigmontage_${currentTeam?.name||'Export'}_${new Date().toLocaleDateString('de-DE')}.pdf`,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'landscape'}}).from(el).save();};
+    const handleExcelExport=()=>{setExporting(true);try{downloadAllGroupsExcel(allEntries,teams);}finally{setExporting(false);}};
     const pdfEntries=currentTeamDone.filter(e=>selectedIds.size===0||selectedIds.has(e.id));
     const today=new Date().toLocaleDateString('de-DE');
+
+    // Alle-Gruppen Ansicht: gruppiert nach Team
+    const alleGruppenDone = useMemo(()=>{
+        return teams.map(t=>({
+            team: t,
+            done: doneForTeam(t.id),
+            billed: billedForTeam(t.id),
+        }));
+    },[teams, doneForTeam, billedForTeam]);
 
     return (
         <div style={{position:'fixed',inset:0,zIndex:80,background:'rgba(10,15,30,0.97)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
@@ -1374,13 +1479,13 @@ function BillingModal({ teams, onClose }) {
                 </div>
             </div>
 
-            <div className="billing-modal" style={{width:'100%',maxWidth:800,maxHeight:'92vh',border:'1px solid rgba(255,255,255,0.08)',boxShadow:'0 40px 80px rgba(0,0,0,0.6)'}}>
+            <div className="billing-modal" style={{width:'100%',maxWidth:900,maxHeight:'92vh',border:'1px solid rgba(255,255,255,0.08)',boxShadow:'0 40px 80px rgba(0,0,0,0.6)'}}>
                 <div className="billing-modal-header">
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
                         <div>
                             <div style={{color:'#94a3b8',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2,marginBottom:4}}>ADMIN ABRECHNUNGSLISTE</div>
                             <h2 style={{color:'#fff',fontSize:22,fontWeight:900,textTransform:'uppercase',margin:0}}>FERTIG MONTIERT</h2>
-                            <div style={{display:'flex',gap:12,marginTop:8}}>
+                            <div style={{display:'flex',gap:12,marginTop:8,flexWrap:'wrap'}}>
                                 <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.25)',borderRadius:8,padding:'4px 10px'}}>
                                     <div style={{width:6,height:6,borderRadius:'50%',background:'#10b981'}}></div>
                                     <span style={{color:'#10b981',fontSize:9,fontWeight:900}}>{totalDone} offen</span>
@@ -1389,11 +1494,22 @@ function BillingModal({ teams, onClose }) {
                                     <div style={{width:6,height:6,borderRadius:'50%',background:'#a855f7'}}></div>
                                     <span style={{color:'#a855f7',fontSize:9,fontWeight:900}}>{totalBilled} abgerechnet</span>
                                 </div>
+                                {/* Excel Export Button — immer sichtbar */}
+                                <button onClick={handleExcelExport} disabled={exporting}
+                                    style={{display:'flex',alignItems:'center',gap:6,background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.4)',borderRadius:8,padding:'4px 12px',color:'#10b981',fontSize:9,fontWeight:900,cursor:'pointer',textTransform:'uppercase',letterSpacing:1,transition:'all 0.15s',opacity:exporting?0.6:1}}>
+                                    <Icon name="file-spreadsheet" size={13}/>📊 Excel — Alle Gruppen
+                                </button>
                             </div>
                         </div>
                         <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:36,height:36,cursor:'pointer',color:'#94a3b8',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                     </div>
                     <div className="billing-team-tabs" style={{borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
+                        {/* Tab: Alle Gruppen */}
+                        <button onClick={()=>{setActiveTeamTab('__alle__');setSelectedIds(new Set());}}
+                            style={{padding:'10px 16px',background:isAlleTab?'rgba(16,185,129,0.12)':'transparent',border:'none',borderBottom:isAlleTab?'2px solid #10b981':'2px solid transparent',color:isAlleTab?'#10b981':'#64748b',fontWeight:900,fontSize:10,cursor:'pointer',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',flexShrink:0,transition:'all 0.15s'}}>
+                            📋 ALLE GRUPPEN
+                            {totalDone>0&&<span style={{background:'#ef4444',color:'#fff',fontSize:8,fontWeight:900,padding:'1px 6px',borderRadius:10,minWidth:18,textAlign:'center'}}>{totalDone}</span>}
+                        </button>
                         {teams.map(t=>{
                             const done=doneForTeam(t.id).length;
                             const billed=billedForTeam(t.id).length;
@@ -1411,8 +1527,73 @@ function BillingModal({ teams, onClose }) {
                         })}
                     </div>
                 </div>
+
                 <div style={{flex:1,overflowY:'auto',padding:20}}>
-                    {currentTeam&&<>
+                    {/* ── ALLE GRUPPEN ANSICHT ── */}
+                    {isAlleTab && (
+                        <div style={{display:'flex',flexDirection:'column',gap:24}}>
+                            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                                <div style={{color:'#10b981',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Übersicht aller Gruppen</div>
+                                <button onClick={handleExcelExport} disabled={exporting}
+                                    style={{display:'flex',alignItems:'center',gap:6,background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.35)',borderRadius:10,padding:'8px 16px',color:'#10b981',fontSize:10,fontWeight:900,cursor:'pointer',textTransform:'uppercase',letterSpacing:1,transition:'all 0.15s',opacity:exporting?0.6:1}}>
+                                    <Icon name="download" size={13}/>📊 Excel herunterladen
+                                </button>
+                            </div>
+                            {alleGruppenDone.map(({team, done, billed})=>(
+                                <div key={team.id} style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',borderLeft:`4px solid ${team.color||'#3b82f6'}`,borderRadius:14,overflow:'hidden'}}>
+                                    {/* Gruppen-Header */}
+                                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',background:'rgba(255,255,255,0.04)',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+                                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                                            <div style={{width:10,height:10,borderRadius:'50%',background:team.color||'#3b82f6'}}></div>
+                                            <span style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase'}}>{team.name}</span>
+                                        </div>
+                                        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                                            {done.length>0&&<span style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.3)',color:'#10b981',fontSize:9,fontWeight:900,borderRadius:8,padding:'3px 9px'}}>{done.length} offen</span>}
+                                            {billed.length>0&&<span style={{background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.3)',color:'#a855f7',fontSize:9,fontWeight:900,borderRadius:8,padding:'3px 9px'}}>✓ {billed.length} abgerechnet</span>}
+                                            {done.length===0&&billed.length===0&&<span style={{color:'#334155',fontSize:9,fontWeight:700}}>Keine Aufträge</span>}
+                                        </div>
+                                    </div>
+                                    {(done.length>0||billed.length>0)&&(
+                                        <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:6}}>
+                                            {done.map((e,i)=>(
+                                                <div key={e.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.12)',borderRadius:10}}>
+                                                    <span style={{color:'#475569',fontSize:9,fontWeight:700,minWidth:18,textAlign:'right'}}>{i+1}</span>
+                                                    <span style={{color:'#94a3b8',fontSize:9,minWidth:72,flexShrink:0}}>{formatDate(e.deliveryDate)}</span>
+                                                    <span style={{color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase',flex:2,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.customer}</span>
+                                                    {e.auftragsNr&&<span style={{color:'#3b82f6',fontSize:9,fontFamily:'monospace',flexShrink:0}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}
+                                                    <span style={{color:'#64748b',fontSize:9,flex:2,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.address}</span>
+                                                    {e.memo&&<span style={{color:'#fbbf24',fontSize:9,fontWeight:700,flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>📝 {e.memo}</span>}
+                                                    <span style={{background:'rgba(16,185,129,0.15)',color:'#10b981',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',flexShrink:0}}>OFFEN</span>
+                                                </div>
+                                            ))}
+                                            {billed.length>0&&(
+                                                <>
+                                                    <div style={{color:'#a855f7',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,margin:'6px 0 4px',opacity:0.7}}>— Bereits abgerechnet —</div>
+                                                    {billed.map((e,i)=>(
+                                                        <div key={e.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',background:'rgba(168,85,247,0.04)',border:'1px solid rgba(168,85,247,0.1)',borderRadius:10,opacity:0.7}}>
+                                                            <span style={{color:'#475569',fontSize:9,fontWeight:700,minWidth:18,textAlign:'right'}}>{i+1}</span>
+                                                            <span style={{color:'#64748b',fontSize:9,minWidth:72,flexShrink:0}}>{formatDate(e.deliveryDate)}</span>
+                                                            <span style={{color:'#cbd5e1',fontSize:11,fontWeight:900,textTransform:'uppercase',flex:2,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.customer}</span>
+                                                            {e.auftragsNr&&<span style={{color:'#a855f7',fontSize:9,fontFamily:'monospace',flexShrink:0}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}
+                                                            <span style={{color:'#475569',fontSize:9,flex:2,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.address}</span>
+                                                            {e.memo&&<span style={{color:'#78350f',fontSize:9,flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>📝 {e.memo}</span>}
+                                                            <span style={{background:'rgba(168,85,247,0.15)',color:'#a855f7',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',flexShrink:0}}>ABR.</span>
+                                                        </div>
+                                                    ))}
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            {totalDone===0&&totalBilled===0&&(
+                                <div style={{textAlign:'center',padding:60,color:'#475569'}}><div style={{fontSize:36,marginBottom:10}}>📋</div><div style={{fontSize:12,fontWeight:700}}>Keine erledigten Aufträge in allen Gruppen</div></div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── EINZELNE GRUPPE ── */}
+                    {!isAlleTab && currentTeam&&<>
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                             <div style={{display:'flex',alignItems:'center',gap:10}}>
                                 <div style={{width:12,height:12,borderRadius:'50%',background:currentTeam.color||'#3b82f6'}}></div>
@@ -2000,10 +2181,12 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                     const sl=e.isProv&&!e.customStartLabel?'PROV.':e.customStartLabel?`START + ${e.customStartLabel}`:e.isMultiDay&&e.endDate?'START':e.entryType||'LIEFERUNG';
                                     const canMark=isAdminAccess||(e.isMultiDay&&e.endDate?dayStr===e.deliveryDate.substring(0,10):true);
                                     return (
-                                        <div key={e.id} className="mobile-cal-card" style={{background:bg,borderLeftColor:border,opacity:e.isDone?0.65:1,position:'relative'}}>
-                                            {e.isDone&&<div className="done-stamp">✓ Erledigt</div>}
+                                        <div key={e.id} className="mobile-cal-card" style={{background:bg,borderLeftColor:border,opacity:(e.isDone||e.monteurBilled)?0.65:1,position:'relative'}}>
+                                            {e.isDone&&!e.isBilled&&!e.monteurBilled&&<div className="done-stamp">✓ Erledigt</div>}
+                                            {e.isBilled&&<div className="billed-stamp">✓ Abgerechnet</div>}
+                                            {!e.isBilled&&e.monteurBilled&&isAdminAccess&&<div className="monteur-billed-stamp">✓ Monteur Abgr.</div>}
+                                            {!e.isBilled&&e.monteurBilled&&!isAdminAccess&&<div className="done-stamp">✓ Erledigt</div>}
                                             {e.isBlocked&&<div className="blocked-stamp">🚧 Blockiert</div>}
-                                            {!e.isBilled&&e.monteurBilled&&<div className="monteur-billed-stamp">✓ Abgr.</div>}
                                             {/* Badge row */}
                                             <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6,flexWrap:'wrap'}}>
                                                 <span className="mobile-tag-badge" style={{background:border}}>{isStart?sl:`TAG ${dayNum}`}</span>
@@ -2035,7 +2218,6 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                                 {!isAdminAccess&&canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.2)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,color:'#f97316'}}>🚧 {e.isBlocked?'Blockiert':'Block'}</button>}
                                                 {canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.2)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.35)'}`,color:'#10b981'}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setEditCalEntry({...e});}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>✏️ Bearbeiten</button>}
-                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setCrossCopyEntry({...e});}} style={{background:'rgba(99,102,241,0.18)',border:'1px solid rgba(99,102,241,0.45)',color:'#a5b4fc',flex:'0 0 auto',fontWeight:900}}>⧉ Senden</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>📄{imgs.length>0?` ${imgs.length}`:''}</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();if(confirm(`"${e.customer}" löschen?`))deleteCalEntry(e.id);}} style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.3)',color:'#ef4444',flex:'0 0 auto'}}>✕</button>}
                                             </div>

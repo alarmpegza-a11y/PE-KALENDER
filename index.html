@@ -615,6 +615,21 @@ function BlockModal({ entry, team, onClose }) {
                         </div>
                     </div>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        {/* Toggle: In beiden behalten */}
+                        <button onClick={()=>setKeepOriginal(k=>!k)}
+                            title={keepOriginal ? 'Auftrag bleibt bei beiden Gruppen' : 'Auftrag wird verschoben (Standard)'}
+                            style={{
+                                display:'flex',alignItems:'center',gap:6,
+                                background:keepOriginal?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.06)',
+                                border:`1.5px solid ${keepOriginal?'#10b981':'rgba(255,255,255,0.12)'}`,
+                                borderRadius:10,padding:'6px 12px',cursor:'pointer',
+                                color:keepOriginal?'#10b981':'#64748b',
+                                fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,
+                                transition:'all 0.2s',whiteSpace:'nowrap'
+                            }}>
+                            <span style={{fontSize:12}}>{keepOriginal?'🔗':'✂️'}</span>
+                            {keepOriginal?'In beiden behalten':'Verschieben'}
+                        </button>
                         <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                     </div>
                 </div>
@@ -1153,8 +1168,7 @@ function LoginScreen({ onLogin, teams }) {
     const [error, setError] = useState('');
     const isFirebase = window.FirebaseReady;
     const handleAction = (val) => {
-        if (val === 'C' || val === 'Backspace' || val === 'Delete' || val === 'Escape') { setPin(''); return; }
-        if (String(val).match(/[^0-9]/)) return;
+        if (val === 'C') { setPin(''); return; }
         if (pin.length >= 4) return;
         const np = pin + val;
         setPin(np);
@@ -1165,15 +1179,6 @@ function LoginScreen({ onLogin, teams }) {
             else { setError('Falscher PIN'); setTimeout(() => { setPin(''); setError(''); }, 1000); }
         }
     };
-    // Tastatur-Support
-    useEffect(() => {
-        const onKey = (e) => {
-            if (e.key >= '0' && e.key <= '9') handleAction(e.key);
-            else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Escape') handleAction('C');
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [pin]);
     return (
         <div style={{minHeight:'100vh',background:'#030712',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
             <div style={{width:'100%',maxWidth:340,textAlign:'center'}}>
@@ -1188,7 +1193,6 @@ function LoginScreen({ onLogin, teams }) {
                         {[0,1,2,3].map(i=><div key={i} style={{width:16,height:16,borderRadius:'50%',border:`2px solid ${pin.length>i?'#6366f1':'#1e293b'}`,background:pin.length>i?'#6366f1':'transparent',transition:'all 0.2s',transform:pin.length>i?'scale(1.2)':'scale(1)'}}></div>)}
                     </div>
                     {error&&<p style={{color:'#ef4444',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{error}</p>}
-                    <p style={{color:'#334155',fontSize:9,fontWeight:600,marginTop:8}}>⌨️ PIN auch per Tastatur eingebbar</p>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
                     {[1,2,3,4,5,6,7,8,9,'C',0].map(n=>(<button key={n} onClick={()=>handleAction(n)} style={{height:64,borderRadius:16,fontSize:20,fontWeight:700,border:'none',cursor:'pointer',transition:'all 0.1s',display:'flex',alignItems:'center',justifyContent:'center',background:n==='C'?'#1e293b':'#0f172a',color:n==='C'?'#94a3b8':'#fff',border:n==='C'?'1px solid #334155':'1px solid #1e293b'}} onMouseDown={e=>e.currentTarget.style.transform='scale(0.9)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>{n}</button>))}
@@ -1839,7 +1843,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
 
     const triggerWeekPDF=()=>{setTimeout(()=>{const el=document.getElementById('cal-week-pdf-content');if(!el)return;html2pdf().set({margin:5,filename:`Kalender_KW${getWeekNumber(calWeek)}_${team.name}.pdf`,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false},jsPDF:{unit:'mm',format:'a3',orientation:'landscape'}}).from(el).save();},200);};
 
-    const pasteCopyToDay=async(dayStr)=>{if(!copyEntry)return;const{db,doc,setDoc}=window.FirebaseSDK;const id=`cal-${genId()}`;await setDoc(doc(db,`teams_cal_${team.id}`,id),{...copyEntry,id,deliveryDate:dayStr,endDate:null,isMultiDay:false,createdAt:new Date().toISOString(),isDone:false,isBilled:false});setCopyEntry(null);};
+    const pasteCopyToDay=async(dayStr)=>{if(!copyEntry)return;const{db,doc,setDoc}=window.FirebaseSDK;const id=`cal-${genId()}`;await setDoc(doc(db,`teams_cal_${team.id}`,id),{...copyEntry,id,deliveryDate:dayStr,endDate:null,isMultiDay:false,createdAt:new Date().toISOString(),isDone:false,isBilled:false,monteurBilled:false,monteurBilledAt:null,doneAt:null,billedAt:null,isBlocked:false,blockReason:'',blockImages:[],blockedAt:null});setCopyEntry(null);};
     const insertStandbyItem=async(item,startDateStr,endDateStr)=>{const{db,doc,setDoc}=window.FirebaseSDK;const isMultiDay=endDateStr>startDateStr;const id=`cal-${genId()}`;await setDoc(doc(db,`teams_cal_${team.id}`,id),{id,entryType:'LIEFERUNG',customer:item.customer,address:item.address,memo:item.memo,auftragsNr:item.auftragsNr,target:item.target||0,deliveryDate:startDateStr,endDate:isMultiDay?endDateStr:null,isMultiDay,images:[],image:null,calType:activeCalType,createdAt:new Date().toISOString(),isDone:false,isBilled:false,fromStandby:item.id,isProv:false,customStartLabel:''});setStandbyDateModal(null);setShowStandbyPicker(null);};
 
     const defaultNewDate=toLocalDateStr(days[0]);
@@ -2046,10 +2050,8 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                                 {!isAdminAccess&&canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.2)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,color:'#f97316'}}>🚧 {e.isBlocked?'Blockiert':'Block'}</button>}
                                                 {canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.2)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.35)'}`,color:'#10b981'}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setEditCalEntry({...e});}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>✏️ Bearbeiten</button>}
-                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setCrossCopyEntry({...e});}} style={{background:'rgba(99,102,241,0.18)',border:'1px solid rgba(99,102,241,0.45)',color:'#a5b4fc',flex:'0 0 auto',fontWeight:900}}>⧉ Senden</button>}
-                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setMoveEntry({...e});}} style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.4)',color:'#f59e0b',flex:'0 0 auto'}}>↕ Verschieben</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>📄{imgs.length>0?` ${imgs.length}`:''}</button>}
-                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();if(confirm(`"${e.customer}" löschen?`))deleteCalEntry(e.id);}} style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.3)',color:'#ef4444',flex:'0 0 auto'}}>✕ Löschen</button>}
+                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();if(confirm(`"${e.customer}" löschen?`))deleteCalEntry(e.id);}} style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.3)',color:'#ef4444',flex:'0 0 auto'}}>✕</button>}
                                             </div>
                                         </div>
                                     );

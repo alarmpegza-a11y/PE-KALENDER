@@ -33,22 +33,6 @@
       } catch(e) {
         window.FirebaseReady = false;
       }
-      // ── URIMS APP — zweites Firebase-Projekt ──
-      try {
-        const urimConfig = {
-          apiKey: "AIzaSyD25cVhiguQKP4PTD8evGI4CxSh7rglbBs",
-          authDomain: "montage-pe-a5f79.firebaseapp.com",
-          projectId: "montage-pe-a5f79",
-          storageBucket: "montage-pe-a5f79.firebasestorage.app",
-          messagingSenderId: "588324363042",
-          appId: "1:588324363042:web:c544a07261f62de427237b"
-        };
-        const urimApp = firebase.initializeApp(urimConfig, 'urim-app');
-        window._urimDb = urimApp.firestore();
-        window.UrimFirebaseReady = true;
-      } catch(e2) {
-        window.UrimFirebaseReady = false;
-      }
       (function() {
         if (window.FirebaseReady && window._db) {
           const db = window._db;
@@ -637,7 +621,7 @@ function BlockModal({ entry, team, onClose }) {
                 <div style={{color:'#78350f',fontSize:10,fontWeight:700}}>{entry.address}</div>
             </div>
 
-            {/* Body */}
+            {/* Body — scrollbar */}
             <div style={{flex:1,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:14}}>
                 {/* Grund */}
                 <div>
@@ -1169,7 +1153,8 @@ function LoginScreen({ onLogin, teams }) {
     const [error, setError] = useState('');
     const isFirebase = window.FirebaseReady;
     const handleAction = (val) => {
-        if (val === 'C') { setPin(''); return; }
+        if (val === 'C' || val === 'Backspace' || val === 'Delete' || val === 'Escape') { setPin(''); return; }
+        if (String(val).match(/[^0-9]/)) return;
         if (pin.length >= 4) return;
         const np = pin + val;
         setPin(np);
@@ -1180,6 +1165,15 @@ function LoginScreen({ onLogin, teams }) {
             else { setError('Falscher PIN'); setTimeout(() => { setPin(''); setError(''); }, 1000); }
         }
     };
+    // Tastatur-Support
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key >= '0' && e.key <= '9') handleAction(e.key);
+            else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Escape') handleAction('C');
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [pin]);
     return (
         <div style={{minHeight:'100vh',background:'#030712',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
             <div style={{width:'100%',maxWidth:340,textAlign:'center'}}>
@@ -1194,6 +1188,7 @@ function LoginScreen({ onLogin, teams }) {
                         {[0,1,2,3].map(i=><div key={i} style={{width:16,height:16,borderRadius:'50%',border:`2px solid ${pin.length>i?'#6366f1':'#1e293b'}`,background:pin.length>i?'#6366f1':'transparent',transition:'all 0.2s',transform:pin.length>i?'scale(1.2)':'scale(1)'}}></div>)}
                     </div>
                     {error&&<p style={{color:'#ef4444',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{error}</p>}
+                    <p style={{color:'#334155',fontSize:9,fontWeight:600,marginTop:8}}>⌨️ PIN auch per Tastatur eingebbar</p>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
                     {[1,2,3,4,5,6,7,8,9,'C',0].map(n=>(<button key={n} onClick={()=>handleAction(n)} style={{height:64,borderRadius:16,fontSize:20,fontWeight:700,border:'none',cursor:'pointer',transition:'all 0.1s',display:'flex',alignItems:'center',justifyContent:'center',background:n==='C'?'#1e293b':'#0f172a',color:n==='C'?'#94a3b8':'#fff',border:n==='C'?'1px solid #334155':'1px solid #1e293b'}} onMouseDown={e=>e.currentTarget.style.transform='scale(0.9)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>{n}</button>))}
@@ -1512,67 +1507,10 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
         if(!selectedTeam) return;
         setSaving(true);
         try {
-            // ── AN URIMS APP SENDEN ──
-            if(selectedTeam.id === '__urim__') {
-                if(!window._urimDb) throw new Error('Verbindung zu Urims App nicht verfügbar.');
-                const urimDb = window._urimDb;
-                const id = `cal-${genId()}`;
-                const isMultiDay = !!(selectedEndDate && selectedEndDate > selectedDate);
-                const urimAppId = 'montage-pe-a5f79';
-                // In Urims calentries-Format schreiben
-                await urimDb.collection(`artifacts/${urimAppId}/public/data/calentries`).doc(id).set({
-                    id,
-                    entryType: entry.entryType || 'LIEFERUNG',
-                    customer: entry.customer || '',
-                    address: entry.address || '',
-                    memo: entry.memo || '',
-                    auftragsNr: entry.auftragsNr || '',
-                    target: parseInt(entry.target) || 0,
-                    deliveryDate: selectedDate,
-                    endDate: isMultiDay ? selectedEndDate : selectedDate,
-                    calType: selectedCalType,
-                    image: null,
-                    colorOverride: null,
-                    createdAt: new Date().toISOString(),
-                    fromPeMontage: true, // Markierung: kommt von PE-MONTAGE
-                    fromTeam: currentTeam.name,
-                });
-                // Auch in Urims objects (Dashboard) anlegen
-                const objId = `obj-${id}`;
-                await urimDb.collection(`artifacts/${urimAppId}/public/data/objects`).doc(objId).set({
-                    id: objId,
-                    calEntryId: id,
-                    name: entry.address || entry.customer,
-                    customer: entry.customer || '',
-                    address: entry.address || '',
-                    houseInfo: entry.memo || 'Gesamtmontage',
-                    memo: entry.memo || '',
-                    auftragsNr: entry.auftragsNr || '',
-                    target: parseInt(entry.target) || 1,
-                    current: 0,
-                    lastRemaining: null,
-                    blockReason: null,
-                    deliveryDate: selectedDate,
-                    status: 'active',
-                    history: [],
-                    fromPeMontage: true,
-                    fromTeam: currentTeam.name,
-                });
-                // Original löschen falls Verschieben
-                if(!keepOriginal) {
-                    const { db, doc, deleteDoc } = window.FirebaseSDK;
-                    await deleteDoc(doc(db, `teams_cal_${currentTeam.id}`, entry.id));
-                }
-                setDone(true);
-                setTimeout(() => { onCopied('Urims App', selectedCalType, keepOriginal); }, 800);
-                setSaving(false);
-                return;
-            }
-
-            // ── NORMALE GRUPPE INNERHALB PE-MONTAGE ──
             const { db, doc, setDoc, deleteDoc } = window.FirebaseSDK;
             const id = `cal-${genId()}`;
             const isMultiDay = !!(selectedEndDate && selectedEndDate > selectedDate);
+            // Neuen Eintrag bei Ziel-Gruppe erstellen — immer frisch (kein Block, kein Erledigt)
             await setDoc(doc(db, `teams_cal_${selectedTeam.id}`, id), {
                 ...entry,
                 id,
@@ -1592,6 +1530,7 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
                 createdAt: new Date().toISOString(),
                 calType: selectedCalType,
             });
+            // Standard = verschieben → Original bei Monteur A löschen
             if(!keepOriginal) {
                 await deleteDoc(doc(db, `teams_cal_${currentTeam.id}`, entry.id));
             }
@@ -1606,18 +1545,12 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
     if(done) return (
         <div className="cross-copy-overlay" style={{alignItems:'center',justifyContent:'center',padding:32}}>
             <div style={{textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
-                <div style={{width:72,height:72,background:selectedTeam?.id==='__urim__'?'rgba(245,158,11,0.2)':keepOriginal?'rgba(16,185,129,0.2)':'rgba(37,99,235,0.2)',border:`2px solid ${selectedTeam?.id==='__urim__'?'#f59e0b':keepOriginal?'#10b981':'#3b82f6'}`,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36}}>
-                    {selectedTeam?.id==='__urim__'?'🟡':keepOriginal?'🔗':'✂️'}
+                <div style={{width:72,height:72,background:keepOriginal?'rgba(16,185,129,0.2)':'rgba(37,99,235,0.2)',border:`2px solid ${keepOriginal?'#10b981':'#3b82f6'}`,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36}}>{keepOriginal?'🔗':'✂️'}</div>
+                <div style={{color:keepOriginal?'#10b981':'#60a5fa',fontSize:16,fontWeight:900,textAlign:'center'}}>
+                    {keepOriginal?`In beiden Gruppen vorhanden`:`Verschoben nach ${selectedTeam?.name}`}
                 </div>
-                <div style={{color:selectedTeam?.id==='__urim__'?'#f59e0b':keepOriginal?'#10b981':'#60a5fa',fontSize:16,fontWeight:900,textAlign:'center'}}>
-                    {selectedTeam?.id==='__urim__'
-                        ? `✓ Gesendet an Urims App`
-                        : keepOriginal?`In beiden Gruppen vorhanden`:`Verschoben nach ${selectedTeam?.name}`}
-                </div>
-                {selectedTeam?.id==='__urim__'&&<div style={{color:'#78350f',fontSize:11,fontWeight:700,background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:10,padding:'8px 16px',lineHeight:1.5}}>Der Auftrag erscheint jetzt in Urims<br/>Wochenkalender und Admin-Dashboard</div>}
                 <div style={{color:'#94a3b8',fontSize:11,fontWeight:700}}>{CAL_TYPE_OPTIONS.find(o=>o.key===selectedCalType)?.label} · {selectedTeam?.name}</div>
-                {!keepOriginal&&selectedTeam?.id!=='__urim__'&&<div style={{color:'#475569',fontSize:10}}>Bei {currentTeam.name} entfernt</div>}
-                {!keepOriginal&&selectedTeam?.id==='__urim__'&&<div style={{color:'#475569',fontSize:10}}>Bei {currentTeam.name} entfernt</div>}
+                {!keepOriginal&&<div style={{color:'#475569',fontSize:10}}>Bei {currentTeam.name} entfernt</div>}
             </div>
         </div>
     );
@@ -1667,7 +1600,7 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
                 <div>
                     <div style={{color:'#60a5fa',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:10}}>1. Ziel-Gruppe wählen</div>
                     <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                {otherTeams.length === 0 && (
+                        {otherTeams.length === 0 && (
                             <div style={{color:'#475569',fontSize:12,padding:16,textAlign:'center'}}>Keine anderen Gruppen vorhanden.</div>
                         )}
                         {otherTeams.map(t => (
@@ -1682,23 +1615,6 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
                                 {selectedTeam?.id===t.id && <span style={{color:'#3b82f6',fontSize:16,fontWeight:900}}>✓</span>}
                             </div>
                         ))}
-                        {/* ── URIMS APP ── */}
-                        <div style={{marginTop:8,borderTop:'1px solid rgba(255,255,255,0.08)',paddingTop:10}}>
-                            <div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:8}}>🔗 Externe Apps</div>
-                            <div
-                                className={`cross-copy-team-btn${selectedTeam?.id==='__urim__'?' selected':''}`}
-                                onClick={()=>setSelectedTeam({id:'__urim__',name:'Urims App (Montage Manager)',color:'#f59e0b',calType:'montage'})}
-                                style={{border:`2px solid ${selectedTeam?.id==='__urim__'?'#f59e0b':'rgba(245,158,11,0.25)'}`,background:selectedTeam?.id==='__urim__'?'rgba(245,158,11,0.12)':'rgba(245,158,11,0.05)'}}>
-                                <div style={{width:36,height:36,borderRadius:10,background:'rgba(245,158,11,0.2)',border:'2px solid #f59e0b',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>🟡</div>
-                                <div style={{flex:1}}>
-                                    <div style={{color:'#f59e0b',fontSize:13,fontWeight:900}}>Urims App</div>
-                                    <div style={{color:'#78350f',fontSize:9,marginTop:1}}>Montage Manager Pro · Direkt in Kalender + Dashboard</div>
-                                    {!window.UrimFirebaseReady&&<div style={{color:'#ef4444',fontSize:8,fontWeight:900,marginTop:2}}>⚠ Verbindung nicht verfügbar</div>}
-                                    {window.UrimFirebaseReady&&<div style={{color:'#10b981',fontSize:8,fontWeight:700,marginTop:2}}>✓ Verbunden</div>}
-                                </div>
-                                {selectedTeam?.id==='__urim__' && <span style={{color:'#f59e0b',fontSize:16,fontWeight:900}}>✓</span>}
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -2130,8 +2046,10 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                                 {!isAdminAccess&&canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.2)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,color:'#f97316'}}>🚧 {e.isBlocked?'Blockiert':'Block'}</button>}
                                                 {canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.2)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.35)'}`,color:'#10b981'}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setEditCalEntry({...e});}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>✏️ Bearbeiten</button>}
+                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setCrossCopyEntry({...e});}} style={{background:'rgba(99,102,241,0.18)',border:'1px solid rgba(99,102,241,0.45)',color:'#a5b4fc',flex:'0 0 auto',fontWeight:900}}>⧉ Senden</button>}
+                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setMoveEntry({...e});}} style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.4)',color:'#f59e0b',flex:'0 0 auto'}}>↕ Verschieben</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>📄{imgs.length>0?` ${imgs.length}`:''}</button>}
-                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();if(confirm(`"${e.customer}" löschen?`))deleteCalEntry(e.id);}} style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.3)',color:'#ef4444',flex:'0 0 auto'}}>✕</button>}
+                                                {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();if(confirm(`"${e.customer}" löschen?`))deleteCalEntry(e.id);}} style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.3)',color:'#ef4444',flex:'0 0 auto'}}>✕ Löschen</button>}
                                             </div>
                                         </div>
                                     );

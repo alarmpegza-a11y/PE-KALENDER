@@ -11,6 +11,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -615,21 +616,6 @@ function BlockModal({ entry, team, onClose }) {
                         </div>
                     </div>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        {/* Toggle: In beiden behalten */}
-                        <button onClick={()=>setKeepOriginal(k=>!k)}
-                            title={keepOriginal ? 'Auftrag bleibt bei beiden Gruppen' : 'Auftrag wird verschoben (Standard)'}
-                            style={{
-                                display:'flex',alignItems:'center',gap:6,
-                                background:keepOriginal?'rgba(16,185,129,0.15)':'rgba(255,255,255,0.06)',
-                                border:`1.5px solid ${keepOriginal?'#10b981':'rgba(255,255,255,0.12)'}`,
-                                borderRadius:10,padding:'6px 12px',cursor:'pointer',
-                                color:keepOriginal?'#10b981':'#64748b',
-                                fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,
-                                transition:'all 0.2s',whiteSpace:'nowrap'
-                            }}>
-                            <span style={{fontSize:12}}>{keepOriginal?'🔗':'✂️'}</span>
-                            {keepOriginal?'In beiden behalten':'Verschieben'}
-                        </button>
                         <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                     </div>
                 </div>
@@ -1372,6 +1358,48 @@ function BillingModal({ teams, onClose }) {
     const pdfEntries=currentTeamDone.filter(e=>selectedIds.size===0||selectedIds.has(e.id));
     const today=new Date().toLocaleDateString('de-DE');
 
+    // EXCEL EXPORT — ALLE GRUPPEN AUF EINMAL
+    const exportAllExcel=()=>{
+        if(!window.XLSX){alert('Excel-Bibliothek nicht geladen. Seite neu laden und erneut versuchen.');return;}
+        const exportEntries=allEntries.filter(e=>e.isDone||e.isBilled);
+        if(exportEntries.length===0){alert('Keine erledigten Aufträge zum Exportieren.');return;}
+        const statusText=(e)=>e.isBilled?'Abgerechnet':'Offen';
+        const rowFor=(e,withGroup)=>{
+            const r={};
+            if(withGroup) r['Gruppe']=e.teamName||'';
+            r['Datum']=formatDate(e.deliveryDate)||'';
+            r['Kunde']=e.customer||'';
+            r['Auftragsnr.']=cleanAuftragsNr(e.auftragsNr)||'';
+            r['Adresse']=e.address||'';
+            r['Memo']=e.memo||'';
+            r['Status']=statusText(e);
+            return r;
+        };
+        const wb=window.XLSX.utils.book_new();
+        // Sheet 1: ALLE Gruppen kombiniert
+        const allSorted=[...exportEntries].sort((a,b)=>(a.teamName||'').localeCompare(b.teamName||'')||(a.deliveryDate||'').localeCompare(b.deliveryDate||''));
+        const allRows=allSorted.map(e=>rowFor(e,true));
+        const wsAll=window.XLSX.utils.json_to_sheet(allRows,{header:['Gruppe','Datum','Kunde','Auftragsnr.','Adresse','Memo','Status']});
+        wsAll['!cols']=[{wch:16},{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13}];
+        window.XLSX.utils.book_append_sheet(wb,wsAll,'Alle Gruppen');
+        // Pro Gruppe ein eigenes Tabellenblatt
+        const usedNames={};
+        teams.forEach(t=>{
+            const teamRows=exportEntries.filter(e=>e.teamId===t.id)
+                .sort((a,b)=>(a.deliveryDate||'').localeCompare(b.deliveryDate||''))
+                .map(e=>rowFor(e,false));
+            if(teamRows.length===0) return;
+            // Excel-Tabellenblattname: max 31 Zeichen, keine Sonderzeichen, eindeutig
+            let name=(t.name||'Gruppe').replace(/[\\/?*\[\]:]/g,' ').trim().slice(0,28)||'Gruppe';
+            if(usedNames[name]){usedNames[name]++;name=`${name} ${usedNames[name]}`.slice(0,31);}else{usedNames[name]=1;}
+            const ws=window.XLSX.utils.json_to_sheet(teamRows,{header:['Datum','Kunde','Auftragsnr.','Adresse','Memo','Status']});
+            ws['!cols']=[{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13}];
+            window.XLSX.utils.book_append_sheet(wb,ws,name);
+        });
+        const fname=`Abrechnung_Alle_Gruppen_${today.replace(/\./g,'-')}.xlsx`;
+        window.XLSX.writeFile(wb,fname);
+    };
+
     return (
         <div style={{position:'fixed',inset:0,zIndex:80,background:'rgba(10,15,30,0.97)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
             <div style={{position:'absolute',left:'-9999px',top:0}}>
@@ -1406,7 +1434,10 @@ function BillingModal({ teams, onClose }) {
                                 </div>
                             </div>
                         </div>
-                        <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:36,height:36,cursor:'pointer',color:'#94a3b8',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <button onClick={exportAllExcel} title="Alle Gruppen auf einmal als Excel exportieren" style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.35)',borderRadius:8,padding:'9px 14px',color:'#10b981',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,cursor:'pointer',display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap'}}><Icon name="download" size={13}/>📊 Excel (Alle Gruppen)</button>
+                            <button onClick={onClose} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,width:36,height:36,cursor:'pointer',color:'#94a3b8',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                        </div>
                     </div>
                     <div className="billing-team-tabs" style={{borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
                         {teams.map(t=>{

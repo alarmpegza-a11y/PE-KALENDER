@@ -75,6 +75,28 @@
           window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot };
         }
       })();
+
+      // ── PE-MONTAGE (Urim) — zweites Firebase-Projekt zum Senden ──
+      try {
+        const montagePeConfig = {
+          apiKey: "AIzaSyD25cVhiguQKP4PTD8evGI4CxSh7rglbBs",
+          authDomain: "montage-pe-a5f79.firebaseapp.com",
+          projectId: "montage-pe-a5f79",
+          storageBucket: "montage-pe-a5f79.firebasestorage.app",
+          messagingSenderId: "588324363042",
+          appId: "1:588324363042:web:c544a07261f62de427237b"
+        };
+        const montageApp = firebase.initializeApp(montagePeConfig, 'montage-pe');
+        window._montageDb = montageApp.firestore();
+        window.MontagePeReady = true;
+        window.MontagePeSDK = {
+          appId: 'montage-pe-a5f79',
+          calDoc: function(id) { return window._montageDb.collection('artifacts').doc('montage-pe-a5f79').collection('public').doc('data').collection('calentries').doc(id); },
+          objDoc: function(id) { return window._montageDb.collection('artifacts').doc('montage-pe-a5f79').collection('public').doc('data').collection('objects').doc(id); },
+        };
+      } catch(e) {
+        window.MontagePeReady = false;
+      }
     </script>
 
     <style>
@@ -1529,6 +1551,9 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
     ];
 
     const otherTeams = teams.filter(t => t.id !== currentTeam.id);
+    // Synthetisches Ziel: Urim = PE-Montage App (montage-pe-a5f79), kein PE-Kalender-Team
+    const URIM_TARGET = { id:'__montage_urim__', name:'Urim', color:'#06b6d4', calType:'montage,beplankung,ausflocken', isMontage:true };
+    const targetList = [...otherTeams, URIM_TARGET];
 
     const handleSelectTeam = (t) => {
         setSelectedTeam(t);
@@ -1543,8 +1568,49 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
         setSaving(true);
         try {
             const { db, doc, setDoc, deleteDoc } = window.FirebaseSDK;
-            const id = `cal-${genId()}`;
             const isMultiDay = !!(selectedEndDate && selectedEndDate > selectedDate);
+
+            if (selectedTeam.isMontage) {
+                // ── Ziel = PE-Montage App (Urim) ──
+                if (!window.MontagePeReady || !window.MontagePeSDK) {
+                    throw new Error('PE-Montage App (Urim) nicht erreichbar. Internetverbindung prüfen.');
+                }
+                const calId = `cal-${genId()}`;
+                const objId = `obj-${calId}`;
+                const endDateVal = isMultiDay ? selectedEndDate : selectedDate;
+                const eleMatch = (entry.memo || '').match(/(\d+)\s*ELE/i);
+                const targetVal = eleMatch ? parseInt(eleMatch[1]) : (parseInt(entry.target) || 1);
+                // 1. calentries — erscheint in Urims Wochenkalender
+                await window.MontagePeSDK.calDoc(calId).set({
+                    id: calId, createdAt: new Date().toISOString(),
+                    entryType: entry.entryType || 'LIEFERUNG',
+                    customer: entry.customer || '', address: entry.address || '',
+                    memo: entry.memo || '', auftragsNr: entry.auftragsNr || '',
+                    target: parseInt(entry.target) || 0, image: null,
+                    deliveryDate: selectedDate, endDate: endDateVal,
+                    calType: selectedCalType, colorOverride: null, fromPeKalender: true,
+                });
+                // 2. objects — erscheint in Urims Admin-Dashboard
+                await window.MontagePeSDK.objDoc(objId).set({
+                    id: objId, calEntryId: calId,
+                    name: entry.address || entry.customer || '',
+                    customer: entry.customer || '', address: entry.address || '',
+                    houseInfo: entry.memo || 'Gesamtmontage', memo: entry.memo || '',
+                    auftragsNr: entry.auftragsNr || '', target: targetVal, current: 0,
+                    lastRemaining: null, blockReason: null,
+                    deliveryDate: selectedDate, status: 'active', history: [],
+                });
+                // 3. Standard = verschieben → Original in PE-Kalender löschen
+                if(!keepOriginal) {
+                    await deleteDoc(doc(db, `teams_cal_${currentTeam.id}`, entry.id));
+                }
+                setDone(true);
+                setTimeout(() => { onCopied(selectedTeam.name, selectedCalType, keepOriginal); }, 800);
+                setSaving(false);
+                return;
+            }
+
+            const id = `cal-${genId()}`;
             // Neuen Eintrag bei Ziel-Gruppe erstellen — immer frisch (kein Block, kein Erledigt)
             await setDoc(doc(db, `teams_cal_${selectedTeam.id}`, id), {
                 ...entry,
@@ -1635,19 +1701,23 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
                 <div>
                     <div style={{color:'#60a5fa',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:10}}>1. Ziel-Gruppe wählen</div>
                     <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                        {otherTeams.length === 0 && (
-                            <div style={{color:'#475569',fontSize:12,padding:16,textAlign:'center'}}>Keine anderen Gruppen vorhanden.</div>
+                        {targetList.length === 0 && (
+                            <div style={{color:'#475569',fontSize:12,padding:16,textAlign:'center'}}>Keine Ziele vorhanden.</div>
                         )}
-                        {otherTeams.map(t => (
+                        {targetList.map(t => (
                             <div key={t.id}
                                 className={`cross-copy-team-btn${selectedTeam?.id===t.id?' selected':''}`}
-                                onClick={()=>handleSelectTeam(t)}>
+                                onClick={()=>handleSelectTeam(t)}
+                                style={t.isMontage?{borderColor:selectedTeam?.id===t.id?'#06b6d4':'rgba(6,182,212,0.35)',background:selectedTeam?.id===t.id?'rgba(6,182,212,0.12)':'rgba(6,182,212,0.05)'}:undefined}>
                                 <div style={{width:14,height:14,borderRadius:'50%',background:t.color||'#3b82f6',flexShrink:0}}></div>
                                 <div style={{flex:1}}>
-                                    <div style={{color:'#fff',fontSize:13,fontWeight:900}}>{t.name}</div>
-                                    <div style={{color:'#475569',fontSize:9,marginTop:1}}>{parseCalTypes(t.calType).join(' · ').toUpperCase()}</div>
+                                    <div style={{color:'#fff',fontSize:13,fontWeight:900,display:'flex',alignItems:'center',gap:6}}>
+                                        {t.name}
+                                        {t.isMontage && <span style={{background:'#06b6d4',color:'#003',fontSize:7,fontWeight:900,padding:'1px 6px',borderRadius:4,textTransform:'uppercase',letterSpacing:0.5}}>📲 PE-Montage App</span>}
+                                    </div>
+                                    <div style={{color:'#475569',fontSize:9,marginTop:1}}>{t.isMontage?'EXTERNE APP · MONTAGE · BEPLANKUNG · AUSFLOCKEN':parseCalTypes(t.calType).join(' · ').toUpperCase()}</div>
                                 </div>
-                                {selectedTeam?.id===t.id && <span style={{color:'#3b82f6',fontSize:16,fontWeight:900}}>✓</span>}
+                                {selectedTeam?.id===t.id && <span style={{color:t.isMontage?'#06b6d4':'#3b82f6',fontSize:16,fontWeight:900}}>✓</span>}
                             </div>
                         ))}
                     </div>

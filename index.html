@@ -1841,6 +1841,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     const [showMonteurBilling, setShowMonteurBilling] = useState(false);
     const [blockEntry, setBlockEntry] = useState(null);
     const [crossCopyEntry, setCrossCopyEntry] = useState(null);
+    const [lastDeleted, setLastDeleted] = useState(null); // gemerkter, zuletzt gelöschter Auftrag für Undo
 
     // ── FERIEN / ABWESENHEITEN DER MONTEURE ──
     const [monteurs, setMonteurs] = useState([]);
@@ -1944,7 +1945,8 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     const colorIndex = useMemo(()=>{const map={};let ci=0;filteredEntries.forEach(e=>{if(!e.isProv){if(!(e.id in map)){map[e.id]=ci%CARD_COLORS.length;ci++;}}else{map[e.id]=-1;}});return map;},[filteredEntries]);
     const entriesForDay=useCallback((dayStr)=>filteredEntries.filter(e=>{if(e.isMultiDay&&e.endDate)return dayStr>=e.deliveryDate.substring(0,10)&&dayStr<=e.endDate.substring(0,10);return e.deliveryDate&&e.deliveryDate.substring(0,10)===dayStr;}),[filteredEntries]);
 
-    const deleteCalEntry=async(id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,`teams_cal_${team.id}`,id));};
+    const deleteCalEntry=async(id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;const entry=calEntries.find(x=>x.id===id);if(entry)setLastDeleted(entry);await deleteDoc(doc(db,`teams_cal_${team.id}`,id));};
+    const undoDelete=async()=>{if(!lastDeleted)return;const{db,doc,setDoc}=window.FirebaseSDK;await setDoc(doc(db,`teams_cal_${team.id}`,lastDeleted.id),lastDeleted);setLastDeleted(null);};
     const toggleDone=async(entry)=>{const{db,doc,updateDoc}=window.FirebaseSDK;await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{isDone:!entry.isDone,doneAt:!entry.isDone?new Date().toISOString():null});};
     const executeMoveEntry=async(entry,newStartDateStr)=>{const{db,doc,updateDoc}=window.FirebaseSDK;const oldStart=(entry.deliveryDate||'').substring(0,10),oldEnd=(entry.endDate||'').substring(0,10)||oldStart;const duration=daysBetween(oldStart,oldEnd)-1;const newEnd=duration>0?addDaysToStr(newStartDateStr,duration):null;const isMultiDay=!!(newEnd&&newEnd>newStartDateStr);await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{deliveryDate:newStartDateStr,endDate:newEnd||null,isMultiDay});setMoveEntry(null);};
 
@@ -2400,6 +2402,19 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* ── UNDO: zuletzt gelöschten Auftrag wiederherstellen ── */}
+            {isAdminAccess && lastDeleted && (
+                <div style={{position:'fixed',left:'50%',bottom:24,transform:'translateX(-50%)',zIndex:500,background:'#1e293b',border:'1px solid rgba(255,255,255,0.15)',borderRadius:14,boxShadow:'0 12px 40px rgba(0,0,0,0.5)',padding:'12px 14px 12px 16px',display:'flex',alignItems:'center',gap:14,maxWidth:'92vw'}}>
+                    <span style={{fontSize:20,flexShrink:0}}>🗑</span>
+                    <div style={{minWidth:0}}>
+                        <div style={{color:'#94a3b8',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Gelöscht</div>
+                        <div style={{color:'#fff',fontSize:12,fontWeight:900,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:220}}>{lastDeleted.customer||lastDeleted.address||'Auftrag'}</div>
+                    </div>
+                    <button onClick={undoDelete} style={{background:'#3b82f6',border:'none',borderRadius:10,padding:'9px 16px',color:'#fff',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:0.5,cursor:'pointer',display:'flex',alignItems:'center',gap:6,flexShrink:0}}>↩ Rückgängig</button>
+                    <button onClick={()=>setLastDeleted(null)} title="Schließen" style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:8,width:30,height:30,cursor:'pointer',color:'#94a3b8',fontSize:14,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
                 </div>
             )}
         </div>

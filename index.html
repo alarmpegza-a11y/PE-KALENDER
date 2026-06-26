@@ -1868,13 +1868,13 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;const unsub=onSnapshot(collection(db,`teams_cal_${team.id}`),snap=>{setCalEntries(snap.docs.map(d=>({id:d.id,...d.data()})));});return unsub;},[team.id]);
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'standby_items'),snap=>{setStandbyItems(snap.docs.map(d=>({id:d.id,...d.data()})));});},[]);
     // ── Ferien & Monteure live laden ──
-    useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'monteurs'),snap=>{setMonteurs(snap.docs.map(d=>({id:d.id,...d.data()})));});},[]);
-    useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'ferien'),snap=>{setFerien(snap.docs.map(d=>({id:d.id,...d.data()})));});},[]);
+    useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,`monteurs_${team.id}_${activeCalType}`),snap=>{setMonteurs(snap.docs.map(d=>({id:d.id,...d.data()})));});},[team.id,activeCalType]);
+    useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,`ferien_${team.id}_${activeCalType}`),snap=>{setFerien(snap.docs.map(d=>({id:d.id,...d.data()})));});},[team.id,activeCalType]);
     const ferienAmTag = (dayStr)=>ferien.filter(f=>{const s=(f.start||'').substring(0,10);const e=(f.end||f.start||'').substring(0,10);return s&&dayStr>=s&&dayStr<=e;});
-    const addMonteur = async (name)=>{const n=(name||'').trim();if(!n)return;if(monteurs.some(m=>(m.name||'').toLowerCase()===n.toLowerCase())){setNewMonteurName('');return;}const{db,doc,setDoc}=window.FirebaseSDK;const id=`mon-${genId()}`;await setDoc(doc(db,'monteurs',id),{id,name:n,createdAt:new Date().toISOString()});setNewMonteurName('');};
-    const deleteMonteur = async (id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,'monteurs',id));};
-    const saveFerien = async ()=>{const{monteurName,start,end}=ferienForm;if(!monteurName.trim()||!start)return;const{db,doc,setDoc}=window.FirebaseSDK;const id=`fer-${genId()}`;await setDoc(doc(db,'ferien',id),{id,monteurName:monteurName.trim(),start,end:end||start,createdAt:new Date().toISOString()});setFerienForm({monteurName:'',start:'',end:''});};
-    const deleteFerien = async (id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,'ferien',id));};
+    const addMonteur = async (name)=>{const n=(name||'').trim();if(!n)return;if(monteurs.some(m=>(m.name||'').toLowerCase()===n.toLowerCase())){setNewMonteurName('');return;}const{db,doc,setDoc}=window.FirebaseSDK;const id=`mon-${genId()}`;await setDoc(doc(db,`monteurs_${team.id}_${activeCalType}`,id),{id,name:n,createdAt:new Date().toISOString()});setNewMonteurName('');};
+    const deleteMonteur = async (id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,`monteurs_${team.id}_${activeCalType}`,id));};
+    const saveFerien = async ()=>{const{monteurName,start,end}=ferienForm;if(!monteurName.trim()||!start)return;const{db,doc,setDoc}=window.FirebaseSDK;const id=`fer-${genId()}`;await setDoc(doc(db,`ferien_${team.id}_${activeCalType}`,id),{id,monteurName:monteurName.trim(),start,end:end||start,createdAt:new Date().toISOString()});setFerienForm({monteurName:'',start:'',end:''});};
+    const deleteFerien = async (id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,`ferien_${team.id}_${activeCalType}`,id));};
     // Robust scroll-to: retries until element appears (waits for calType tab switch + data load)
     useEffect(()=>{
         if(!highlightId) return;
@@ -2112,7 +2112,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                 {/* ── FERIEN (mobil) ── */}
                 <div style={{background:'#78350f',borderRadius:10,padding:'8px 12px',marginBottom:10}}>
                     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
-                        <span style={{fontSize:9,fontWeight:900,color:'#fde68a',textTransform:'uppercase'}}>🏖 Ferien{monteurs.length>0?` · ${monteurs.length} im Team`:''}</span>
+                        <span style={{fontSize:9,fontWeight:900,color:'#fde68a',textTransform:'uppercase'}}>🏖 Ferien · {team.name} · {currentCalConfig.label}{monteurs.length>0?` · ${monteurs.length} Monteure`:''}</span>
                         {isAdminAccess && <button onClick={()=>setShowFerienModal(true)} style={{background:'#f59e0b',border:'none',borderRadius:6,padding:'4px 10px',color:'#1e293b',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>＋ Eintragen</button>}
                     </div>
                     {(()=>{const wk=days.map(d=>toLocalDateStr(d));const start=wk[0],end=wk[5];const wkFer=ferien.filter(f=>{const s=(f.start||'').substring(0,10);const e=(f.end||f.start||'').substring(0,10);return s&&s<=end&&e>=start;}).sort((a,b)=>(a.start||'').localeCompare(b.start||''));return wkFer.length>0?(<div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:6}}>{wkFer.map(f=>(<span key={f.id} onClick={()=>{if(isAdminAccess&&confirm(`Ferien von "${f.monteurName}" löschen?`))deleteFerien(f.id);}} style={{fontSize:9,fontWeight:800,background:'#fef3c7',color:'#92400e',borderRadius:4,padding:'2px 7px',cursor:isAdminAccess?'pointer':'default'}}>{f.monteurName} · {formatDate(f.start)}–{formatDate(f.end||f.start)}</span>))}</div>):null;})()}
@@ -2205,7 +2205,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                 <div style={{minWidth:760}}>
                     {/* ── FERIEN-LEISTE ── */}
                     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 12px',background:'#78350f'}}>
-                        <span style={{fontSize:9,fontWeight:900,color:'#fde68a',textTransform:'uppercase',letterSpacing:1}}>🏖 Ferien-Übersicht der Monteure{monteurs.length>0?` · ${monteurs.length} im Team`:''}</span>
+                        <span style={{fontSize:9,fontWeight:900,color:'#fde68a',textTransform:'uppercase',letterSpacing:1}}>🏖 Ferien · {team.name} · {currentCalConfig.label}{monteurs.length>0?` · ${monteurs.length} Monteure`:''}</span>
                         {isAdminAccess && <button onClick={()=>setShowFerienModal(true)} style={{background:'#f59e0b',border:'none',borderRadius:8,padding:'5px 12px',color:'#1e293b',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>＋ Ferien eintragen</button>}
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'2px solid #000',background:'#1e293b'}}>
@@ -2344,7 +2344,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                 <div onClick={()=>setShowFerienModal(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:400,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
                     <div onClick={e=>e.stopPropagation()} style={{background:'#1e293b',borderRadius:16,padding:24,width:'100%',maxWidth:400,border:'1px solid rgba(255,255,255,0.1)',maxHeight:'90vh',overflowY:'auto'}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                            <h3 style={{margin:0,color:'#fff',fontSize:15,fontWeight:900,textTransform:'uppercase'}}>🏖 Ferien eintragen</h3>
+                            <h3 style={{margin:0,color:'#fff',fontSize:15,fontWeight:900,textTransform:'uppercase'}}>🏖 Ferien · {team.name} · {currentCalConfig.label}</h3>
                             <button onClick={()=>setShowFerienModal(false)} style={{background:'rgba(255,255,255,0.08)',border:'none',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#94a3b8',fontSize:16}}>✕</button>
                         </div>
                         <label style={{display:'block',color:'#94a3b8',fontSize:9,fontWeight:900,textTransform:'uppercase',marginBottom:5}}>Monteur</label>

@@ -11,7 +11,7 @@
     <script src="https://unpkg.com/lucide@1.20.0"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -1387,32 +1387,36 @@ function BillingModal({ teams, onClose }) {
         if(exportEntries.length===0){alert('Keine erledigten Aufträge zum Exportieren.');return;}
         // Baut ein Tabellenblatt: OFFEN oben, klarer Trenner, ABGERECHNET unten
         const buildSheet=(entries,withGroup)=>{
-            const header=withGroup?['Gruppe','Datum','Kunde','Auftragsnr.','Adresse','Memo','Status']:['Datum','Kunde','Auftragsnr.','Adresse','Memo','Status'];
+            const header=withGroup?['Gruppe','Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen']:['Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen'];
             const ncols=header.length;
             const sorter=withGroup
                 ?(a,b)=>(a.teamName||'').localeCompare(b.teamName||'')||(a.deliveryDate||'').localeCompare(b.deliveryDate||'')
                 :(a,b)=>(a.deliveryDate||'').localeCompare(b.deliveryDate||'');
-            const toRow=(e)=>{const r=[];if(withGroup)r.push(e.teamName||'');r.push(formatDate(e.deliveryDate)||'',e.customer||'',cleanAuftragsNr(e.auftragsNr)||'',e.address||'',e.memo||'',e.isBilled?'Abgerechnet':'Offen');return r;};
+            const abrText=(e)=>{const p=[];if(e.fehlerIntern)p.push('Fehler intern');if(e.weiterVerrechnen)p.push('Weiter verrechnen');return p.join(' + ');};
+            const toRow=(e)=>{const r=[];if(withGroup)r.push(e.teamName||'');r.push(formatDate(e.deliveryDate)||'',e.customer||'',cleanAuftragsNr(e.auftragsNr)||'',e.address||'',e.memo||'',e.isBilled?'Abgerechnet':'Offen',abrText(e));return r;};
             const blank=()=>new Array(ncols).fill('');
             const banner=(txt)=>{const r=blank();r[0]=txt;return r;};
             const open=entries.filter(e=>!e.isBilled).sort(sorter);
             const billed=entries.filter(e=>e.isBilled).sort(sorter);
-            const aoa=[],merges=[];
+            const aoa=[],merges=[],redRows=[];
             // ── OFFEN ──
             merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:ncols-1}});aoa.push(banner(`🟡 OFFEN — NOCH NICHT ABGERECHNET   (${open.length})`));
             aoa.push(header.slice());
-            open.forEach(e=>aoa.push(toRow(e)));
+            open.forEach(e=>{const ri=aoa.length;aoa.push(toRow(e));if(e.fehlerIntern||e.weiterVerrechnen)redRows.push(ri);});
             if(open.length===0)aoa.push(banner('— keine offenen Aufträge —'));
             // ── Trenner ──
             aoa.push(blank());aoa.push(blank());
             // ── ABGERECHNET ──
             merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:ncols-1}});aoa.push(banner(`✅ ABGERECHNET   (${billed.length})`));
             aoa.push(header.slice());
-            billed.forEach(e=>aoa.push(toRow(e)));
+            billed.forEach(e=>{const ri=aoa.length;aoa.push(toRow(e));if(e.fehlerIntern||e.weiterVerrechnen)redRows.push(ri);});
             if(billed.length===0)aoa.push(banner('— keine abgerechneten Aufträge —'));
             const ws=window.XLSX.utils.aoa_to_sheet(aoa);
             ws['!merges']=merges;
-            ws['!cols']=withGroup?[{wch:16},{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13}]:[{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13}];
+            // "Abrechnen"-Zellen ROT darstellen (Fehler intern / Weiter verrechnen)
+            const abrCol=ncols-1;
+            redRows.forEach(ri=>{const ref=window.XLSX.utils.encode_cell({r:ri,c:abrCol});if(ws[ref])ws[ref].s={font:{bold:true,color:{rgb:'C00000'}},fill:{fgColor:{rgb:'FFE2E2'}},alignment:{horizontal:'center',vertical:'center'}};});
+            ws['!cols']=withGroup?[{wch:16},{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20}]:[{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20}];
             return ws;
         };
         const wb=window.XLSX.utils.book_new();
@@ -1954,7 +1958,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
         try{
             const{db,doc,updateDoc}=window.FirebaseSDK;
             const images = Array.isArray(entry.images) ? entry.images : (entry.image ? [entry.image] : []);
-            await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,deliveryDate:entry.deliveryDate,endDate:entry.endDate||null,isMultiDay:!!(entry.endDate&&entry.endDate>entry.deliveryDate),images, image: images[0]||null,calType:entry.calType||'montage',isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||''});
+            await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,deliveryDate:entry.deliveryDate,endDate:entry.endDate||null,isMultiDay:!!(entry.endDate&&entry.endDate>entry.deliveryDate),images, image: images[0]||null,calType:entry.calType||'montage',isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||'',fehlerIntern:!!entry.fehlerIntern,weiterVerrechnen:!!entry.weiterVerrechnen});
             setEditCalEntry(null);
         }catch(err){alert('Fehler: '+err.message);}
     };
@@ -1964,18 +1968,18 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
             const{db,doc,setDoc}=window.FirebaseSDK;const id=`cal-${genId()}`;
             const isMultiDay=!!(entry.endDate&&entry.endDate>entry.deliveryDate);
             const images = Array.isArray(entry.images) ? entry.images : [];
-            await setDoc(doc(db,`teams_cal_${team.id}`,id),{id,createdAt:new Date().toISOString(),isDone:false,isBilled:false,entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,images, image: images[0]||null,deliveryDate:entry.deliveryDate||'',endDate:entry.endDate||null,isMultiDay,calType:entry.calType||activeCalType,isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||''});
+            await setDoc(doc(db,`teams_cal_${team.id}`,id),{id,createdAt:new Date().toISOString(),isDone:false,isBilled:false,entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,images, image: images[0]||null,deliveryDate:entry.deliveryDate||'',endDate:entry.endDate||null,isMultiDay,calType:entry.calType||activeCalType,isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||'',fehlerIntern:!!entry.fehlerIntern,weiterVerrechnen:!!entry.weiterVerrechnen});
             setEditCalEntry(null);
         }catch(err){alert('Fehler: '+err.message);}
     };
 
     const triggerWeekPDF=()=>{setTimeout(()=>{const el=document.getElementById('cal-week-pdf-content');if(!el)return;html2pdf().set({margin:5,filename:`Kalender_KW${getWeekNumber(calWeek)}_${team.name}.pdf`,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false},jsPDF:{unit:'mm',format:'a3',orientation:'landscape'}}).from(el).save();},200);};
 
-    const pasteCopyToDay=async(dayStr)=>{if(!copyEntry)return;const{db,doc,setDoc}=window.FirebaseSDK;const id=`cal-${genId()}`;await setDoc(doc(db,`teams_cal_${team.id}`,id),{...copyEntry,id,deliveryDate:dayStr,endDate:null,isMultiDay:false,createdAt:new Date().toISOString(),isDone:false,isBilled:false,monteurBilled:false,monteurBilledAt:null,doneAt:null,billedAt:null,isBlocked:false,blockReason:'',blockImages:[],blockedAt:null});setCopyEntry(null);};
+    const pasteCopyToDay=async(dayStr)=>{if(!copyEntry)return;const{db,doc,setDoc}=window.FirebaseSDK;const id=`cal-${genId()}`;await setDoc(doc(db,`teams_cal_${team.id}`,id),{...copyEntry,id,deliveryDate:dayStr,endDate:null,isMultiDay:false,createdAt:new Date().toISOString(),isDone:false,isBilled:false,monteurBilled:false,monteurBilledAt:null,doneAt:null,billedAt:null,isBlocked:false,blockReason:'',blockImages:[],blockedAt:null,fehlerIntern:false,weiterVerrechnen:false});setCopyEntry(null);};
     const insertStandbyItem=async(item,startDateStr,endDateStr)=>{const{db,doc,setDoc}=window.FirebaseSDK;const isMultiDay=endDateStr>startDateStr;const id=`cal-${genId()}`;await setDoc(doc(db,`teams_cal_${team.id}`,id),{id,entryType:'LIEFERUNG',customer:item.customer,address:item.address,memo:item.memo,auftragsNr:item.auftragsNr,target:item.target||0,deliveryDate:startDateStr,endDate:isMultiDay?endDateStr:null,isMultiDay,images:[],image:null,calType:activeCalType,createdAt:new Date().toISOString(),isDone:false,isBilled:false,fromStandby:item.id,isProv:false,customStartLabel:''});setStandbyDateModal(null);setShowStandbyPicker(null);};
 
     const defaultNewDate=toLocalDateStr(days[0]);
-    const emptyEntry={isNew:true,customer:'',address:'',memo:'',auftragsNr:'',target:'',images:[],image:null,entryType:'LIEFERUNG',deliveryDate:defaultNewDate,endDate:'',calType:activeCalType,isProv:false,customStartLabel:''};
+    const emptyEntry={isNew:true,customer:'',address:'',memo:'',auftragsNr:'',target:'',images:[],image:null,entryType:'LIEFERUNG',deliveryDate:defaultNewDate,endDate:'',calType:activeCalType,isProv:false,customStartLabel:'',fehlerIntern:false,weiterVerrechnen:false};
 
     const getMultiDayPosition=(entry,dayStr)=>{if(!entry.isMultiDay||!entry.endDate)return'single';const start=entry.deliveryDate.substring(0,10),end=entry.endDate.substring(0,10);if(dayStr===start)return'start';if(dayStr===end)return'end';return'mid';};
 
@@ -2286,6 +2290,13 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                         <div><div style={{color:'#f59e0b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>📝 MEMO</div><input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#0f172a',border:'2px solid #f59e0b55',color:'#fde68a',fontSize:12,fontWeight:800,boxSizing:'border-box'}} placeholder="Wichtige Hausinfo..." value={editCalEntry.memo} onChange={e=>setEditCalEntry({...editCalEntry,memo:e.target.value})}/></div>
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Auftragsnr." value={editCalEntry.auftragsNr} onChange={e=>setEditCalEntry({...editCalEntry,auftragsNr:e.target.value})}/>
                         <input type="number" style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="ELE" value={editCalEntry.target||''} onChange={e=>setEditCalEntry({...editCalEntry,target:e.target.value})}/>
+                        <div>
+                            <div style={{color:'#f87171',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Abrechnen</div>
+                            <div style={{display:'flex',gap:8}}>
+                                <button type="button" onClick={()=>setEditCalEntry({...editCalEntry,fehlerIntern:!editCalEntry.fehlerIntern})} style={{flex:1,padding:'10px 8px',borderRadius:10,border:`1px solid ${editCalEntry.fehlerIntern?'#ef4444':'rgba(255,255,255,0.12)'}`,background:editCalEntry.fehlerIntern?'rgba(239,68,68,0.18)':'#1e293b',color:editCalEntry.fehlerIntern?'#fca5a5':'#94a3b8',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>{editCalEntry.fehlerIntern?'☑':'☐'} Fehler intern</button>
+                                <button type="button" onClick={()=>setEditCalEntry({...editCalEntry,weiterVerrechnen:!editCalEntry.weiterVerrechnen})} style={{flex:1,padding:'10px 8px',borderRadius:10,border:`1px solid ${editCalEntry.weiterVerrechnen?'#ef4444':'rgba(255,255,255,0.12)'}`,background:editCalEntry.weiterVerrechnen?'rgba(239,68,68,0.18)':'#1e293b',color:editCalEntry.weiterVerrechnen?'#fca5a5':'#94a3b8',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>{editCalEntry.weiterVerrechnen?'☑':'☐'} Weiter verrechnen</button>
+                            </div>
+                        </div>
                         <div><div style={{color:'#94a3b8',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>START-Badge Zusatztext</div><input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.15)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="z.B. HAUS WEST" value={editCalEntry.customStartLabel||''} onChange={e=>setEditCalEntry({...editCalEntry,customStartLabel:e.target.value.toUpperCase()})} maxLength={40}/></div>
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                             <div><div style={{color:'#64748b',fontSize:8,fontWeight:900,textTransform:'uppercase',marginBottom:4}}>Start-Datum</div><input type="date" style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} value={editCalEntry.deliveryDate?.substring(0,10)||''} onChange={e=>setEditCalEntry({...editCalEntry,deliveryDate:e.target.value})}/></div>

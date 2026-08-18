@@ -21,14 +21,20 @@
 
     <script>
       // ============================================================
-      // WEG A — SICHERHEITSPATCH (18.08.2026)
-      // Das frühere fest eingebaute Master-Passwort (PE_KALENDER_LOGIN)
-      // wurde entfernt. Die App meldet sich stattdessen anonym bei
-      // Firebase an. Für die Monteure ändert sich NICHTS — sie geben
-      // weiterhin nur ihren PIN ein.
+      // ZUGANGSCODE (STUFE 1) — für alle Monteure gleich: 3161
+      // Erst nach korrekter Eingabe meldet sich die App bei Firebase an.
+      // Das echte Firebase-Passwort dahinter ist länger (Firebase
+      // verlangt mind. 6 Zeichen) — die Monteure tippen weiterhin nur
+      // die 4 Ziffern 3161 ein, den Rest erledigt die App im Hintergrund.
+      // Das Konto muss in der Firebase-Konsole angelegt werden.
       // MONTAGE_PE_LOGIN (zweites Projekt, Urim-App) bleibt vorerst
       // unverändert — separater Patch folgt.
       // ============================================================
+      window.PE_KALENDER_GATE = {
+        pin: "3161",
+        email: "zugang@pe-intern.local",
+        password: "PE-Zugang-3161x"
+      };
       const MONTAGE_PE_LOGIN  = { email: "HIER_EMAIL_EINTRAGEN", password: "HIER_PASSWORT_EINTRAGEN" };
 
       const firebaseConfig = {
@@ -39,17 +45,15 @@
         messagingSenderId: "993655186874",
         appId: "1:993655186874:web:068a06ce160cd611e1e983"
       };
-      window.AuthReady = false;
+      window.AuthReady = true;
       try {
         firebase.initializeApp(firebaseConfig);
         window._db = firebase.firestore();
         window.FirebaseReady = true;
-        firebase.auth().signInAnonymously()
-          .then(function(){ window.AuthReady = true; })
-          .catch(function(err){ window.AuthReady = true; window.AuthError = err.message; console.error('PE-Kalender Anmeldung fehlgeschlagen:', err.message); });
+        // Keine automatische Anmeldung mehr — die App meldet sich erst
+        // an, nachdem der Zugangscode (Stufe 1) korrekt eingegeben wurde.
       } catch(e) {
         window.FirebaseReady = false;
-        window.AuthReady = true; // Fallback-/Offline-Betrieb (localStorage)
       }
       (function() {
         if (window.FirebaseReady && window._db) {
@@ -1182,6 +1186,60 @@ function MonteurBillingModal({ team, onClose }) {
                         </div>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+// ============================================================
+// ZUGANGSCODE (STUFE 1) — gemeinsamer Code für alle Monteure
+// ============================================================
+function GateScreen({ onSuccess }) {
+    const [pin, setPin] = useState('');
+    const [error, setError] = useState('');
+    const [checking, setChecking] = useState(false);
+    const handleAction = (val) => {
+        if (checking) return;
+        if (val === 'C') { setPin(''); setError(''); return; }
+        if (pin.length >= 4) return;
+        const np = pin + val;
+        setPin(np);
+        if (np.length === 4) {
+            const gate = window.PE_KALENDER_GATE || {};
+            if (np === gate.pin) {
+                setChecking(true);
+                firebase.auth().signInWithEmailAndPassword(gate.email, gate.password)
+                    .then(() => { onSuccess(); })
+                    .catch((err) => {
+                        console.error('Zugangscode-Anmeldung fehlgeschlagen:', err.message);
+                        setChecking(false);
+                        setError('Zugang fehlgeschlagen');
+                        setTimeout(() => { setPin(''); setError(''); }, 1200);
+                    });
+            } else {
+                setError('Falscher Code');
+                setTimeout(() => { setPin(''); setError(''); }, 1000);
+            }
+        }
+    };
+    return (
+        <div style={{minHeight:'100vh',background:'#030712',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+            <div style={{width:'100%',maxWidth:340,textAlign:'center'}}>
+                <div style={{marginBottom:48}}>
+                    <div style={{width:80,height:80,background:'linear-gradient(135deg,#0ea5e9,#6366f1)',borderRadius:24,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',boxShadow:'0 20px 40px rgba(14,165,233,0.3)'}}><Icon name="lock" size={40} className="text-white"/></div>
+                    <h1 style={{fontSize:22,fontWeight:900,letterSpacing:-1,color:'#fff',fontStyle:'italic',textTransform:'uppercase',margin:'0 0 8px'}}>PE-MONTAGE</h1>
+                    <p style={{color:'#475569',margin:0,fontWeight:700,letterSpacing:'0.2em',fontSize:10,textTransform:'uppercase'}}>Zugangscode</p>
+                </div>
+                <div style={{marginBottom:32}}>
+                    <div style={{display:'flex',justifyContent:'center',gap:16,marginBottom:16}}>
+                        {[0,1,2,3].map(i=><div key={i} style={{width:16,height:16,borderRadius:'50%',border:`2px solid ${pin.length>i?'#0ea5e9':'#1e293b'}`,background:pin.length>i?'#0ea5e9':'transparent',transition:'all 0.2s',transform:pin.length>i?'scale(1.2)':'scale(1)'}}></div>)}
+                    </div>
+                    {checking&&<p style={{color:'#0ea5e9',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Prüfe...</p>}
+                    {error&&<p style={{color:'#ef4444',fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{error}</p>}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+                    {[1,2,3,4,5,6,7,8,9,'C',0].map(n=>(<button key={n} disabled={checking} onClick={()=>handleAction(n)} style={{height:64,borderRadius:16,fontSize:20,fontWeight:700,border:n==='C'?'1px solid #334155':'1px solid #1e293b',cursor:checking?'not-allowed':'pointer',opacity:checking?0.5:1,transition:'all 0.1s',display:'flex',alignItems:'center',justifyContent:'center',background:n==='C'?'#1e293b':'#0f172a',color:n==='C'?'#94a3b8':'#fff'}} onMouseDown={e=>e.currentTarget.style.transform='scale(0.9)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>{n}</button>))}
+                </div>
             </div>
         </div>
     );
@@ -2626,12 +2684,28 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
 // APP ROOT
 // ============================================================
 function App() {
+    const [gateOk, setGateOk] = useState(false);
     const [authState, setAuthState] = useState(null);
     const [teams, setTeams] = useState([]);
     const [ready, setReady] = useState(false);
 
-    useEffect(()=>{const init=()=>{if(!window.FirebaseSDK||!window.AuthReady){setTimeout(init,100);return;}const{db,collection,onSnapshot}=window.FirebaseSDK;onSnapshot(collection(db,'teams_config'),snap=>{setTeams(snap.docs.map(d=>({...d.data()})));setReady(true);},err=>{console.error(err);setReady(true);});};init();},[]);
+    // Falls schon eine gültige Zugangscode-Sitzung besteht (z.B. nach
+    // Neuladen der Seite im selben Browser), nicht erneut nach dem Code fragen.
+    useEffect(()=>{
+        if(!window.FirebaseReady) return;
+        const unsub = firebase.auth().onAuthStateChanged((user)=>{
+            const gate = window.PE_KALENDER_GATE || {};
+            if(user && user.email === gate.email) setGateOk(true);
+        });
+        return ()=>unsub();
+    },[]);
 
+    useEffect(()=>{
+        if(!gateOk) return;
+        const init=()=>{if(!window.FirebaseSDK||!window.AuthReady){setTimeout(init,100);return;}const{db,collection,onSnapshot}=window.FirebaseSDK;onSnapshot(collection(db,'teams_config'),snap=>{setTeams(snap.docs.map(d=>({...d.data()})));setReady(true);},err=>{console.error(err);setReady(true);});};init();
+    },[gateOk]);
+
+    if(!gateOk) return <GateScreen onSuccess={()=>setGateOk(true)}/>;
     if(!ready)return(<div style={{minHeight:'100vh',background:'#030712',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}><div style={{color:'#6366f1',fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',fontSize:13}}>LADE SYSTEM...</div></div>);
     if(!authState)return <LoginScreen teams={teams} onLogin={(role,team)=>setAuthState({role,team})}/>;
 

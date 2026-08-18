@@ -21,14 +21,14 @@
 
     <script>
       // ============================================================
-      // ANMELDE-KONTEN (HINTERGRUND) — von dir auszufüllen.
-      // Diese Konten hast du in der Firebase-Konsole unter
-      // Authentication → Users angelegt. Sie dienen NUR dazu, dass
-      // sich die App selbst bei Firebase anmeldet. Für die Benutzer
-      // ändert sich NICHTS — sie melden sich weiterhin nur mit der PIN an.
-      // NICHT an Dritte weitergeben. NICHT ins öffentliche GitHub-Repo.
+      // WEG A — SICHERHEITSPATCH (18.08.2026)
+      // Das frühere fest eingebaute Master-Passwort (PE_KALENDER_LOGIN)
+      // wurde entfernt. Die App meldet sich stattdessen anonym bei
+      // Firebase an. Für die Monteure ändert sich NICHTS — sie geben
+      // weiterhin nur ihren PIN ein.
+      // MONTAGE_PE_LOGIN (zweites Projekt, Urim-App) bleibt vorerst
+      // unverändert — separater Patch folgt.
       // ============================================================
-      const PE_KALENDER_LOGIN = { email: "HIER_EMAIL_EINTRAGEN", password: "HIER_PASSWORT_EINTRAGEN" };
       const MONTAGE_PE_LOGIN  = { email: "HIER_EMAIL_EINTRAGEN", password: "HIER_PASSWORT_EINTRAGEN" };
 
       const firebaseConfig = {
@@ -44,8 +44,7 @@
         firebase.initializeApp(firebaseConfig);
         window._db = firebase.firestore();
         window.FirebaseReady = true;
-        // Hintergrund-Anmeldung — die PIN-Anmeldung der Nutzer bleibt unverändert:
-        firebase.auth().signInWithEmailAndPassword(PE_KALENDER_LOGIN.email, PE_KALENDER_LOGIN.password)
+        firebase.auth().signInAnonymously()
           .then(function(){ window.AuthReady = true; })
           .catch(function(err){ window.AuthReady = true; window.AuthError = err.message; console.error('PE-Kalender Anmeldung fehlgeschlagen:', err.message); });
       } catch(e) {

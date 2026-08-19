@@ -27,15 +27,16 @@
       // verlangt mind. 6 Zeichen) — die Monteure tippen weiterhin nur
       // die 4 Ziffern 3161 ein, den Rest erledigt die App im Hintergrund.
       // Das Konto muss in der Firebase-Konsole angelegt werden.
-      // MONTAGE_PE_LOGIN (zweites Projekt, Urim-App) bleibt vorerst
-      // unverändert — separater Patch folgt.
+      // MONTAGE_PE_LOGIN meldet diese App bei Urims Firebase-Projekt an,
+      // damit "An Urim senden" funktioniert (Montage-PE1 verlangt seit
+      // der Härtung eine echte Anmeldung, keine anonyme/keine).
       // ============================================================
       window.PE_KALENDER_GATE = {
         pin: "3161",
         email: "zugang@pe-intern.local",
         password: "PE-Zugang-3161x"
       };
-      const MONTAGE_PE_LOGIN  = { email: "HIER_EMAIL_EINTRAGEN", password: "HIER_PASSWORT_EINTRAGEN" };
+      const MONTAGE_PE_LOGIN  = { email: "zugang-montage@pe-intern.local", password: "PE-Zugang-3161m" };
 
       const firebaseConfig = {
         apiKey: "AIzaSyDStnUEu9A7reQUXBhVz5CrXxkmY4n2nOk",

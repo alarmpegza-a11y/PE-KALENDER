@@ -2581,7 +2581,21 @@ function StandbyView({ onBack }) {
 // ============================================================
 // ADMIN PANEL
 // ============================================================
+// ── Erkennt schmale Bildschirme (Handy), damit Admin-Oberflächen
+// nicht überdimensioniert wirken ──
+function useIsMobile() {
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 640);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 640px)');
+        const handler = (e) => setIsMobile(e.matches);
+        if (mq.addEventListener) mq.addEventListener('change', handler); else mq.addListener(handler);
+        return () => { if (mq.removeEventListener) mq.removeEventListener('change', handler); else mq.removeListener(handler); };
+    }, []);
+    return isMobile;
+}
+
 function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) {
+    const isMobile = useIsMobile();
     const [isAdding, setIsAdding] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -2601,48 +2615,48 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
 
     return (
         <div className="admin-mesh" style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
-            <div className="admin-header" style={{padding:'16px 32px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:40}}>
-                <div style={{display:'flex',alignItems:'center',gap:14}}>
-                    <div style={{width:44,height:44,background:'linear-gradient(135deg,#3b82f6,#6366f1)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 14px rgba(59,130,246,0.35)'}}><Icon name="calendar" size={22} className="text-white"/></div>
-                    <div><div style={{color:'#1e293b',fontSize:18,fontWeight:900,letterSpacing:-0.5}}>PE-MONTAGE</div><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{color:'#64748b',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:2}}>Admin · {teams.length} Gruppen</div><span className="live-badge" style={{background:'rgba(16,185,129,0.1)',color:'#059669',border:'1px solid rgba(16,185,129,0.25)'}}><span className="live-dot" style={{background:'#059669'}}></span>{window.FirebaseReady?'🔥 Firestore Live':'Lokal'}</span></div></div>
+            <div className="admin-header" style={{padding:isMobile?'10px 12px':'16px 32px',display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'center',gap:isMobile?10:0,justifyContent:'space-between',position:'sticky',top:0,zIndex:40}}>
+                <div style={{display:'flex',alignItems:'center',gap:isMobile?10:14}}>
+                    <div style={{width:isMobile?34:44,height:isMobile?34:44,flexShrink:0,background:'linear-gradient(135deg,#3b82f6,#6366f1)',borderRadius:isMobile?10:14,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 14px rgba(59,130,246,0.35)'}}><Icon name="calendar" size={isMobile?16:22} className="text-white"/></div>
+                    <div><div style={{color:'#1e293b',fontSize:isMobile?14:18,fontWeight:900,letterSpacing:-0.5}}>PE-MONTAGE</div><div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><div style={{color:'#64748b',fontSize:isMobile?8:9,fontWeight:700,textTransform:'uppercase',letterSpacing:2}}>Admin · {teams.length} Gruppen</div><span className="live-badge" style={{background:'rgba(16,185,129,0.1)',color:'#059669',border:'1px solid rgba(16,185,129,0.25)'}}><span className="live-dot" style={{background:'#059669'}}></span>{window.FirebaseReady?'🔥 Firestore Live':'Lokal'}</span></div></div>
                 </div>
-                <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
-                    <button onClick={onSearch} style={{background:'linear-gradient(135deg,#1e293b,#334155)',border:'1px solid #475569',borderRadius:12,padding:'9px 18px',color:'#94a3b8',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="search" size={14}/>🔍 Suche</button>
-                    <button onClick={onOpenStandby} style={{background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fde68a',borderRadius:12,padding:'9px 18px',color:'#92400e',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="archive" size={14}/>📦 Standby</button>
-                    <button onClick={()=>setShowBilling(true)} style={{background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'1px solid #86efac',borderRadius:12,padding:'9px 18px',color:'#15803d',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="receipt" size={14}/>💰 Admin Abrechnung</button>
-                    <button onClick={onLogout} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:12,padding:'9px 16px',color:'#64748b',fontSize:10,fontWeight:700,cursor:'pointer'}}>Logout</button>
+                <div style={{display:'flex',gap:isMobile?6:10,alignItems:'center',flexWrap:'wrap'}}>
+                    <button onClick={onSearch} style={{background:'linear-gradient(135deg,#1e293b,#334155)',border:'1px solid #475569',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 18px',color:'#94a3b8',fontSize:isMobile?9:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5,flex:isMobile?'1 1 auto':'none',justifyContent:'center'}}><Icon name="search" size={isMobile?11:14}/>🔍 Suche</button>
+                    <button onClick={onOpenStandby} style={{background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fde68a',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 18px',color:'#92400e',fontSize:isMobile?9:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5,flex:isMobile?'1 1 auto':'none',justifyContent:'center'}}><Icon name="archive" size={isMobile?11:14}/>📦 Standby</button>
+                    <button onClick={()=>setShowBilling(true)} style={{background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'1px solid #86efac',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 18px',color:'#15803d',fontSize:isMobile?9:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5,flex:isMobile?'1 1 auto':'none',justifyContent:'center'}}><Icon name="receipt" size={isMobile?11:14}/>💰 {isMobile?'Abrechnung':'Admin Abrechnung'}</button>
+                    <button onClick={onLogout} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 16px',color:'#64748b',fontSize:isMobile?9:10,fontWeight:700,cursor:'pointer',flex:isMobile?'1 1 auto':'none'}}>Logout</button>
                 </div>
             </div>
 
-            <div style={{flex:1,padding:'32px 32px 48px',maxWidth:1400,width:'100%',margin:'0 auto',boxSizing:'border-box'}}>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:32}}>
-                    {[{label:'Gruppen',value:teams.length,color:'#3b82f6',bg:'#eff6ff',icon:'users'},{label:'Mit Montage',value:teams.filter(t=>parseCalTypes(t.calType).includes('montage')).length,color:'#2563eb',bg:'#dbeafe',icon:'wrench'},{label:'Mit Beplankung',value:teams.filter(t=>parseCalTypes(t.calType).includes('beplankung')).length,color:'#059669',bg:'#d1fae5',icon:'building-2'},{label:'Mit Ausflocken',value:teams.filter(t=>parseCalTypes(t.calType).includes('ausflocken')).length,color:'#b45309',bg:'#fef3c7',icon:'snowflake'}].map(s=>(<div key={s.label} className="admin-stat-card" style={{padding:'20px 24px',display:'flex',alignItems:'center',gap:16}}><div style={{width:48,height:48,background:s.bg,borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name={s.icon} size={22} style={{color:s.color}}/></div><div><div style={{color:'#1e293b',fontSize:28,fontWeight:900,lineHeight:1}}>{s.value}</div><div style={{color:'#64748b',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:1,marginTop:2}}>{s.label}</div></div></div>))}
+            <div style={{flex:1,padding:isMobile?'12px 12px 24px':'32px 32px 48px',maxWidth:1400,width:'100%',margin:'0 auto',boxSizing:'border-box'}}>
+                <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?8:16,marginBottom:isMobile?18:32}}>
+                    {[{label:'Gruppen',value:teams.length,color:'#3b82f6',bg:'#eff6ff',icon:'users'},{label:'Mit Montage',value:teams.filter(t=>parseCalTypes(t.calType).includes('montage')).length,color:'#2563eb',bg:'#dbeafe',icon:'wrench'},{label:'Mit Beplankung',value:teams.filter(t=>parseCalTypes(t.calType).includes('beplankung')).length,color:'#059669',bg:'#d1fae5',icon:'building-2'},{label:'Mit Ausflocken',value:teams.filter(t=>parseCalTypes(t.calType).includes('ausflocken')).length,color:'#b45309',bg:'#fef3c7',icon:'snowflake'}].map(s=>(<div key={s.label} className="admin-stat-card" style={{padding:isMobile?'10px 12px':'20px 24px',display:'flex',alignItems:'center',gap:isMobile?8:16}}><div style={{width:isMobile?30:48,height:isMobile?30:48,flexShrink:0,background:s.bg,borderRadius:isMobile?9:14,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name={s.icon} size={isMobile?14:22} style={{color:s.color}}/></div><div style={{minWidth:0}}><div style={{color:'#1e293b',fontSize:isMobile?16:28,fontWeight:900,lineHeight:1}}>{s.value}</div><div style={{color:'#64748b',fontSize:isMobile?7.5:10,fontWeight:700,textTransform:'uppercase',letterSpacing:isMobile?0.3:1,marginTop:2,whiteSpace:isMobile?'nowrap':'normal',overflow:'hidden',textOverflow:'ellipsis'}}>{s.label}</div></div></div>))}
                 </div>
 
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-                    <h2 style={{color:'#1e293b',fontSize:16,fontWeight:900,margin:0}}>Gruppen Übersicht</h2>
-                    <button onClick={()=>setIsAdding(true)} style={{background:'linear-gradient(135deg,#3b82f6,#6366f1)',border:'none',borderRadius:12,padding:'10px 20px',color:'#fff',fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6,boxShadow:'0 4px 14px rgba(59,130,246,0.35)'}}><Icon name="plus" size={14}/>Neue Gruppe</button>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:isMobile?12:20,gap:8}}>
+                    <h2 style={{color:'#1e293b',fontSize:isMobile?13:16,fontWeight:900,margin:0}}>Gruppen Übersicht</h2>
+                    <button onClick={()=>setIsAdding(true)} style={{background:'linear-gradient(135deg,#3b82f6,#6366f1)',border:'none',borderRadius:isMobile?9:12,padding:isMobile?'7px 12px':'10px 20px',color:'#fff',fontSize:isMobile?9:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5,boxShadow:'0 4px 14px rgba(59,130,246,0.35)',flexShrink:0}}><Icon name="plus" size={isMobile?11:14}/>Neue Gruppe</button>
                 </div>
 
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:20}}>
-                    {teams.map(t=>{const types=parseCalTypes(t.calType),badges=getTypeBadges(t.calType);return(<div key={t.id} className="admin-card" style={{padding:'24px'}}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-                            <div style={{width:50,height:50,borderRadius:16,background:t.color+'22',border:`2px solid ${t.color}44`,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="users" size={22} style={{color:t.color}}/></div>
+                <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(300px,1fr))',gap:isMobile?10:20}}>
+                    {teams.map(t=>{const types=parseCalTypes(t.calType),badges=getTypeBadges(t.calType);return(<div key={t.id} className="admin-card" style={{padding:isMobile?'14px':'24px'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:isMobile?10:16}}>
+                            <div style={{width:isMobile?36:50,height:isMobile?36:50,borderRadius:isMobile?11:16,background:t.color+'22',border:`2px solid ${t.color}44`,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="users" size={isMobile?16:22} style={{color:t.color}}/></div>
                             <div style={{display:'flex',gap:6}}>
-                                <button onClick={()=>setEditTeam({...t,calTypes:parseCalTypes(t.calType)})} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#64748b',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={e=>{e.currentTarget.style.background='#dbeafe';e.currentTarget.style.color='#2563eb';}} onMouseLeave={e=>{e.currentTarget.style.background='#f1f5f9';e.currentTarget.style.color='#64748b';}}><Icon name="pencil" size={14}/></button>
-                                <button onClick={()=>setDeleteConfirm(t)} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:8,width:32,height:32,cursor:'pointer',color:'#64748b',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={e=>{e.currentTarget.style.background='#fee2e2';e.currentTarget.style.color='#ef4444';}} onMouseLeave={e=>{e.currentTarget.style.background='#f1f5f9';e.currentTarget.style.color='#64748b';}}><Icon name="trash-2" size={14}/></button>
+                                <button onClick={()=>setEditTeam({...t,calTypes:parseCalTypes(t.calType)})} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:8,width:isMobile?28:32,height:isMobile?28:32,cursor:'pointer',color:'#64748b',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={e=>{e.currentTarget.style.background='#dbeafe';e.currentTarget.style.color='#2563eb';}} onMouseLeave={e=>{e.currentTarget.style.background='#f1f5f9';e.currentTarget.style.color='#64748b';}}><Icon name="pencil" size={isMobile?12:14}/></button>
+                                <button onClick={()=>setDeleteConfirm(t)} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:8,width:isMobile?28:32,height:isMobile?28:32,cursor:'pointer',color:'#64748b',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={e=>{e.currentTarget.style.background='#fee2e2';e.currentTarget.style.color='#ef4444';}} onMouseLeave={e=>{e.currentTarget.style.background='#f1f5f9';e.currentTarget.style.color='#64748b';}}><Icon name="trash-2" size={isMobile?12:14}/></button>
                             </div>
                         </div>
-                        <div style={{marginBottom:10}}><div style={{color:'#1e293b',fontSize:18,fontWeight:900,letterSpacing:-0.3}}>{t.name}</div><div style={{color:'#94a3b8',fontSize:11,fontWeight:600,marginTop:2}}>PIN: {t.pin}</div></div>
-                        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}}>{badges.map(b=>(<div key={b.key} style={{display:'inline-flex',alignItems:'center',gap:4,background:b.bg,border:`1px solid ${b.border}`,borderRadius:8,padding:'3px 9px'}}><div style={{width:6,height:6,borderRadius:'50%',background:b.color}}></div><span style={{fontSize:9,fontWeight:800,color:b.color,textTransform:'uppercase',letterSpacing:1}}>{b.label}</span></div>))}</div>
+                        <div style={{marginBottom:isMobile?8:10}}><div style={{color:'#1e293b',fontSize:isMobile?14:18,fontWeight:900,letterSpacing:-0.3}}>{t.name}</div><div style={{color:'#94a3b8',fontSize:isMobile?9.5:11,fontWeight:600,marginTop:2}}>PIN: {t.pin}</div></div>
+                        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:isMobile?10:14}}>{badges.map(b=>(<div key={b.key} style={{display:'inline-flex',alignItems:'center',gap:4,background:b.bg,border:`1px solid ${b.border}`,borderRadius:8,padding:isMobile?'2px 7px':'3px 9px'}}><div style={{width:6,height:6,borderRadius:'50%',background:b.color}}></div><span style={{fontSize:isMobile?8:9,fontWeight:800,color:b.color,textTransform:'uppercase',letterSpacing:1}}>{b.label}</span></div>))}</div>
                         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                            {types.includes('montage')&&<button onClick={()=>onSelectTeam(t,'montage')} style={{flex:1,minWidth:80,background:'linear-gradient(135deg,#dbeafe,#eff6ff)',border:'1px solid #93c5fd',borderRadius:10,padding:'8px',color:'#1d4ed8',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer'}}>🔧 Montage ↗</button>}
-                            {types.includes('beplankung')&&<button onClick={()=>onSelectTeam(t,'beplankung')} style={{flex:1,minWidth:80,background:'linear-gradient(135deg,#d1fae5,#ecfdf5)',border:'1px solid #6ee7b7',borderRadius:10,padding:'8px',color:'#065f46',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer'}}>🏗 Beplankung ↗</button>}
-                            {types.includes('ausflocken')&&<button onClick={()=>onSelectTeam(t,'ausflocken')} style={{flex:1,minWidth:80,background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fcd34d',borderRadius:10,padding:'8px',color:'#92400e',fontSize:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer'}}>❄️ Ausflocken ↗</button>}
+                            {types.includes('montage')&&<button onClick={()=>onSelectTeam(t,'montage')} style={{flex:1,minWidth:80,background:'linear-gradient(135deg,#dbeafe,#eff6ff)',border:'1px solid #93c5fd',borderRadius:10,padding:isMobile?'9px 6px':'8px',color:'#1d4ed8',fontSize:isMobile?9.5:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer'}}>🔧 Montage ↗</button>}
+                            {types.includes('beplankung')&&<button onClick={()=>onSelectTeam(t,'beplankung')} style={{flex:1,minWidth:80,background:'linear-gradient(135deg,#d1fae5,#ecfdf5)',border:'1px solid #6ee7b7',borderRadius:10,padding:isMobile?'9px 6px':'8px',color:'#065f46',fontSize:isMobile?9.5:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer'}}>🏗 Beplankung ↗</button>}
+                            {types.includes('ausflocken')&&<button onClick={()=>onSelectTeam(t,'ausflocken')} style={{flex:1,minWidth:80,background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fcd34d',borderRadius:10,padding:isMobile?'9px 6px':'8px',color:'#92400e',fontSize:isMobile?9.5:9,fontWeight:800,textTransform:'uppercase',cursor:'pointer'}}>❄️ Ausflocken ↗</button>}
                         </div>
                     </div>);})}
-                    <div onClick={()=>setIsAdding(true)} style={{border:'2px dashed #cbd5e1',borderRadius:20,padding:24,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,cursor:'pointer',minHeight:200,background:'rgba(255,255,255,0.4)'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='#3b82f6';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='#cbd5e1';}}>
-                        <div style={{width:52,height:52,background:'#f1f5f9',borderRadius:16,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="plus" size={24} style={{color:'#3b82f6'}}/></div>
+                    <div onClick={()=>setIsAdding(true)} style={{border:'2px dashed #cbd5e1',borderRadius:isMobile?14:20,padding:isMobile?16:24,display:'flex',flexDirection:isMobile?'row':'column',alignItems:'center',justifyContent:'center',gap:isMobile?10:12,cursor:'pointer',minHeight:isMobile?'auto':200,background:'rgba(255,255,255,0.4)'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='#3b82f6';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='#cbd5e1';}}>
+                        <div style={{width:isMobile?38:52,height:isMobile?38:52,flexShrink:0,background:'#f1f5f9',borderRadius:isMobile?12:16,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="plus" size={isMobile?18:24} style={{color:'#3b82f6'}}/></div>
                         <div style={{color:'#94a3b8',fontSize:12,fontWeight:700}}>Neue Gruppe erstellen</div>
                     </div>
                 </div>
@@ -2911,15 +2925,17 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
         try {
             const { db, collection, getDocs } = window.FirebaseSDK;
             let results = [];
-            for (const t of relevantTeams) {
-                const snap = await getDocs(collection(db, `teams_cal_${t.id}`));
+            const snaps = await Promise.all(
+                relevantTeams.map(t => getDocs(collection(db, `teams_cal_${t.id}`)).then(snap => ({ team: t, snap })))
+            );
+            snaps.forEach(({ team, snap }) => {
                 snap.docs.forEach(d => {
                     const e = d.data();
                     const start = (e.deliveryDate || '').substring(0,10);
                     const end = (e.endDate || e.deliveryDate || '').substring(0,10) || start;
-                    if (dateStr >= start && dateStr <= end) results.push({ ...e, teamName: t.name });
+                    if (dateStr >= start && dateStr <= end) results.push({ ...e, teamName: team.name });
                 });
-            }
+            });
             if (!results.length) { await say('Ich habe keine Termine für dieses Datum gefunden.'); return; }
             const parts = results.slice(0, 5).map((e, i) => `${i+1}. ${e.customer}${e.address ? ' bei ' + e.address : ''}, ${e.teamName}`);
             let text = `Ich habe ${results.length} Termin${results.length===1?'':'e'} gefunden. ${parts.join('. ')}.`;
@@ -2942,16 +2958,23 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
         await say(`Einen Moment, ich durchsuche alle Gruppen nach ${term}.`);
         try {
             const { db, collection, getDocs } = window.FirebaseSDK;
-            const q = term.toLowerCase();
+            const words = term.toLowerCase().split(/\s+/).filter(Boolean);
             const byTeam = {};
-            for (const t of (teams || [])) {
-                const snap = await getDocs(collection(db, `teams_cal_${t.id}`));
+            // Alle Gruppen PARALLEL abfragen statt nacheinander — das war
+            // der Grund für die 50 Sekunden Wartezeit.
+            const snaps = await Promise.all(
+                (teams || []).map(t => getDocs(collection(db, `teams_cal_${t.id}`)).then(snap => ({ team: t, snap })))
+            );
+            snaps.forEach(({ team, snap }) => {
                 snap.docs.forEach(d => {
                     const e = d.data();
-                    const hay = `${e.address||''} ${e.customer||''}`.toLowerCase();
-                    if (hay.includes(q)) { (byTeam[t.name] = byTeam[t.name] || []).push(e); }
+                    const hay = `${e.address||''} ${e.customer||''} ${e.memo||''}`.toLowerCase();
+                    // Nachsichtiger Treffer: JEDES Wort aus dem Suchbegriff muss
+                    // irgendwo im Adress-/Kunden-/Memo-Text vorkommen (statt exaktem Teilstring).
+                    const isMatch = words.length > 0 && words.every(w => hay.includes(w));
+                    if (isMatch) { (byTeam[team.name] = byTeam[team.name] || []).push(e); }
                 });
-            }
+            });
             const groupNames = Object.keys(byTeam);
             if (!groupNames.length) { await say(`Ich habe keine Einträge zu ${term} gefunden — in keiner Gruppe.`); return; }
             const parts = groupNames.map(name => {

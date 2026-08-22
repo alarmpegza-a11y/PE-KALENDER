@@ -2919,10 +2919,15 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
     const [log, setLog] = useState([]);
     const [resultCards, setResultCards] = useState(null); // klickbare Ergebnisliste
     const [manualText, setManualText] = useState('');
+    const manualInputRef = useRef(null);
     const recRef = useRef(null);
     const busyRef = useRef(false);
     const cacheRef = useRef({}); // teamId -> Array<entry>  (live via onSnapshot, kein erneutes Laden nötig)
-    const supported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    // iPhone/iPad: Safaris eingebaute Web-Spracherkennung ist unzuverlässig
+    // (unabhängig von Spracheinstellung). Dort nutzen wir stattdessen direkt
+    // das native Diktier-Mikrofon der iOS-Tastatur im Textfeld.
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const supported = isIOS || !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
     // ── Live-Cache: alle Gruppen-Kalender einmal abonnieren, damit Suche/
     // Abfrage/Erstellung sofort auf bereits geladene Daten zugreifen kann,
@@ -2962,6 +2967,12 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
             resolve(text);
         };
         pendingResolveRef.current = finish;
+        // Auf dem iPhone die unzuverlässige Web-Spracherkennung gar nicht erst
+        // starten — hier zählt nur das Textfeld mit dem nativen Tastatur-Mikrofon.
+        if (isIOS) {
+            setTimeout(() => { try { manualInputRef.current && manualInputRef.current.focus(); } catch(e) {} }, 50);
+            return;
+        }
         recRef.current = vaListenOnce(
             (text, alternatives) => {
                 // Beste Alternative gegen bereits bekannte Kunden-/Adressnamen
@@ -3325,19 +3336,23 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
                                 borderRadius:10, padding:'6px 10px', fontSize:11, maxWidth:'85%',
                             }}>{l.text}</div>
                         ))}
-                        {log.length===0 && !resultCards && <div style={{color:'#64748b', fontSize:10, textAlign:'center', padding:'10px 0'}}>Tippe auf das Mikrofon zum Starten</div>}
+                        {log.length===0 && !resultCards && <div style={{color:'#64748b', fontSize:10, textAlign:'center', padding:'10px 0'}}>{isIOS ? 'Tippe auf das Mikrofon, dann ins Textfeld tippen und das 🎤-Symbol auf der iPhone-Tastatur zum Diktieren nutzen' : 'Tippe auf das Mikrofon zum Starten'}</div>}
                     </div>
                     {status==='listening' && (
-                        <div style={{borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:8, marginBottom:resultCards?8:0, display:'flex', gap:6}}>
-                            <input
-                                type="text" value={manualText}
-                                onChange={e=>setManualText(e.target.value)}
-                                onKeyDown={e=>{ if(e.key==='Enter'){ submitManualAnswer(manualText); setManualText(''); } }}
-                                placeholder="Falsch verstanden? Hier tippen..."
-                                style={{flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'7px 10px', color:'#fff', fontSize:11, outline:'none'}}
-                            />
-                            <button onClick={()=>{ submitManualAnswer(manualText); setManualText(''); }}
-                                style={{background:'#6366f1', border:'none', borderRadius:8, color:'#fff', fontSize:11, fontWeight:900, padding:'0 14px', cursor:'pointer'}}>✓</button>
+                        <div style={{borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:8, marginBottom:resultCards?8:0}}>
+                            {isIOS && <div style={{color:'#fbbf24', fontSize:9.5, fontWeight:700, marginBottom:6, lineHeight:1.4}}>📱 Ins Feld tippen, dann das 🎤-Symbol auf deiner iPhone-Tastatur antippen — das diktiert viel zuverlässiger als unser Browser-Mikrofon.</div>}
+                            <div style={{display:'flex', gap:6}}>
+                                <input
+                                    ref={manualInputRef}
+                                    type="text" value={manualText}
+                                    onChange={e=>setManualText(e.target.value)}
+                                    onKeyDown={e=>{ if(e.key==='Enter'){ submitManualAnswer(manualText); setManualText(''); } }}
+                                    placeholder={isIOS ? 'Hier tippen oder 🎤 auf der Tastatur nutzen...' : 'Falsch verstanden? Hier tippen...'}
+                                    style={{flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'7px 10px', color:'#fff', fontSize:11, outline:'none'}}
+                                />
+                                <button onClick={()=>{ submitManualAnswer(manualText); setManualText(''); }}
+                                    style={{background:'#6366f1', border:'none', borderRadius:8, color:'#fff', fontSize:11, fontWeight:900, padding:'0 14px', cursor:'pointer'}}>✓</button>
+                            </div>
                         </div>
                     )}
                     {resultCards && resultCards.length > 0 && (

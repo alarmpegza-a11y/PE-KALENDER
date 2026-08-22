@@ -1914,6 +1914,7 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
 // CALENDAR VIEW
 // ============================================================
 function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalType: initialCalType, scrollToEntry=null }) {
+    const isMobile = useIsMobile();
     const [calEntries, setCalEntries] = useState([]);
     const [calWeek, setCalWeek] = useState(() => { if(scrollToEntry)return parseDateSafe(scrollToEntry.deliveryDate); return new Date(); });
     const [editCalEntry, setEditCalEntry] = useState(null);
@@ -2096,24 +2097,24 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                 </div>
             </div>
 
-            <div style={{background:'#1e293b',padding:'8px 10px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:40,borderBottom:'2px solid #334155',flexShrink:0,flexWrap:'wrap',gap:4}}>
-                <div style={{display:'flex',alignItems:'center',gap:10,flex:'0 0 auto'}}>
-                    <button onClick={onBack} style={{background:'#334155',border:'none',borderRadius:10,width:34,height:34,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><Icon name="arrow-left" size={16} className="text-blue-400"/></button>
+            <div style={{background:'#1e293b',padding:isMobile?'8px':'8px 10px',display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:40,borderBottom:'2px solid #334155',flexShrink:0,gap:isMobile?8:4}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,flex:isMobile?'none':'0 0 auto',justifyContent:isMobile?'space-between':'flex-start'}}>
+                    <button onClick={onBack} style={{background:'#334155',border:'none',borderRadius:10,width:34,height:34,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><Icon name="arrow-left" size={16} className="text-blue-400"/></button>
                     <div>
                         <div style={{color:'#94a3b8',fontSize:9,fontWeight:700,textTransform:'uppercase',letterSpacing:2}}>{isAdminAccess?'ADMIN':'TEAM'}</div>
-                        <div style={{display:'flex',alignItems:'baseline',gap:6}}><span style={{color:'#60a5fa',fontSize:26,fontWeight:900,lineHeight:1,letterSpacing:-1,whiteSpace:'nowrap'}}>KW {kw}</span></div>
+                        <div style={{display:'flex',alignItems:'baseline',gap:6}}><span style={{color:'#60a5fa',fontSize:isMobile?20:26,fontWeight:900,lineHeight:1,letterSpacing:-1,whiteSpace:'nowrap'}}>KW {kw}</span></div>
                         <div style={{color:'#fff',fontSize:12,fontWeight:900,fontStyle:'italic',marginTop:1}}>{team.name}</div>
                     </div>
                     <span className="live-badge"><span className="live-dot"></span>LIVE</span>
                 </div>
-                <div style={{display:'flex',gap:6,alignItems:'center',flex:'1 1 auto',justifyContent:'center'}}>
-                    {visibleTabs.map(ct=>{const cfg=CAL_TYPE_CONFIG[ct];return <button key={ct} className={`type-tab ${activeCalType===ct?cfg.tabClass:'inactive'}`} onClick={()=>setActiveCalType(ct)} style={{fontSize:11,padding:'7px 18px'}}>{ct==='montage'?'🔧 Montage':ct==='beplankung'?'🏗 Beplankung':'❄️ Ausflocken'}</button>;})}
+                <div style={{display:'flex',gap:isMobile?4:6,alignItems:'center',flex:isMobile?'none':'1 1 auto',justifyContent:'center',width:isMobile?'100%':'auto'}}>
+                    {visibleTabs.map(ct=>{const cfg=CAL_TYPE_CONFIG[ct];return <button key={ct} className={`type-tab ${activeCalType===ct?cfg.tabClass:'inactive'}`} onClick={()=>setActiveCalType(ct)} style={{fontSize:isMobile?9.5:11,padding:isMobile?'7px 4px':'7px 18px',flex:isMobile?1:'none',whiteSpace:'nowrap'}}>{ct==='montage'?'🔧 Montage':ct==='beplankung'?'🏗 Beplankung':'❄️ Ausflocken'}</button>;})}
                 </div>
-                <div style={{display:'flex',gap:6,alignItems:'center',flex:'0 0 auto',flexWrap:'wrap',justifyContent:'flex-end'}}>
-                    <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()-7);setCalWeek(d);}} style={{background:'#334155',border:'none',borderRadius:8,width:30,height:30,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-left" size={14} className="text-blue-400"/></button>
-                    <button onClick={()=>setCalWeek(new Date())} style={{background:'#334155',border:'none',borderRadius:8,padding:'4px 10px',color:'#cbd5e1',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>Heute</button>
-                    <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()+7);setCalWeek(d);}} style={{background:'#334155',border:'none',borderRadius:8,width:30,height:30,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-right" size={14} className="text-blue-400"/></button>
-                    <button onClick={triggerWeekPDF} style={{background:'#475569',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="download" size={12}/>A3 PDF</button>
+                <div style={{display:'flex',gap:6,alignItems:'center',flex:isMobile?'none':'0 0 auto',flexWrap:'wrap',justifyContent:isMobile?'flex-start':'flex-end',width:isMobile?'100%':'auto'}}>
+                    <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()-7);setCalWeek(d);}} style={{background:'#334155',border:'none',borderRadius:8,width:30,height:30,flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-left" size={14} className="text-blue-400"/></button>
+                    <button onClick={()=>setCalWeek(new Date())} style={{background:'#334155',border:'none',borderRadius:8,padding:'4px 10px',color:'#cbd5e1',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',flexShrink:0}}>Heute</button>
+                    <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()+7);setCalWeek(d);}} style={{background:'#334155',border:'none',borderRadius:8,width:30,height:30,flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-right" size={14} className="text-blue-400"/></button>
+                    <button onClick={triggerWeekPDF} style={{background:'#475569',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="download" size={12}/>A3 PDF</button>
 
                     {!isAdminAccess && (
                         <button className="monteur-billing-btn" onClick={()=>setShowMonteurBilling(true)}>
@@ -2126,10 +2127,10 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                     )}
 
                     {isAdminAccess&&<>
-                        <button onClick={()=>setEditCalEntry({...emptyEntry})} style={{background:'#10b981',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="plus" size={12}/>Neu</button>
-                        <button onClick={()=>setShowStandbyPicker({dayStr:toLocalDateStr(days[0])})} style={{background:'#f59e0b',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="archive" size={12}/>Standby</button>
-                        <button onClick={()=>setShowCalImport(true)} style={{background:'#3b82f6',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><Icon name="upload" size={12}/>Import</button>
-                        <button onClick={()=>setShowAIImport(true)} style={{background:'linear-gradient(135deg,#6366f1,#8b5cf6)',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>🤖 KI Import</button>
+                        <button onClick={()=>setEditCalEntry({...emptyEntry})} style={{background:'#10b981',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="plus" size={12}/>Neu</button>
+                        <button onClick={()=>setShowStandbyPicker({dayStr:toLocalDateStr(days[0])})} style={{background:'#f59e0b',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="archive" size={12}/>Standby</button>
+                        <button onClick={()=>setShowCalImport(true)} style={{background:'#3b82f6',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="upload" size={12}/>Import</button>
+                        <button onClick={()=>setShowAIImport(true)} style={{background:'linear-gradient(135deg,#6366f1,#8b5cf6)',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}>🤖 KI Import</button>
                     </>}
                 </div>
             </div>
@@ -2801,9 +2802,30 @@ function vaExtractSearchTerm(text) {
         /kannst du mir sagen/gi,
         /sag mir/gi,
         /\bwann\b/gi,
+        // Befehls-Floskeln, die kein Teil des eigentlichen Suchbegriffs sind
+        /suche( doch| mal)?( nach)?/gi,
+        /finde( doch| mal)?/gi,
+        /gibt es/gi,
+        /(auftrag|aufträge|auftrags|aufträgen|eintrag|einträge|eintragen|termin|termine)( für| mit| von| bei| zu)?/gi,
+        /\bmit\b/gi,
     ];
     stripPatterns.forEach(p => { t = t.replace(p, ' '); });
     return t.replace(/\s+/g, ' ').trim();
+}
+
+// ── Unscharfer Wortvergleich: toleriert kleine Erkennungsfehler der
+// Spracherkennung (z.B. "Sonnenweg" gesprochen statt "Sonneggweg" gespeichert) ──
+function vaFuzzyWordMatch(searchWord, hay) {
+    if (/^\d+$/.test(searchWord)) {
+        // Reine Zahl (z.B. Hausnummer) muss als eigenständiges Wort vorkommen
+        return new RegExp('(^|\\D)' + searchWord + '(\\D|$)').test(hay);
+    }
+    if (hay.includes(searchWord)) return true;
+    if (searchWord.length >= 5) {
+        const prefix = searchWord.slice(0, 5);
+        return hay.split(/\s+/).some(w => w.length >= 4 && (w.startsWith(prefix) || prefix.startsWith(w.slice(0,5))));
+    }
+    return false;
 }
 
 function vaIsNo(text) {
@@ -2971,7 +2993,7 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
                     const hay = `${e.address||''} ${e.customer||''} ${e.memo||''}`.toLowerCase();
                     // Nachsichtiger Treffer: JEDES Wort aus dem Suchbegriff muss
                     // irgendwo im Adress-/Kunden-/Memo-Text vorkommen (statt exaktem Teilstring).
-                    const isMatch = words.length > 0 && words.every(w => hay.includes(w));
+                    const isMatch = words.length > 0 && words.every(w => vaFuzzyWordMatch(w, hay));
                     if (isMatch) { (byTeam[team.name] = byTeam[team.name] || []).push(e); }
                 });
             });

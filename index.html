@@ -1913,7 +1913,7 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
 // ============================================================
 // CALENDAR VIEW
 // ============================================================
-function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalType: initialCalType, scrollToEntry=null }) {
+function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalType: initialCalType, scrollToEntry=null, voicePrefill=null, onVoicePrefillApplied=null }) {
     const isMobile = useIsMobile();
     const [calEntries, setCalEntries] = useState([]);
     const [calWeek, setCalWeek] = useState(() => { if(scrollToEntry)return parseDateSafe(scrollToEntry.deliveryDate); return new Date(); });
@@ -1987,6 +1987,20 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
         const t=setTimeout(tryScroll,400);
         return()=>clearTimeout(t);
     },[highlightId]);
+
+    // ── Sprachassistent: hat einen neuen Auftrag vorbereitet — Formular
+    // sichtbar öffnen, damit der Nutzer sieht/bestätigt, statt blind zu speichern ──
+    useEffect(()=>{
+        if(!voicePrefill) return;
+        const today = toLocalDateStr(new Date());
+        setEditCalEntry({
+            isNew:true, customer:'', address:'', memo:'', auftragsNr:'', target:'',
+            images:[], image:null, entryType:'LIEFERUNG', deliveryDate:today, endDate:'',
+            calType:activeCalType, isProv:false, customStartLabel:'', fehlerIntern:false, weiterVerrechnen:false,
+            ...voicePrefill,
+        });
+        if (onVoicePrefillApplied) onVoicePrefillApplied();
+    },[voicePrefill]);
 
     const donePendingBillingCount = useMemo(()=>calEntries.filter(e=>e.isDone&&!e.monteurBilled).length,[calEntries]);
     const blockedCount = useMemo(()=>calEntries.filter(e=>e.isBlocked).length,[calEntries]);
@@ -2837,13 +2851,30 @@ function vaIsYes(text) {
     return t.includes('ja') || t.includes('genau') || t.includes('passt') || t.includes('richtig') || t.includes('korrekt');
 }
 
-function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
+function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry }) {
     const [open, setOpen] = useState(false);
     const [status, setStatus] = useState('idle'); // idle | listening | thinking | speaking
     const [log, setLog] = useState([]);
+    const [resultCards, setResultCards] = useState(null); // klickbare Ergebnisliste
     const recRef = useRef(null);
     const busyRef = useRef(false);
+    const cacheRef = useRef({}); // teamId -> Array<entry>  (live via onSnapshot, kein erneutes Laden nötig)
     const supported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+    // ── Live-Cache: alle Gruppen-Kalender einmal abonnieren, damit Suche/
+    // Abfrage/Erstellung sofort auf bereits geladene Daten zugreifen kann,
+    // statt bei jeder Frage neu und nacheinander abzufragen (war der Grund
+    // für die langen Wartezeiten). ──
+    useEffect(() => {
+        if (!window.FirebaseSDK || !teams || !teams.length) return;
+        const { db, collection, onSnapshot } = window.FirebaseSDK;
+        const unsubs = teams.map(t =>
+            onSnapshot(collection(db, `teams_cal_${t.id}`), snap => {
+                cacheRef.current[t.id] = snap.docs.map(d => d.data());
+            }, () => {})
+        );
+        return () => unsubs.forEach(u => u && u());
+    }, [teams]);
 
     const pushLog = (who, text) => setLog(prev => [...prev.slice(-8), { who, text }]);
 
@@ -2870,6 +2901,29 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
         setStatus('idle');
     };
 
+    // ── Gruppe per Nummer erfragen: "1: Besart, 2: Nicola, ..." — Nutzer
+    // antwortet nur mit der Zahl, das erkennt die Spracherkennung zuverlässig.
+    // Bei Fehlversuch wird erneut gefragt statt abgebrochen (nichts geht verloren). ──
+    const askForTeam = async (retriesLeft = 2) => {
+        if (!teams || !teams.length) return null;
+        if (teams.length === 1) return teams[0];
+        const listSpoken = teams.map((t,i) => `${i+1}: ${t.name}`).join(', ');
+        const a = await askAndListen(`Für welche Gruppe? Sag nur die Nummer. ${listSpoken}.`);
+        if (!a) return null;
+        const numMatch = vaWordsToNumbers(a).match(/\d+/);
+        if (numMatch) {
+            const idx = parseInt(numMatch[0], 10) - 1;
+            if (idx >= 0 && idx < teams.length) return teams[idx];
+        }
+        const byName = vaMatchTeam(a, teams);
+        if (byName) return byName;
+        if (retriesLeft > 0) {
+            await say('Das habe ich nicht erkannt. Bitte nenne nur die Zahl der Gruppe.');
+            return askForTeam(retriesLeft - 1);
+        }
+        return null;
+    };
+
     const handleCreateEntry = async (firstUtterance) => {
         let customer = null;
         const custMatch = firstUtterance.match(/für\s+(.+?)(?:\s+am\b|\s+adresse\b|\s+in\b|\s+notiz\b|\s+memo\b|$)/i);
@@ -2891,7 +2945,7 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
         if (!dateStr) {
             const a = await askAndListen('An welchem Tag soll der Termin sein? Zum Beispiel heute, morgen oder ein Datum.');
             dateStr = a ? vaParseGermanDate(a) : null;
-            if (!dateStr) { await say('Ich konnte das Datum nicht erkennen. Bitte trag den Termin manuell ein. Abgebrochen.'); return; }
+            if (!dateStr) { await say('Ich konnte das Datum nicht erkennen. Ich setze vorerst heute — du kannst es im Formular gleich anpassen.'); dateStr = vaParseGermanDate('heute'); }
         }
 
         let address = '';
@@ -2903,36 +2957,27 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
         if (memoA && !vaIsNo(memoA)) memo = memoA.trim();
 
         if (isAdmin && !team) {
-            if ((teams || []).length === 1) {
+            team = await askForTeam();
+            if (!team) {
+                // Nichts geht verloren: statt abzubrechen, öffnen wir das
+                // sichtbare Formular mit der ersten Gruppe vorausgewählt —
+                // der Nutzer kann die Gruppe danach im Formular selbst wählen.
+                await say('Ich konnte die Gruppe leider nicht sicher erkennen. Ich öffne das Formular mit allen anderen Angaben — bitte wähle die Gruppe dort manuell.');
                 team = teams[0];
-            } else {
-                const names = (teams || []).map(t => t.name).join(', ');
-                const a = await askAndListen(`Für welche Gruppe soll ich das eintragen? Zur Auswahl: ${names}.`);
-                team = vaMatchTeam(a, teams);
-                if (!team) { await say('Ich konnte die Gruppe nicht erkennen. Abgebrochen.'); return; }
             }
         }
         if (!team) { await say('Es ist keine Gruppe zugeordnet. Abgebrochen.'); return; }
 
         const dateObj = new Date(dateStr + 'T00:00:00');
         const dateSpoken = dateObj.toLocaleDateString('de-DE', { weekday:'long', day:'2-digit', month:'2-digit' });
-        const summary = `Ich trage ein: ${customer}, am ${dateSpoken}${address ? ', ' + address : ''}${memo ? ', Memo: ' + memo : ''}, für ${team.name}. Sag "ja" zum Bestätigen oder "nein" zum Abbrechen.`;
-        const conf = await askAndListen(summary);
-        if (!conf || !vaIsYes(conf)) { await say('Abgebrochen.'); return; }
+        await say(`Ich öffne das Formular für ${customer}, am ${dateSpoken}${address ? ', ' + address : ''}${memo ? ', Memo: ' + memo : ''}, bei ${team.name}. Bitte prüfen und speichern.`);
 
-        try {
-            const { db, doc, setDoc } = window.FirebaseSDK;
-            const id = `cal-${genId()}`;
-            await setDoc(doc(db, `teams_cal_${team.id}`, id), {
-                id, createdAt: new Date().toISOString(), isDone: false, isBilled: false,
-                entryType: 'LIEFERUNG', customer, address, memo, auftragsNr: '',
-                target: 0, images: [], image: null, deliveryDate: dateStr, endDate: null,
-                isMultiDay: false, calType, isProv: false, customStartLabel: '',
+        if (onCreateEntry) {
+            onCreateEntry(team, calType, {
+                customer, address, memo, deliveryDate: dateStr, entryType: 'LIEFERUNG',
             });
-            await say(`Erledigt. Der Termin für ${customer} wurde eingetragen.`);
-        } catch(err) {
-            await say('Beim Speichern ist ein Fehler aufgetreten. Bitte versuch es nochmal.');
         }
+        setOpen(false);
     };
 
     const handleQuery = async (firstUtterance) => {
@@ -2944,32 +2989,25 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
 
         if (dateNote) await say('Einen Moment.' + dateNote);
 
-        try {
-            const { db, collection, getDocs } = window.FirebaseSDK;
-            let results = [];
-            const snaps = await Promise.all(
-                relevantTeams.map(t => getDocs(collection(db, `teams_cal_${t.id}`)).then(snap => ({ team: t, snap })))
-            );
-            snaps.forEach(({ team, snap }) => {
-                snap.docs.forEach(d => {
-                    const e = d.data();
-                    const start = (e.deliveryDate || '').substring(0,10);
-                    const end = (e.endDate || e.deliveryDate || '').substring(0,10) || start;
-                    if (dateStr >= start && dateStr <= end) results.push({ ...e, teamName: team.name });
-                });
+        const results = [];
+        relevantTeams.forEach(t => {
+            (cacheRef.current[t.id] || []).forEach(e => {
+                const start = (e.deliveryDate || '').substring(0,10);
+                const end = (e.endDate || e.deliveryDate || '').substring(0,10) || start;
+                if (dateStr >= start && dateStr <= end) results.push({ ...e, teamName: t.name, teamObj: t });
             });
-            if (!results.length) { await say('Ich habe keine Termine für dieses Datum gefunden.'); return; }
-            const parts = results.slice(0, 5).map((e, i) => `${i+1}. ${e.customer}${e.address ? ' bei ' + e.address : ''}, ${e.teamName}`);
-            let text = `Ich habe ${results.length} Termin${results.length===1?'':'e'} gefunden. ${parts.join('. ')}.`;
-            if (results.length > 5) text += ` Und ${results.length - 5} weitere.`;
-            await say(text);
-        } catch(err) {
-            await say('Beim Abfragen ist ein Fehler aufgetreten.');
-        }
+        });
+        if (!results.length) { await say('Ich habe keine Termine für dieses Datum gefunden.'); return; }
+        const parts = results.slice(0, 5).map((e, i) => `${i+1}. ${e.customer}${e.address ? ' bei ' + e.address : ''}, ${e.teamName}`);
+        let text = `Ich habe ${results.length} Termin${results.length===1?'':'e'} gefunden. ${parts.join('. ')}.`;
+        if (results.length > 5) text += ` Und ${results.length - 5} weitere.`;
+        await say(text);
+        setResultCards(results.slice(0, 10));
     };
 
     // ── "Wann waren wir zuletzt bei X?" — durchsucht ALLE Gruppen nach
-    // Adresse/Kunde, unabhängig vom Datum, und listet Ergebnisse pro Gruppe auf ──
+    // Adresse/Kunde (aus dem Live-Cache, daher sofort), listet Ergebnisse
+    // pro Gruppe auf und zeigt sie als anklickbare Karten. ──
     const handleHistoryLookup = async (firstUtterance) => {
         let term = vaExtractSearchTerm(firstUtterance);
         if (!term || term.length < 2) {
@@ -2977,44 +3015,37 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
             term = a ? vaExtractSearchTerm(a) : '';
             if (!term || term.length < 2) { await say('Ich habe keinen Suchbegriff verstanden. Abgebrochen.'); return; }
         }
-        await say(`Einen Moment, ich durchsuche alle Gruppen nach ${term}.`);
-        try {
-            const { db, collection, getDocs } = window.FirebaseSDK;
-            const words = term.toLowerCase().split(/\s+/).filter(Boolean);
-            const byTeam = {};
-            // Alle Gruppen PARALLEL abfragen statt nacheinander — das war
-            // der Grund für die 50 Sekunden Wartezeit.
-            const snaps = await Promise.all(
-                (teams || []).map(t => getDocs(collection(db, `teams_cal_${t.id}`)).then(snap => ({ team: t, snap })))
-            );
-            snaps.forEach(({ team, snap }) => {
-                snap.docs.forEach(d => {
-                    const e = d.data();
-                    const hay = `${e.address||''} ${e.customer||''} ${e.memo||''}`.toLowerCase();
-                    // Nachsichtiger Treffer: JEDES Wort aus dem Suchbegriff muss
-                    // irgendwo im Adress-/Kunden-/Memo-Text vorkommen (statt exaktem Teilstring).
-                    const isMatch = words.length > 0 && words.every(w => vaFuzzyWordMatch(w, hay));
-                    if (isMatch) { (byTeam[team.name] = byTeam[team.name] || []).push(e); }
-                });
+        const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+        const byTeam = {};
+        const allMatches = [];
+        (teams || []).forEach(t => {
+            (cacheRef.current[t.id] || []).forEach(e => {
+                const hay = `${e.address||''} ${e.customer||''} ${e.memo||''}`.toLowerCase();
+                const isMatch = words.length > 0 && words.every(w => vaFuzzyWordMatch(w, hay));
+                if (isMatch) {
+                    (byTeam[t.name] = byTeam[t.name] || []).push(e);
+                    allMatches.push({ ...e, teamName: t.name, teamObj: t });
+                }
             });
-            const groupNames = Object.keys(byTeam);
-            if (!groupNames.length) { await say(`Ich habe keine Einträge zu ${term} gefunden — in keiner Gruppe.`); return; }
-            const parts = groupNames.map(name => {
-                const list = byTeam[name].sort((a,b) => (b.deliveryDate||'').localeCompare(a.deliveryDate||''));
-                const last = list[0];
-                const dStr = last.deliveryDate ? new Date(last.deliveryDate.substring(0,10)+'T00:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : 'unbekanntem Datum';
-                return `Bei ${name}: zuletzt am ${dStr}${list.length>1?`, insgesamt ${list.length} Einträge`:''}`;
-            });
-            await say(`Gefunden in ${groupNames.length} Gruppe${groupNames.length>1?'n':''}. ${parts.join('. ')}.`);
-        } catch(err) {
-            await say('Beim Durchsuchen ist ein Fehler aufgetreten.');
-        }
+        });
+        const groupNames = Object.keys(byTeam);
+        if (!groupNames.length) { await say(`Ich habe keine Einträge zu ${term} gefunden — in keiner Gruppe.`); return; }
+        const parts = groupNames.map(name => {
+            const list = byTeam[name].sort((a,b) => (b.deliveryDate||'').localeCompare(a.deliveryDate||''));
+            const last = list[0];
+            const dStr = last.deliveryDate ? new Date(last.deliveryDate.substring(0,10)+'T00:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : 'unbekanntem Datum';
+            return `Bei ${name}: zuletzt am ${dStr}${list.length>1?`, insgesamt ${list.length} Einträge`:''}`;
+        });
+        await say(`Gefunden in ${groupNames.length} Gruppe${groupNames.length>1?'n':''}. ${parts.join('. ')}. Du kannst unten direkt auf einen Eintrag tippen.`);
+        allMatches.sort((a,b) => (b.deliveryDate||'').localeCompare(a.deliveryDate||''));
+        setResultCards(allMatches.slice(0, 12));
     };
 
     const startConversation = async () => {
         if (busyRef.current) return;
         busyRef.current = true;
         setLog([]);
+        setResultCards(null);
         setOpen(true);
         try {
             let first = await askAndListen('Ich höre. Was möchtest du tun?');
@@ -3062,7 +3093,7 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
             <style>{`@keyframes vaPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}`}</style>
             {open && (
                 <div style={{
-                    position:'fixed', bottom:92, right:20, zIndex:400, width:300, maxWidth:'calc(100vw - 40px)',
+                    position:'fixed', bottom:92, right:20, zIndex:400, width:320, maxWidth:'calc(100vw - 40px)',
                     background:'rgba(15,23,42,0.97)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:16,
                     padding:14, boxShadow:'0 20px 50px rgba(0,0,0,0.6)', backdropFilter:'blur(10px)',
                 }}>
@@ -3075,7 +3106,7 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
                             <button onClick={()=>setOpen(false)} style={{background:'rgba(255,255,255,0.06)', border:'none', borderRadius:6, color:'#94a3b8', fontSize:12, padding:'3px 8px', cursor:'pointer'}}>✕</button>
                         </div>
                     </div>
-                    <div style={{maxHeight:180, overflowY:'auto', display:'flex', flexDirection:'column', gap:6}}>
+                    <div style={{maxHeight:180, overflowY:'auto', display:'flex', flexDirection:'column', gap:6, marginBottom: resultCards ? 10 : 0}}>
                         {log.map((l,i)=>(
                             <div key={i} style={{
                                 alignSelf: l.who==='user' ? 'flex-end' : 'flex-start',
@@ -3084,8 +3115,23 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
                                 borderRadius:10, padding:'6px 10px', fontSize:11, maxWidth:'85%',
                             }}>{l.text}</div>
                         ))}
-                        {log.length===0 && <div style={{color:'#64748b', fontSize:10, textAlign:'center', padding:'10px 0'}}>Tippe auf das Mikrofon zum Starten</div>}
+                        {log.length===0 && !resultCards && <div style={{color:'#64748b', fontSize:10, textAlign:'center', padding:'10px 0'}}>Tippe auf das Mikrofon zum Starten</div>}
                     </div>
+                    {resultCards && resultCards.length > 0 && (
+                        <div style={{borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:8, display:'flex', flexDirection:'column', gap:5, maxHeight:220, overflowY:'auto'}}>
+                            {resultCards.map((e,i) => (
+                                <button key={i} onClick={() => { if(onNavigate) onNavigate(e, e.teamObj); setOpen(false); }}
+                                    style={{textAlign:'left', background:'rgba(99,102,241,0.1)', border:'1px solid rgba(99,102,241,0.3)', borderRadius:9, padding:'7px 10px', cursor:'pointer', color:'#e2e8f0'}}>
+                                    <div style={{display:'flex', justifyContent:'space-between', gap:6}}>
+                                        <span style={{fontSize:11, fontWeight:800, color:'#c7d2fe'}}>{e.teamName}</span>
+                                        <span style={{fontSize:9, color:'#818cf8'}}>{e.deliveryDate ? new Date(e.deliveryDate.substring(0,10)+'T00:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : ''}</span>
+                                    </div>
+                                    <div style={{fontSize:11, fontWeight:700}}>{e.customer}</div>
+                                    {e.address && <div style={{fontSize:10, color:'#94a3b8'}}>{e.address}</div>}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </>
@@ -3097,6 +3143,8 @@ function App() {
     const [authState, setAuthState] = useState(null);
     const [teams, setTeams] = useState([]);
     const [ready, setReady] = useState(false);
+    const [voicePrefill, setVoicePrefill] = useState(null);
+    const [voiceJumpTarget, setVoiceJumpTarget] = useState(null);
 
     // Falls schon eine gültige Zugangscode-Sitzung besteht (z.B. nach
     // Neuladen der Seite im selben Browser), nicht erneut nach dem Code fragen.
@@ -3114,21 +3162,37 @@ function App() {
         const init=()=>{if(!window.FirebaseSDK||!window.AuthReady){setTimeout(init,100);return;}const{db,collection,onSnapshot}=window.FirebaseSDK;onSnapshot(collection(db,'teams_config'),snap=>{setTeams(snap.docs.map(d=>({...d.data()})));setReady(true);},err=>{console.error(err);setReady(true);});};init();
     },[gateOk]);
 
+    // ── Sprachassistent: zu einem gefundenen Auftrag springen ──
+    const handleVoiceNavigate = (entry, team) => {
+        if (authState && authState.role === 'admin') {
+            setAuthState(prev => ({...prev, adminViewingTeam: team, adminCalType: entry.calType||'montage', scrollToEntry: entry}));
+        } else {
+            setVoiceJumpTarget(entry);
+        }
+    };
+    // ── Sprachassistent: neuen Auftrag vorbereitet — sichtbares Formular öffnen ──
+    const handleVoiceCreateEntry = (team, calType, prefillData) => {
+        setVoicePrefill({ ...prefillData, calType: calType || 'montage' });
+        if (authState && authState.role === 'admin') {
+            setAuthState(prev => ({...prev, adminViewingTeam: team, adminCalType: calType||'montage', scrollToEntry: null}));
+        }
+    };
+
     if(!gateOk) return <GateScreen onSuccess={()=>setGateOk(true)}/>;
     if(!ready)return(<div style={{minHeight:'100vh',background:'#030712',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}><div style={{color:'#6366f1',fontWeight:900,textTransform:'uppercase',letterSpacing:'0.2em',fontSize:13}}>LADE SYSTEM...</div></div>);
     if(!authState)return <LoginScreen teams={teams} onLogin={(role,team)=>setAuthState({role,team})}/>;
 
     if(authState.role==='admin'){
-        if(authState.showStandby)return <><StandbyView onBack={()=>setAuthState(prev=>({...prev,showStandby:false}))}/><VoiceAssistant teams={teams} isAdmin={true}/></>;
-        if(authState.showSearch)return <><GlobalSearchModal teams={teams} onClose={()=>setAuthState(prev=>({...prev,showSearch:false}))} onNavigate={(entry,team)=>{setAuthState(prev=>({...prev,showSearch:false,adminViewingTeam:team,adminCalType:entry.calType||'montage',scrollToEntry:entry}));}}/><VoiceAssistant teams={teams} isAdmin={true}/></>;
-        if(authState.adminViewingTeam)return <><CalendarView key={authState.scrollToEntry?.id||authState.adminViewingTeam} team={authState.adminViewingTeam} teams={teams} isAdminAccess={true} activeCalType={authState.adminCalType||'montage'} scrollToEntry={authState.scrollToEntry||null} onBack={()=>setAuthState(prev=>({...prev,adminViewingTeam:null,adminCalType:null,scrollToEntry:null}))}/><VoiceAssistant teams={teams} isAdmin={true}/></>;
-        return <><AdminPanel teams={teams} onLogout={()=>setAuthState(null)} onSelectTeam={(team,calType)=>setAuthState(prev=>({...prev,adminViewingTeam:team,adminCalType:calType,scrollToEntry:null}))} onOpenStandby={()=>setAuthState(prev=>({...prev,showStandby:true}))} onSearch={()=>setAuthState(prev=>({...prev,showSearch:true}))}/><VoiceAssistant teams={teams} isAdmin={true}/></>;
+        if(authState.showStandby)return <><StandbyView onBack={()=>setAuthState(prev=>({...prev,showStandby:false}))}/><VoiceAssistant teams={teams} isAdmin={true} onNavigate={handleVoiceNavigate} onCreateEntry={handleVoiceCreateEntry}/></>;
+        if(authState.showSearch)return <><GlobalSearchModal teams={teams} onClose={()=>setAuthState(prev=>({...prev,showSearch:false}))} onNavigate={(entry,team)=>{setAuthState(prev=>({...prev,showSearch:false,adminViewingTeam:team,adminCalType:entry.calType||'montage',scrollToEntry:entry}));}}/><VoiceAssistant teams={teams} isAdmin={true} onNavigate={handleVoiceNavigate} onCreateEntry={handleVoiceCreateEntry}/></>;
+        if(authState.adminViewingTeam)return <><CalendarView key={authState.scrollToEntry?.id||authState.adminViewingTeam} team={authState.adminViewingTeam} teams={teams} isAdminAccess={true} activeCalType={authState.adminCalType||'montage'} scrollToEntry={authState.scrollToEntry||null} voicePrefill={voicePrefill} onVoicePrefillApplied={()=>setVoicePrefill(null)} onBack={()=>setAuthState(prev=>({...prev,adminViewingTeam:null,adminCalType:null,scrollToEntry:null}))}/><VoiceAssistant teams={teams} isAdmin={true} onNavigate={handleVoiceNavigate} onCreateEntry={handleVoiceCreateEntry}/></>;
+        return <><AdminPanel teams={teams} onLogout={()=>setAuthState(null)} onSelectTeam={(team,calType)=>setAuthState(prev=>({...prev,adminViewingTeam:team,adminCalType:calType,scrollToEntry:null}))} onOpenStandby={()=>setAuthState(prev=>({...prev,showStandby:true}))} onSearch={()=>setAuthState(prev=>({...prev,showSearch:true}))}/><VoiceAssistant teams={teams} isAdmin={true} onNavigate={handleVoiceNavigate} onCreateEntry={handleVoiceCreateEntry}/></>;
     }
 
     const team=authState.team;
     const teamTypes=parseCalTypes(team.calType);
     const defaultType=authState.activeCalType||teamTypes[0]||'montage';
-    return <><CalendarView team={team} isAdminAccess={false} activeCalType={defaultType} onBack={()=>setAuthState(null)}/><VoiceAssistant teams={teams} isAdmin={false} defaultTeam={team}/></>;
+    return <><CalendarView key={voiceJumpTarget?.id||'main'} team={team} isAdminAccess={false} activeCalType={defaultType} scrollToEntry={voiceJumpTarget} voicePrefill={voicePrefill} onVoicePrefillApplied={()=>setVoicePrefill(null)} onBack={()=>setAuthState(null)}/><VoiceAssistant teams={teams} isAdmin={false} defaultTeam={team} onNavigate={handleVoiceNavigate} onCreateEntry={handleVoiceCreateEntry}/></>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);

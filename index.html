@@ -2729,7 +2729,7 @@ function vaSpeak(text, onEnd) {
     try {
         window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'de-DE';
+        u.lang = 'de-CH';
         u.rate = 1.0;
         u.onend = () => { if (onEnd) onEnd(); };
         u.onerror = () => { if (onEnd) onEnd(); };
@@ -2741,7 +2741,7 @@ function vaListenOnce(onResult, onError) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { onError && onError('no-speech-api'); return null; }
     const rec = new SR();
-    rec.lang = 'de-DE';
+    rec.lang = 'de-CH';
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     let done = false;
@@ -2829,17 +2829,39 @@ function vaExtractSearchTerm(text) {
 
 // ── Unscharfer Wortvergleich: toleriert kleine Erkennungsfehler der
 // Spracherkennung (z.B. "Sonnenweg" gesprochen statt "Sonneggweg" gespeichert) ──
+// ── Echte Zeichen-Distanz (Levenshtein) statt nur Wortanfang-Vergleich —
+// toleriert deutlich mehr Erkennungsfehler (z.B. "Rotwiesen" vs "Roswiesen") ──
+function vaLevenshtein(a, b) {
+    const m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    const dp = new Array(n + 1);
+    for (let j = 0; j <= n; j++) dp[j] = j;
+    for (let i = 1; i <= m; i++) {
+        let prev = dp[0];
+        dp[0] = i;
+        for (let j = 1; j <= n; j++) {
+            const tmp = dp[j];
+            dp[j] = Math.min(dp[j] + 1, dp[j-1] + 1, prev + (a[i-1] === b[j-1] ? 0 : 1));
+            prev = tmp;
+        }
+    }
+    return dp[n];
+}
+
 function vaFuzzyWordMatch(searchWord, hay) {
     if (/^\d+$/.test(searchWord)) {
         // Reine Zahl (z.B. Hausnummer) muss als eigenständiges Wort vorkommen
         return new RegExp('(^|\\D)' + searchWord + '(\\D|$)').test(hay);
     }
     if (hay.includes(searchWord)) return true;
-    if (searchWord.length >= 5) {
-        const prefix = searchWord.slice(0, 5);
-        return hay.split(/\s+/).some(w => w.length >= 4 && (w.startsWith(prefix) || prefix.startsWith(w.slice(0,5))));
-    }
-    return false;
+    const hayWords = hay.split(/\s+/).filter(Boolean);
+    const maxDist = searchWord.length <= 5 ? 1 : searchWord.length <= 8 ? 2 : 3;
+    return hayWords.some(w => {
+        if (w.length < 3) return false;
+        if (Math.abs(w.length - searchWord.length) > maxDist + 2) return false;
+        return vaLevenshtein(searchWord, w) <= maxDist;
+    });
 }
 
 function vaIsNo(text) {
@@ -2871,6 +2893,7 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
     const [status, setStatus] = useState('idle'); // idle | listening | thinking | speaking
     const [log, setLog] = useState([]);
     const [resultCards, setResultCards] = useState(null); // klickbare Ergebnisliste
+    const [manualText, setManualText] = useState('');
     const recRef = useRef(null);
     const busyRef = useRef(false);
     const cacheRef = useRef({}); // teamId -> Array<entry>  (live via onSnapshot, kein erneutes Laden nötig)
@@ -2899,19 +2922,45 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
         vaSpeak(text, () => { setStatus('idle'); resolve(); });
     });
 
+    // ── Jede Antwort kann per Sprache ODER per Tastatur gegeben werden.
+    // pendingResolveRef hält das offene Promise, damit das Texteingabefeld
+    // (weiter unten im UI) es jederzeit auflösen kann — z.B. wenn die
+    // Spracherkennung einen Namen/eine Adresse falsch verstanden hat. ──
+    const pendingResolveRef = useRef(null);
+
     const listen = () => new Promise(resolve => {
         setStatus('listening');
+        const finish = (text) => {
+            if (!pendingResolveRef.current) return; // schon durch Texteingabe aufgelöst
+            pendingResolveRef.current = null;
+            if (text) { setStatus('thinking'); pushLog('user', text); } else { setStatus('idle'); }
+            resolve(text);
+        };
+        pendingResolveRef.current = finish;
         recRef.current = vaListenOnce(
-            (text) => { setStatus('thinking'); pushLog('user', text); resolve(text); },
-            () => { setStatus('idle'); resolve(null); }
+            (text) => finish(text),
+            () => finish(null)
         );
     });
+
+    const submitManualAnswer = (text) => {
+        const val = (text || '').trim();
+        if (!val || !pendingResolveRef.current) return;
+        try { recRef.current && recRef.current.abort(); } catch(e) {}
+        try { window.speechSynthesis.cancel(); } catch(e) {}
+        const finish = pendingResolveRef.current;
+        pendingResolveRef.current = null;
+        setStatus('thinking');
+        pushLog('user', val + ' ⌨️');
+        finish(val);
+    };
 
     const askAndListen = async (prompt) => { await say(prompt); return await listen(); };
 
     const stopAll = () => {
         try { window.speechSynthesis.cancel(); } catch(e) {}
         try { recRef.current && recRef.current.abort(); } catch(e) {}
+        pendingResolveRef.current = null;
         busyRef.current = false;
         setStatus('idle');
     };
@@ -3241,6 +3290,19 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
                         ))}
                         {log.length===0 && !resultCards && <div style={{color:'#64748b', fontSize:10, textAlign:'center', padding:'10px 0'}}>Tippe auf das Mikrofon zum Starten</div>}
                     </div>
+                    {status==='listening' && (
+                        <div style={{borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:8, marginBottom:resultCards?8:0, display:'flex', gap:6}}>
+                            <input
+                                type="text" value={manualText}
+                                onChange={e=>setManualText(e.target.value)}
+                                onKeyDown={e=>{ if(e.key==='Enter'){ submitManualAnswer(manualText); setManualText(''); } }}
+                                placeholder="Falsch verstanden? Hier tippen..."
+                                style={{flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'7px 10px', color:'#fff', fontSize:11, outline:'none'}}
+                            />
+                            <button onClick={()=>{ submitManualAnswer(manualText); setManualText(''); }}
+                                style={{background:'#6366f1', border:'none', borderRadius:8, color:'#fff', fontSize:11, fontWeight:900, padding:'0 14px', cursor:'pointer'}}>✓</button>
+                        </div>
+                    )}
                     {resultCards && resultCards.length > 0 && (
                         <div style={{borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:8, display:'flex', flexDirection:'column', gap:5, maxHeight:220, overflowY:'auto'}}>
                             {resultCards.map((e,i) => (

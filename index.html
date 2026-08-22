@@ -71,7 +71,12 @@
             }, errorCallback || console.error);
             return unsub;
           }
-          window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot };
+          function getDocs(ref) {
+            return db.collection(ref._col).get().then(snap => ({
+              docs: snap.docs.map(d => ({ id: d.id, data: () => ({ ...d.data() }) }))
+            }));
+          }
+          window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs };
         } else {
           const _listeners = {};
           function _getCol(col) { try { return JSON.parse(localStorage.getItem('pe_' + col) || '{}'); } catch(e) { return {}; } }
@@ -94,7 +99,8 @@
             window.addEventListener('storage', handler);
             return () => { _listeners[col] = (_listeners[col] || []).filter(c => c !== callback); window.removeEventListener('storage', handler); };
           }
-          window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot };
+          function getDocs(ref) { return Promise.resolve(_makeSnap(_getCol(ref._col))); }
+          window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs };
         }
       })();
 
@@ -2684,6 +2690,290 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
 // ============================================================
 // APP ROOT
 // ============================================================
+// ══════════════════════════════════════════════════════════
+// SPRACHASSISTENT — Termine per Sprache eintragen & abfragen
+// Nutzt die Web Speech API des Browsers (kostenlos, ohne externe
+// API). Funktioniert gut in Chrome/Edge, eingeschränkt in Safari,
+// nicht in Firefox.
+// ══════════════════════════════════════════════════════════
+function vaSpeak(text, onEnd) {
+    try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'de-DE';
+        u.rate = 1.0;
+        u.onend = () => { if (onEnd) onEnd(); };
+        u.onerror = () => { if (onEnd) onEnd(); };
+        window.speechSynthesis.speak(u);
+    } catch(e) { if (onEnd) onEnd(); }
+}
+
+function vaListenOnce(onResult, onError) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { onError && onError('no-speech-api'); return null; }
+    const rec = new SR();
+    rec.lang = 'de-DE';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    let done = false;
+    rec.onresult = (e) => { done = true; onResult(e.results[0][0].transcript); };
+    rec.onerror = (e) => { if (!done) { done = true; onError && onError(e.error); } };
+    rec.onend = () => { if (!done) { done = true; onError && onError('no-match'); } };
+    try { rec.start(); } catch(e) { onError && onError('start-failed'); return null; }
+    return rec;
+}
+
+function vaParseGermanDate(text) {
+    const t = (text || '').toLowerCase();
+    const today = new Date();
+    const mk = (d) => { const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
+    if (t.includes('übermorgen') || t.includes('uebermorgen')) { const d=new Date(today); d.setDate(d.getDate()+2); return mk(d); }
+    if (t.includes('heute')) return mk(today);
+    if (t.includes('morgen')) { const d=new Date(today); d.setDate(d.getDate()+1); return mk(d); }
+    const weekdays = ['sonntag','montag','dienstag','mittwoch','donnerstag','freitag','samstag'];
+    for (let i=0;i<weekdays.length;i++) {
+        if (t.includes(weekdays[i])) {
+            const d = new Date(today);
+            let diff = (i - d.getDay() + 7) % 7;
+            if (diff === 0) diff = 7;
+            d.setDate(d.getDate()+diff);
+            return mk(d);
+        }
+    }
+    const m = t.match(/(\d{1,2})\.\s?(\d{1,2})\.?\s?(\d{4})?/);
+    if (m) {
+        const day=parseInt(m[1]), month=parseInt(m[2])-1, year=m[3]?parseInt(m[3]):today.getFullYear();
+        const d = new Date(year, month, day);
+        if (!isNaN(d.getTime())) return mk(d);
+    }
+    return null;
+}
+
+function vaMatchTeam(text, teams) {
+    const t = (text || '').toLowerCase();
+    if (t.includes('nein') || t.includes('kein') || t.includes('egal')) return null;
+    let best = null;
+    (teams || []).forEach(team => { if (t.includes((team.name||'').toLowerCase())) best = team; });
+    return best;
+}
+
+function vaIsNo(text) {
+    const t = (text || '').toLowerCase();
+    return t.includes('nein') || t.includes('abbrechen') || t.includes('stopp') || t.includes('nichts');
+}
+function vaIsYes(text) {
+    const t = (text || '').toLowerCase();
+    return t.includes('ja') || t.includes('genau') || t.includes('passt') || t.includes('richtig') || t.includes('korrekt');
+}
+
+function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
+    const [open, setOpen] = useState(false);
+    const [status, setStatus] = useState('idle'); // idle | listening | thinking | speaking
+    const [log, setLog] = useState([]);
+    const recRef = useRef(null);
+    const busyRef = useRef(false);
+    const supported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+    const pushLog = (who, text) => setLog(prev => [...prev.slice(-8), { who, text }]);
+
+    const say = (text) => new Promise(resolve => {
+        pushLog('assistant', text);
+        setStatus('speaking');
+        vaSpeak(text, () => { setStatus('idle'); resolve(); });
+    });
+
+    const listen = () => new Promise(resolve => {
+        setStatus('listening');
+        recRef.current = vaListenOnce(
+            (text) => { setStatus('thinking'); pushLog('user', text); resolve(text); },
+            () => { setStatus('idle'); resolve(null); }
+        );
+    });
+
+    const askAndListen = async (prompt) => { await say(prompt); return await listen(); };
+
+    const stopAll = () => {
+        try { window.speechSynthesis.cancel(); } catch(e) {}
+        try { recRef.current && recRef.current.abort(); } catch(e) {}
+        busyRef.current = false;
+        setStatus('idle');
+    };
+
+    const handleCreateEntry = async (firstUtterance) => {
+        let customer = null;
+        const custMatch = firstUtterance.match(/für\s+(.+?)(?:\s+am\b|\s+adresse\b|\s+in\b|\s+notiz\b|\s+memo\b|$)/i);
+        if (custMatch) customer = custMatch[1].trim();
+
+        let dateStr = vaParseGermanDate(firstUtterance);
+        let calType = 'montage';
+        if (/beplankung/i.test(firstUtterance)) calType = 'beplankung';
+        else if (/ausflock/i.test(firstUtterance)) calType = 'ausflocken';
+
+        let team = isAdmin ? vaMatchTeam(firstUtterance, teams) : (defaultTeam || null);
+
+        if (!customer) {
+            const a = await askAndListen('Für welchen Kunden ist der Termin?');
+            if (!a) { await say('Ich habe dich leider nicht verstanden. Abgebrochen.'); return; }
+            customer = a.trim();
+        }
+
+        if (!dateStr) {
+            const a = await askAndListen('An welchem Tag soll der Termin sein? Zum Beispiel heute, morgen oder ein Datum.');
+            dateStr = a ? vaParseGermanDate(a) : null;
+            if (!dateStr) { await say('Ich konnte das Datum nicht erkennen. Bitte trag den Termin manuell ein. Abgebrochen.'); return; }
+        }
+
+        let address = '';
+        const addrA = await askAndListen('Möchtest du eine Adresse angeben? Sag die Adresse, oder "nein".');
+        if (addrA && !vaIsNo(addrA)) address = addrA.trim();
+
+        let memo = '';
+        const memoA = await askAndListen('Noch eine Notiz oder ein Memo dazu? Sag den Text, oder "nein".');
+        if (memoA && !vaIsNo(memoA)) memo = memoA.trim();
+
+        if (isAdmin && !team) {
+            if ((teams || []).length === 1) {
+                team = teams[0];
+            } else {
+                const names = (teams || []).map(t => t.name).join(', ');
+                const a = await askAndListen(`Für welche Gruppe soll ich das eintragen? Zur Auswahl: ${names}.`);
+                team = vaMatchTeam(a, teams);
+                if (!team) { await say('Ich konnte die Gruppe nicht erkennen. Abgebrochen.'); return; }
+            }
+        }
+        if (!team) { await say('Es ist keine Gruppe zugeordnet. Abgebrochen.'); return; }
+
+        const dateObj = new Date(dateStr + 'T00:00:00');
+        const dateSpoken = dateObj.toLocaleDateString('de-DE', { weekday:'long', day:'2-digit', month:'2-digit' });
+        const summary = `Ich trage ein: ${customer}, am ${dateSpoken}${address ? ', ' + address : ''}${memo ? ', Memo: ' + memo : ''}, für ${team.name}. Sag "ja" zum Bestätigen oder "nein" zum Abbrechen.`;
+        const conf = await askAndListen(summary);
+        if (!conf || !vaIsYes(conf)) { await say('Abgebrochen.'); return; }
+
+        try {
+            const { db, doc, setDoc } = window.FirebaseSDK;
+            const id = `cal-${genId()}`;
+            await setDoc(doc(db, `teams_cal_${team.id}`, id), {
+                id, createdAt: new Date().toISOString(), isDone: false, isBilled: false,
+                entryType: 'LIEFERUNG', customer, address, memo, auftragsNr: '',
+                target: 0, images: [], image: null, deliveryDate: dateStr, endDate: null,
+                isMultiDay: false, calType, isProv: false, customStartLabel: '',
+            });
+            await say(`Erledigt. Der Termin für ${customer} wurde eingetragen.`);
+        } catch(err) {
+            await say('Beim Speichern ist ein Fehler aufgetreten. Bitte versuch es nochmal.');
+        }
+    };
+
+    const handleQuery = async (firstUtterance) => {
+        let dateStr = vaParseGermanDate(firstUtterance);
+        let dateNote = '';
+        if (!dateStr) { dateStr = vaParseGermanDate('heute'); dateNote = ' Ich zeige dir heute.'; }
+        const filterTeam = vaMatchTeam(firstUtterance, teams);
+        const relevantTeams = filterTeam ? [filterTeam] : (teams || []);
+
+        if (dateNote) await say('Einen Moment.' + dateNote);
+
+        try {
+            const { db, collection, getDocs } = window.FirebaseSDK;
+            let results = [];
+            for (const t of relevantTeams) {
+                const snap = await getDocs(collection(db, `teams_cal_${t.id}`));
+                snap.docs.forEach(d => {
+                    const e = d.data();
+                    const start = (e.deliveryDate || '').substring(0,10);
+                    const end = (e.endDate || e.deliveryDate || '').substring(0,10) || start;
+                    if (dateStr >= start && dateStr <= end) results.push({ ...e, teamName: t.name });
+                });
+            }
+            if (!results.length) { await say('Ich habe keine Termine für dieses Datum gefunden.'); return; }
+            const parts = results.slice(0, 5).map((e, i) => `${i+1}. ${e.customer}${e.address ? ' bei ' + e.address : ''}, ${e.teamName}`);
+            let text = `Ich habe ${results.length} Termin${results.length===1?'':'e'} gefunden. ${parts.join('. ')}.`;
+            if (results.length > 5) text += ` Und ${results.length - 5} weitere.`;
+            await say(text);
+        } catch(err) {
+            await say('Beim Abfragen ist ein Fehler aufgetreten.');
+        }
+    };
+
+    const startConversation = async () => {
+        if (busyRef.current) return;
+        busyRef.current = true;
+        setLog([]);
+        setOpen(true);
+        try {
+            let first = await askAndListen('Ich höre. Möchtest du einen Termin eintragen oder den Kalender abfragen?');
+            if (!first) { await say('Ich habe nichts verstanden.'); busyRef.current = false; return; }
+
+            const t = first.toLowerCase();
+            const wantsCreate = /termin|eintragen|neuer auftrag|neuen auftrag|hinzufügen/.test(t);
+            const wantsQuery = /was steht|welche termine|zeig mir|abfragen|kalender/.test(t);
+
+            if (wantsCreate) {
+                await handleCreateEntry(first);
+            } else if (wantsQuery) {
+                await handleQuery(first);
+            } else {
+                const a = await askAndListen('Sag "Termin" für einen neuen Eintrag, oder "Kalender" für eine Abfrage.');
+                if (a && /termin/i.test(a)) await handleCreateEntry(a);
+                else if (a && /kalender|termine|abfrage/i.test(a)) await handleQuery(a);
+                else await say('Ich habe dich nicht verstanden. Versuch es gern nochmal.');
+            }
+        } catch(e) {
+            await say('Es ist ein Fehler aufgetreten.');
+        }
+        busyRef.current = false;
+    };
+
+    if (!supported) return null;
+
+    return (
+        <>
+            <button onClick={startConversation} title="Sprachassistent"
+                style={{
+                    position:'fixed', bottom:20, right:20, zIndex:400,
+                    width:60, height:60, borderRadius:'50%', border:'none', cursor:'pointer',
+                    background: status==='listening' ? 'linear-gradient(135deg,#ef4444,#dc2626)'
+                              : status==='speaking' ? 'linear-gradient(135deg,#10b981,#059669)'
+                              : status==='thinking' ? 'linear-gradient(135deg,#f59e0b,#d97706)'
+                              : 'linear-gradient(135deg,#6366f1,#4f46e5)',
+                    boxShadow:'0 8px 24px rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:24, transition:'all 0.2s', animation: status!=='idle' ? 'vaPulse 1.2s infinite' : 'none',
+                }}>
+                🎙️
+            </button>
+            <style>{`@keyframes vaPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}`}</style>
+            {open && (
+                <div style={{
+                    position:'fixed', bottom:92, right:20, zIndex:400, width:300, maxWidth:'calc(100vw - 40px)',
+                    background:'rgba(15,23,42,0.97)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:16,
+                    padding:14, boxShadow:'0 20px 50px rgba(0,0,0,0.6)', backdropFilter:'blur(10px)',
+                }}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
+                        <span style={{color:'#a5b4fc', fontSize:10, fontWeight:900, textTransform:'uppercase', letterSpacing:1}}>
+                            {status==='listening'?'🔴 Höre zu...':status==='speaking'?'🔊 Spricht...':status==='thinking'?'⏳ Verarbeite...':'Sprachassistent'}
+                        </span>
+                        <div style={{display:'flex', gap:6}}>
+                            <button onClick={stopAll} style={{background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, color:'#f87171', fontSize:9, fontWeight:900, padding:'3px 8px', cursor:'pointer'}}>STOPP</button>
+                            <button onClick={()=>setOpen(false)} style={{background:'rgba(255,255,255,0.06)', border:'none', borderRadius:6, color:'#94a3b8', fontSize:12, padding:'3px 8px', cursor:'pointer'}}>✕</button>
+                        </div>
+                    </div>
+                    <div style={{maxHeight:180, overflowY:'auto', display:'flex', flexDirection:'column', gap:6}}>
+                        {log.map((l,i)=>(
+                            <div key={i} style={{
+                                alignSelf: l.who==='user' ? 'flex-end' : 'flex-start',
+                                background: l.who==='user' ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)',
+                                color: l.who==='user' ? '#c7d2fe' : '#e2e8f0',
+                                borderRadius:10, padding:'6px 10px', fontSize:11, maxWidth:'85%',
+                            }}>{l.text}</div>
+                        ))}
+                        {log.length===0 && <div style={{color:'#64748b', fontSize:10, textAlign:'center', padding:'10px 0'}}>Tippe auf das Mikrofon zum Starten</div>}
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
+
 function App() {
     const [gateOk, setGateOk] = useState(false);
     const [authState, setAuthState] = useState(null);
@@ -2711,16 +3001,16 @@ function App() {
     if(!authState)return <LoginScreen teams={teams} onLogin={(role,team)=>setAuthState({role,team})}/>;
 
     if(authState.role==='admin'){
-        if(authState.showStandby)return <StandbyView onBack={()=>setAuthState(prev=>({...prev,showStandby:false}))}/>;
-        if(authState.showSearch)return <GlobalSearchModal teams={teams} onClose={()=>setAuthState(prev=>({...prev,showSearch:false}))} onNavigate={(entry,team)=>{setAuthState(prev=>({...prev,showSearch:false,adminViewingTeam:team,adminCalType:entry.calType||'montage',scrollToEntry:entry}));}}/>;
-        if(authState.adminViewingTeam)return <CalendarView key={authState.scrollToEntry?.id||authState.adminViewingTeam} team={authState.adminViewingTeam} teams={teams} isAdminAccess={true} activeCalType={authState.adminCalType||'montage'} scrollToEntry={authState.scrollToEntry||null} onBack={()=>setAuthState(prev=>({...prev,adminViewingTeam:null,adminCalType:null,scrollToEntry:null}))}/>;
-        return <AdminPanel teams={teams} onLogout={()=>setAuthState(null)} onSelectTeam={(team,calType)=>setAuthState(prev=>({...prev,adminViewingTeam:team,adminCalType:calType,scrollToEntry:null}))} onOpenStandby={()=>setAuthState(prev=>({...prev,showStandby:true}))} onSearch={()=>setAuthState(prev=>({...prev,showSearch:true}))}/>;
+        if(authState.showStandby)return <><StandbyView onBack={()=>setAuthState(prev=>({...prev,showStandby:false}))}/><VoiceAssistant teams={teams} isAdmin={true}/></>;
+        if(authState.showSearch)return <><GlobalSearchModal teams={teams} onClose={()=>setAuthState(prev=>({...prev,showSearch:false}))} onNavigate={(entry,team)=>{setAuthState(prev=>({...prev,showSearch:false,adminViewingTeam:team,adminCalType:entry.calType||'montage',scrollToEntry:entry}));}}/><VoiceAssistant teams={teams} isAdmin={true}/></>;
+        if(authState.adminViewingTeam)return <><CalendarView key={authState.scrollToEntry?.id||authState.adminViewingTeam} team={authState.adminViewingTeam} teams={teams} isAdminAccess={true} activeCalType={authState.adminCalType||'montage'} scrollToEntry={authState.scrollToEntry||null} onBack={()=>setAuthState(prev=>({...prev,adminViewingTeam:null,adminCalType:null,scrollToEntry:null}))}/><VoiceAssistant teams={teams} isAdmin={true}/></>;
+        return <><AdminPanel teams={teams} onLogout={()=>setAuthState(null)} onSelectTeam={(team,calType)=>setAuthState(prev=>({...prev,adminViewingTeam:team,adminCalType:calType,scrollToEntry:null}))} onOpenStandby={()=>setAuthState(prev=>({...prev,showStandby:true}))} onSearch={()=>setAuthState(prev=>({...prev,showSearch:true}))}/><VoiceAssistant teams={teams} isAdmin={true}/></>;
     }
 
     const team=authState.team;
     const teamTypes=parseCalTypes(team.calType);
     const defaultType=authState.activeCalType||teamTypes[0]||'montage';
-    return <CalendarView team={team} isAdminAccess={false} activeCalType={defaultType} onBack={()=>setAuthState(null)}/>;
+    return <><CalendarView team={team} isAdminAccess={false} activeCalType={defaultType} onBack={()=>setAuthState(null)}/><VoiceAssistant teams={teams} isAdmin={false} defaultTeam={team}/></>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);

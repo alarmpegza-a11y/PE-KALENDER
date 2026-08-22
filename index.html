@@ -2729,7 +2729,7 @@ function vaSpeak(text, onEnd) {
     try {
         window.speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'de-CH';
+        u.lang = 'de-DE';
         u.rate = 1.0;
         u.onend = () => { if (onEnd) onEnd(); };
         u.onerror = () => { if (onEnd) onEnd(); };
@@ -2741,11 +2741,16 @@ function vaListenOnce(onResult, onError) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { onError && onError('no-speech-api'); return null; }
     const rec = new SR();
-    rec.lang = 'de-CH';
+    rec.lang = 'de-DE';
     rec.interimResults = false;
-    rec.maxAlternatives = 1;
+    rec.maxAlternatives = 5;
     let done = false;
-    rec.onresult = (e) => { done = true; onResult(e.results[0][0].transcript); };
+    rec.onresult = (e) => {
+        done = true;
+        const alts = [];
+        for (let i = 0; i < e.results[0].length; i++) alts.push(e.results[0][i].transcript);
+        onResult(alts[0], alts);
+    };
     rec.onerror = (e) => { if (!done) { done = true; onError && onError(e.error); } };
     rec.onend = () => { if (!done) { done = true; onError && onError('no-match'); } };
     try { rec.start(); } catch(e) { onError && onError('start-failed'); return null; }
@@ -2864,6 +2869,26 @@ function vaFuzzyWordMatch(searchWord, hay) {
     });
 }
 
+// ── Der Browser liefert pro Aufnahme mehrere Vermutungen (Alternativen).
+// Statt blind die erste zu nehmen, wählen wir die Vermutung, die am besten
+// zu bereits bekannten Kunden-/Adressnamen in der Datenbank passt. Das
+// korrigiert z.B. "Sonic weg" → "Sonnegweg", wenn diese Adresse bereits
+// irgendwo im System existiert und unter den Alternativen dabei ist. ──
+function vaPickBestAlternative(alternatives, knownVocabWords) {
+    if (!alternatives || alternatives.length === 0) return null;
+    if (alternatives.length === 1 || !knownVocabWords || !knownVocabWords.length) return alternatives[0];
+    let best = alternatives[0], bestScore = -1;
+    alternatives.forEach(alt => {
+        const words = alt.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+        let score = 0;
+        words.forEach(w => {
+            if (knownVocabWords.some(kv => kv === w || vaLevenshtein(w, kv) <= 1)) score++;
+        });
+        if (score > bestScore) { bestScore = score; best = alt; }
+    });
+    return best;
+}
+
 function vaIsNo(text) {
     const t = (text || '').toLowerCase();
     return t.includes('nein') || t.includes('abbrechen') || t.includes('stopp') || t.includes('nichts');
@@ -2938,7 +2963,19 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
         };
         pendingResolveRef.current = finish;
         recRef.current = vaListenOnce(
-            (text) => finish(text),
+            (text, alternatives) => {
+                // Beste Alternative gegen bereits bekannte Kunden-/Adressnamen
+                // im Live-Cache abgleichen, statt blind die erste Vermutung zu nehmen.
+                let best = text;
+                if (alternatives && alternatives.length > 1) {
+                    const vocab = [];
+                    Object.values(cacheRef.current).forEach(list => (list||[]).forEach(e => {
+                        `${e.customer||''} ${e.address||''}`.toLowerCase().split(/\s+/).forEach(w => { if (w.length >= 3) vocab.push(w); });
+                    }));
+                    best = vaPickBestAlternative(alternatives, vocab) || text;
+                }
+                finish(best);
+            },
             () => finish(null)
         );
     });

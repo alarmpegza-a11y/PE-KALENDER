@@ -2967,12 +2967,6 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
             resolve(text);
         };
         pendingResolveRef.current = finish;
-        // Auf dem iPhone die unzuverlässige Web-Spracherkennung gar nicht erst
-        // starten — hier zählt nur das Textfeld mit dem nativen Tastatur-Mikrofon.
-        if (isIOS) {
-            setTimeout(() => { try { manualInputRef.current && manualInputRef.current.focus(); } catch(e) {} }, 50);
-            return;
-        }
         recRef.current = vaListenOnce(
             (text, alternatives) => {
                 // Beste Alternative gegen bereits bekannte Kunden-/Adressnamen
@@ -3120,6 +3114,25 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
     // ── "Wann waren wir zuletzt bei X?" — durchsucht ALLE Gruppen nach
     // Adresse/Kunde (aus dem Live-Cache, daher sofort), listet Ergebnisse
     // pro Gruppe auf und zeigt sie als anklickbare Karten. ──
+    // ── "Meintest du...?"-Rückfrage: findet die ähnlichsten Einträge im
+    // gesamten Bestand (unabhängig von der Fuzzy-Schwelle), damit auch bei
+    // schlecht erkannten Namen eine Auswahl per Nummer möglich bleibt. ──
+    const findClosestEntries = (term, limit = 5) => {
+        const q = term.toLowerCase();
+        const scored = [];
+        (teams || []).forEach(t => {
+            (cacheRef.current[t.id] || []).forEach(e => {
+                const hay = `${e.customer||''} ${e.address||''}`.toLowerCase();
+                const words = hay.split(/\s+/).filter(w => w.length >= 3);
+                let best = Infinity;
+                words.forEach(w => { const d = vaLevenshtein(q, w); if (d < best) best = d; });
+                scored.push({ entry: { ...e, teamName: t.name, teamObj: t }, dist: best });
+            });
+        });
+        scored.sort((a,b) => a.dist - b.dist);
+        return scored.slice(0, limit).map(s => s.entry);
+    };
+
     const handleHistoryLookup = async (firstUtterance) => {
         let term = vaExtractSearchTerm(firstUtterance);
         if (!term || term.length < 2) {
@@ -3141,7 +3154,24 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
             });
         });
         const groupNames = Object.keys(byTeam);
-        if (!groupNames.length) { await say(`Ich habe keine Einträge zu ${term} gefunden — in keiner Gruppe.`); return; }
+        if (!groupNames.length) {
+            // Kein direkter Treffer — die ähnlichsten Einträge als "Meintest du...?" anbieten
+            const closest = findClosestEntries(term, 5);
+            if (!closest.length) { await say(`Ich habe keine Einträge zu ${term} gefunden — in keiner Gruppe.`); return; }
+            setResultCards(closest);
+            const listSpoken = closest.map((e,i) => `${i+1}: ${e.customer}${e.address ? ' bei ' + e.address : ''}, ${e.teamName}`).join('. ');
+            const a = await askAndListen(`Ich habe zu ${term} nichts Eindeutiges gefunden. Meintest du vielleicht: ${listSpoken}? Sag die Nummer, oder "nein".`);
+            const numMatch = a ? vaWordsToNumbers(a).match(/\d+/) : null;
+            if (numMatch) {
+                const idx = parseInt(numMatch[0], 10) - 1;
+                if (idx >= 0 && idx < closest.length) {
+                    await say(`${closest[idx].customer} bei ${closest[idx].teamName}, du kannst unten direkt drauf tippen.`);
+                    return;
+                }
+            }
+            await say('Kein Problem, du kannst auch unten auf einen der Vorschläge tippen oder erneut suchen.');
+            return;
+        }
         const parts = groupNames.map(name => {
             const list = byTeam[name].sort((a,b) => (b.deliveryDate||'').localeCompare(a.deliveryDate||''));
             const last = list[0];
@@ -3176,7 +3206,19 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
                 }
             });
         });
-        if (!matches.length) { await say(`Ich habe keinen Auftrag zu ${term} gefunden.`); return; }
+        if (!matches.length) {
+            const closest = findClosestEntries(term, 5);
+            if (!closest.length) { await say(`Ich habe keinen Auftrag zu ${term} gefunden.`); return; }
+            setResultCards(closest);
+            const listSpoken = closest.map((e,i) => `${i+1}: ${e.customer}${e.address ? ' bei ' + e.address : ''}, ${e.teamName}`).join('. ');
+            const a = await askAndListen(`Ich habe zu ${term} nichts Eindeutiges gefunden. Meintest du: ${listSpoken}? Sag die Nummer.`);
+            const numMatch = a ? vaWordsToNumbers(a).match(/\d+/) : null;
+            if (numMatch) {
+                const idx = parseInt(numMatch[0], 10) - 1;
+                if (idx >= 0 && idx < closest.length) { matches.push(closest[idx]); }
+            }
+            if (!matches.length) { await say('Kein Problem, versuch es gern nochmal.'); return; }
+        }
 
         let source = matches[0];
         if (matches.length > 1) {
@@ -3336,23 +3378,20 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
                                 borderRadius:10, padding:'6px 10px', fontSize:11, maxWidth:'85%',
                             }}>{l.text}</div>
                         ))}
-                        {log.length===0 && !resultCards && <div style={{color:'#64748b', fontSize:10, textAlign:'center', padding:'10px 0'}}>{isIOS ? 'Tippe auf das Mikrofon, dann ins Textfeld tippen und das 🎤-Symbol auf der iPhone-Tastatur zum Diktieren nutzen' : 'Tippe auf das Mikrofon zum Starten'}</div>}
+                        {log.length===0 && !resultCards && <div style={{color:'#64748b', fontSize:10, textAlign:'center', padding:'10px 0'}}>Tippe auf das Mikrofon zum Starten</div>}
                     </div>
                     {status==='listening' && (
-                        <div style={{borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:8, marginBottom:resultCards?8:0}}>
-                            {isIOS && <div style={{color:'#fbbf24', fontSize:9.5, fontWeight:700, marginBottom:6, lineHeight:1.4}}>📱 Ins Feld tippen, dann das 🎤-Symbol auf deiner iPhone-Tastatur antippen — das diktiert viel zuverlässiger als unser Browser-Mikrofon.</div>}
-                            <div style={{display:'flex', gap:6}}>
-                                <input
-                                    ref={manualInputRef}
-                                    type="text" value={manualText}
-                                    onChange={e=>setManualText(e.target.value)}
-                                    onKeyDown={e=>{ if(e.key==='Enter'){ submitManualAnswer(manualText); setManualText(''); } }}
-                                    placeholder={isIOS ? 'Hier tippen oder 🎤 auf der Tastatur nutzen...' : 'Falsch verstanden? Hier tippen...'}
-                                    style={{flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'7px 10px', color:'#fff', fontSize:11, outline:'none'}}
-                                />
-                                <button onClick={()=>{ submitManualAnswer(manualText); setManualText(''); }}
-                                    style={{background:'#6366f1', border:'none', borderRadius:8, color:'#fff', fontSize:11, fontWeight:900, padding:'0 14px', cursor:'pointer'}}>✓</button>
-                            </div>
+                        <div style={{borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:8, marginBottom:resultCards?8:0, display:'flex', gap:6}}>
+                            <input
+                                ref={manualInputRef}
+                                type="text" value={manualText}
+                                onChange={e=>setManualText(e.target.value)}
+                                onKeyDown={e=>{ if(e.key==='Enter'){ submitManualAnswer(manualText); setManualText(''); } }}
+                                placeholder="Falsch verstanden? Hier tippen..."
+                                style={{flex:1, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'7px 10px', color:'#fff', fontSize:11, outline:'none'}}
+                            />
+                            <button onClick={()=>{ submitManualAnswer(manualText); setManualText(''); }}
+                                style={{background:'#6366f1', border:'none', borderRadius:8, color:'#fff', fontSize:11, fontWeight:900, padding:'0 14px', cursor:'pointer'}}>✓</button>
                         </div>
                     )}
                     {resultCards && resultCards.length > 0 && (

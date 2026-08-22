@@ -2757,6 +2757,41 @@ function vaMatchTeam(text, teams) {
     return best;
 }
 
+// ── Gesprochene Zahlwörter in Ziffern umwandeln (hilft bei Hausnummern) ──
+const VA_GERMAN_NUMBERS = { eins:'1',ein:'1',zwei:'2',drei:'3',vier:'4',fünf:'5',fuenf:'5',sechs:'6',sieben:'7',acht:'8',neun:'9',zehn:'10',elf:'11',zwölf:'12',zwoelf:'12',dreizehn:'13',vierzehn:'14',fünfzehn:'15',fuenfzehn:'15',sechzehn:'16',siebzehn:'17',achtzehn:'18',neunzehn:'19',zwanzig:'20' };
+function vaWordsToNumbers(text) {
+    let t = text || '';
+    Object.entries(VA_GERMAN_NUMBERS).forEach(([word, num]) => {
+        t = t.replace(new RegExp('\\b' + word + '\\b', 'gi'), num);
+    });
+    return t;
+}
+
+// ── Aus einer frei gesprochenen Frage den eigentlichen Suchbegriff
+// (Adresse/Kunde) herausfiltern, indem typische Frage-Floskeln entfernt werden ──
+function vaExtractSearchTerm(text) {
+    let t = vaWordsToNumbers(text || '');
+    const stripPatterns = [
+        /wann (waren|war) wir( das)?( letzte| letzten)? mal( da| dort| vor ort)?/gi,
+        /wann war (der|das) letzte( mal)?/gi,
+        /wann war(en)? wir zuletzt( da| dort| vor ort)?/gi,
+        /waren wir (das )?letzte(n)? mal/gi,
+        /(das )?letzte(n)? mal/gi,
+        /zuletzt( da| dort| vor ort)?/gi,
+        /vor ort/gi,
+        /was steht (heute|morgen|an)?/gi,
+        /welche termine/gi,
+        /zeig mir/gi,
+        /liste( es)?( mir)?( pro gruppe)? auf/gi,
+        /pro gruppe/gi,
+        /kannst du mir sagen/gi,
+        /sag mir/gi,
+        /\bwann\b/gi,
+    ];
+    stripPatterns.forEach(p => { t = t.replace(p, ' '); });
+    return t.replace(/\s+/g, ' ').trim();
+}
+
 function vaIsNo(text) {
     const t = (text || '').toLowerCase();
     return t.includes('nein') || t.includes('abbrechen') || t.includes('stopp') || t.includes('nichts');
@@ -2895,28 +2930,66 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam }) {
         }
     };
 
+    // ── "Wann waren wir zuletzt bei X?" — durchsucht ALLE Gruppen nach
+    // Adresse/Kunde, unabhängig vom Datum, und listet Ergebnisse pro Gruppe auf ──
+    const handleHistoryLookup = async (firstUtterance) => {
+        let term = vaExtractSearchTerm(firstUtterance);
+        if (!term || term.length < 2) {
+            const a = await askAndListen('Wonach soll ich suchen? Sag mir die Adresse oder den Kundennamen.');
+            term = a ? vaExtractSearchTerm(a) : '';
+            if (!term || term.length < 2) { await say('Ich habe keinen Suchbegriff verstanden. Abgebrochen.'); return; }
+        }
+        await say(`Einen Moment, ich durchsuche alle Gruppen nach ${term}.`);
+        try {
+            const { db, collection, getDocs } = window.FirebaseSDK;
+            const q = term.toLowerCase();
+            const byTeam = {};
+            for (const t of (teams || [])) {
+                const snap = await getDocs(collection(db, `teams_cal_${t.id}`));
+                snap.docs.forEach(d => {
+                    const e = d.data();
+                    const hay = `${e.address||''} ${e.customer||''}`.toLowerCase();
+                    if (hay.includes(q)) { (byTeam[t.name] = byTeam[t.name] || []).push(e); }
+                });
+            }
+            const groupNames = Object.keys(byTeam);
+            if (!groupNames.length) { await say(`Ich habe keine Einträge zu ${term} gefunden — in keiner Gruppe.`); return; }
+            const parts = groupNames.map(name => {
+                const list = byTeam[name].sort((a,b) => (b.deliveryDate||'').localeCompare(a.deliveryDate||''));
+                const last = list[0];
+                const dStr = last.deliveryDate ? new Date(last.deliveryDate.substring(0,10)+'T00:00:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}) : 'unbekanntem Datum';
+                return `Bei ${name}: zuletzt am ${dStr}${list.length>1?`, insgesamt ${list.length} Einträge`:''}`;
+            });
+            await say(`Gefunden in ${groupNames.length} Gruppe${groupNames.length>1?'n':''}. ${parts.join('. ')}.`);
+        } catch(err) {
+            await say('Beim Durchsuchen ist ein Fehler aufgetreten.');
+        }
+    };
+
     const startConversation = async () => {
         if (busyRef.current) return;
         busyRef.current = true;
         setLog([]);
         setOpen(true);
         try {
-            let first = await askAndListen('Ich höre. Möchtest du einen Termin eintragen oder den Kalender abfragen?');
+            let first = await askAndListen('Ich höre. Was möchtest du tun?');
             if (!first) { await say('Ich habe nichts verstanden.'); busyRef.current = false; return; }
 
             const t = first.toLowerCase();
-            const wantsCreate = /termin|eintragen|neuer auftrag|neuen auftrag|hinzufügen/.test(t);
-            const wantsQuery = /was steht|welche termine|zeig mir|abfragen|kalender/.test(t);
+            const wantsHistory = /wann (war|waren)|letzte(n)? mal|zuletzt|vor ort/.test(t);
+            const wantsCreate = /neuer? termin|neuen? termin|trag.*ein|eintragen|erstelle|anlegen|vereinbare|buchen|neuer auftrag|neuen auftrag|hinzufügen/.test(t);
+            const wantsQuery = /was steht|welche termine|zeig mir|abfragen|heute|morgen|übermorgen|diese woche|kalender/.test(t);
 
-            if (wantsCreate) {
+            if (wantsHistory) {
+                await handleHistoryLookup(first);
+            } else if (wantsCreate) {
                 await handleCreateEntry(first);
             } else if (wantsQuery) {
                 await handleQuery(first);
             } else {
-                const a = await askAndListen('Sag "Termin" für einen neuen Eintrag, oder "Kalender" für eine Abfrage.');
-                if (a && /termin/i.test(a)) await handleCreateEntry(a);
-                else if (a && /kalender|termine|abfrage/i.test(a)) await handleQuery(a);
-                else await say('Ich habe dich nicht verstanden. Versuch es gern nochmal.');
+                // Kein eindeutiges Muster erkannt — bester Fallback:
+                // meistens meint man dann eine Adress-/Kunden-Suche.
+                await handleHistoryLookup(first);
             }
         } catch(e) {
             await say('Es ist ein Fehler aufgetreten.');

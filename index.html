@@ -2851,6 +2851,21 @@ function vaIsYes(text) {
     return t.includes('ja') || t.includes('genau') || t.includes('passt') || t.includes('richtig') || t.includes('korrekt');
 }
 
+// ── Freie Sprachantworten bereinigen: Zahlwörter → Ziffern, sowie typische
+// Einleitesätze entfernen (z.B. "Die Adresse ist ..." → nur "..."), damit
+// Adresse/Kunde/Memo nicht mit Füllwörtern verunreinigt gespeichert werden. ──
+function vaCleanAnswer(text) {
+    let t = vaWordsToNumbers(text || '');
+    t = t
+        .replace(/^(die |der |das )?adresse (ist|lautet|wäre)?/i, '')
+        .replace(/^(der |die )?kunde (ist|heisst|lautet)?/i, '')
+        .replace(/^(das )?memo (ist|lautet|wäre)?/i, '')
+        .replace(/^(die )?notiz (ist|lautet|wäre)?/i, '')
+        .replace(/^es ist/i, '')
+        .trim();
+    return t;
+}
+
 function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry }) {
     const [open, setOpen] = useState(false);
     const [status, setStatus] = useState('idle'); // idle | listening | thinking | speaking
@@ -2870,7 +2885,7 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
         const { db, collection, onSnapshot } = window.FirebaseSDK;
         const unsubs = teams.map(t =>
             onSnapshot(collection(db, `teams_cal_${t.id}`), snap => {
-                cacheRef.current[t.id] = snap.docs.map(d => d.data());
+                cacheRef.current[t.id] = snap.docs.map(d => ({ ...d.data(), id: d.id }));
             }, () => {})
         );
         return () => unsubs.forEach(u => u && u());
@@ -2939,7 +2954,7 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
         if (!customer) {
             const a = await askAndListen('Für welchen Kunden ist der Termin?');
             if (!a) { await say('Ich habe dich leider nicht verstanden. Abgebrochen.'); return; }
-            customer = a.trim();
+            customer = vaCleanAnswer(a);
         }
 
         if (!dateStr) {
@@ -2950,11 +2965,11 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
 
         let address = '';
         const addrA = await askAndListen('Möchtest du eine Adresse angeben? Sag die Adresse, oder "nein".');
-        if (addrA && !vaIsNo(addrA)) address = addrA.trim();
+        if (addrA && !vaIsNo(addrA)) address = vaCleanAnswer(addrA);
 
         let memo = '';
         const memoA = await askAndListen('Noch eine Notiz oder ein Memo dazu? Sag den Text, oder "nein".');
-        if (memoA && !vaIsNo(memoA)) memo = memoA.trim();
+        if (memoA && !vaIsNo(memoA)) memo = vaCleanAnswer(memoA);
 
         if (isAdmin && !team) {
             team = await askForTeam();
@@ -3041,6 +3056,112 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
         setResultCards(allMatches.slice(0, 12));
     };
 
+    // ── "Kopiere den Auftrag X zu Gruppe Y in Kalender Z" — findet den
+    // Auftrag über alle Gruppen (Live-Cache), fragt Zielgruppe/Kalender-Typ/
+    // Memo-Ergänzung nach und führt die Kopie/Verschiebung direkt aus. ──
+    const handleCopyEntry = async (firstUtterance) => {
+        // 1. Auftrag finden
+        let term = vaExtractSearchTerm(firstUtterance)
+            .replace(/kopier(e|en)?|verschieb(e|en)?/gi, '')
+            .trim();
+        if (!term || term.length < 2) {
+            const a = await askAndListen('Welchen Auftrag möchtest du kopieren? Nenne die Adresse oder den Kundennamen.');
+            term = a ? vaCleanAnswer(a) : '';
+            if (!term || term.length < 2) { await say('Ich habe keinen Auftrag erkannt. Abgebrochen.'); return; }
+        }
+        const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+        const matches = [];
+        (teams || []).forEach(t => {
+            (cacheRef.current[t.id] || []).forEach(e => {
+                const hay = `${e.address||''} ${e.customer||''} ${e.memo||''}`.toLowerCase();
+                if (words.length > 0 && words.every(w => vaFuzzyWordMatch(w, hay))) {
+                    matches.push({ ...e, teamName: t.name, teamObj: t });
+                }
+            });
+        });
+        if (!matches.length) { await say(`Ich habe keinen Auftrag zu ${term} gefunden.`); return; }
+
+        let source = matches[0];
+        if (matches.length > 1) {
+            setResultCards(matches.slice(0, 8));
+            const list = matches.slice(0, 5).map((m,i) => `${i+1}: ${m.customer} bei ${m.teamName}`).join(', ');
+            const a = await askAndListen(`Ich habe ${matches.length} Treffer gefunden. ${list}. Sag die Nummer, oder tippe unten auf eine Karte.`);
+            const numMatch = a ? vaWordsToNumbers(a).match(/\d+/) : null;
+            if (numMatch) {
+                const idx = parseInt(numMatch[0], 10) - 1;
+                if (idx >= 0 && idx < matches.length) source = matches[idx];
+            }
+        }
+
+        // 2. Zielgruppe (alle ausser der Quellgruppe)
+        const targetCandidates = (teams || []).filter(t => t.id !== source.teamObj.id);
+        if (!targetCandidates.length) { await say('Es gibt keine andere Gruppe zum Kopieren.'); return; }
+        let target = vaMatchTeam(firstUtterance, targetCandidates);
+        if (!target) {
+            const listSpoken = targetCandidates.map((t,i) => `${i+1}: ${t.name}`).join(', ');
+            const a = await askAndListen(`Zu welcher Gruppe soll ich "${source.customer}" kopieren? Sag die Nummer. ${listSpoken}.`);
+            const numMatch = a ? vaWordsToNumbers(a).match(/\d+/) : null;
+            if (numMatch) {
+                const idx = parseInt(numMatch[0], 10) - 1;
+                if (idx >= 0 && idx < targetCandidates.length) target = targetCandidates[idx];
+            }
+            if (!target && a) target = vaMatchTeam(a, targetCandidates);
+            if (!target) { await say('Ich konnte die Zielgruppe nicht erkennen. Abgebrochen.'); return; }
+        }
+
+        // 3. Kalender-Typ
+        let calType = null;
+        if (/beplankung/i.test(firstUtterance)) calType = 'beplankung';
+        else if (/ausflock/i.test(firstUtterance)) calType = 'ausflocken';
+        else if (/montage/i.test(firstUtterance)) calType = 'montage';
+        if (!calType) {
+            const a = await askAndListen('Welcher Kalender-Typ? Sag Montage, Beplankung oder Ausflocken.');
+            if (a && /beplankung/i.test(a)) calType = 'beplankung';
+            else if (a && /ausflock/i.test(a)) calType = 'ausflocken';
+            else calType = 'montage';
+        }
+
+        // 4. Memo ergänzen/ändern
+        let newMemo = source.memo || '';
+        const memoA = await askAndListen(`Möchtest du das Memo ergänzen oder ändern? Aktuell: ${source.memo || 'kein Memo'}. Sag den Zusatztext, oder "nein".`);
+        if (memoA && !vaIsNo(memoA)) {
+            const cleaned = vaCleanAnswer(memoA);
+            newMemo = source.memo ? `${source.memo} + ${cleaned}` : cleaned;
+        }
+
+        // 5. Original behalten oder verschieben
+        const moveA = await askAndListen('Soll das Original bei ' + source.teamName + ' bestehen bleiben, oder verschieben? Sag "behalten" oder "verschieben".');
+        const doMove = !!(moveA && /verschieb/i.test(moveA));
+
+        // 6. Bestätigen
+        const confirmMsg = `Ich ${doMove ? 'verschiebe' : 'kopiere'} "${source.customer}" von ${source.teamName} zu ${target.name}, Kalender-Typ ${calType}${newMemo !== (source.memo||'') ? ', mit angepasstem Memo' : ''}. Sag "ja" zum Bestätigen.`;
+        const conf = await askAndListen(confirmMsg);
+        if (!conf || !vaIsYes(conf)) { await say('Abgebrochen.'); return; }
+
+        try {
+            const { db, doc, setDoc, deleteDoc } = window.FirebaseSDK;
+            const { teamName, teamObj, ...sourceClean } = source;
+            const newId = `cal-${genId()}`;
+            await setDoc(doc(db, `teams_cal_${target.id}`, newId), {
+                ...sourceClean,
+                id: newId,
+                calType,
+                memo: newMemo,
+                isDone: false, isBilled: false, monteurBilled: false, isBlocked: false,
+                blockReason: '', blockImages: [], blockedAt: null, doneAt: null, billedAt: null, monteurBilledAt: null,
+                createdAt: new Date().toISOString(),
+            });
+            if (doMove) {
+                await deleteDoc(doc(db, `teams_cal_${source.teamObj.id}`, source.id));
+            }
+            await say(`Erledigt. ${doMove ? 'Verschoben' : 'Kopiert'} zu ${target.name}.`);
+            if (onNavigate) onNavigate({ ...sourceClean, id: newId, calType, memo: newMemo }, target);
+            setOpen(false);
+        } catch(err) {
+            await say('Beim Kopieren ist ein Fehler aufgetreten.');
+        }
+    };
+
     const startConversation = async () => {
         if (busyRef.current) return;
         busyRef.current = true;
@@ -3052,11 +3173,14 @@ function VoiceAssistant({ teams, isAdmin, defaultTeam, onNavigate, onCreateEntry
             if (!first) { await say('Ich habe nichts verstanden.'); busyRef.current = false; return; }
 
             const t = first.toLowerCase();
+            const wantsCopy = /kopier|verschieb/.test(t);
             const wantsHistory = /wann (war|waren)|letzte(n)? mal|zuletzt|vor ort/.test(t);
             const wantsCreate = /neuer? termin|neuen? termin|trag.*ein|eintragen|erstelle|anlegen|vereinbare|buchen|neuer auftrag|neuen auftrag|hinzufügen/.test(t);
             const wantsQuery = /was steht|welche termine|zeig mir|abfragen|heute|morgen|übermorgen|diese woche|kalender/.test(t);
 
-            if (wantsHistory) {
+            if (wantsCopy) {
+                await handleCopyEntry(first);
+            } else if (wantsHistory) {
                 await handleHistoryLookup(first);
             } else if (wantsCreate) {
                 await handleCreateEntry(first);

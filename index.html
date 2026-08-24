@@ -3517,7 +3517,7 @@ function App() {
     const team=authState.team;
     const teamTypes=parseCalTypes(team.calType);
     const defaultType=authState.activeCalType||teamTypes[0]||'montage';
-    return <><CalendarView key={voiceJumpTarget?.id||'main'} team={team} isAdminAccess={false} activeCalType={defaultType} scrollToEntry={voiceJumpTarget} voicePrefill={voicePrefill} onVoicePrefillApplied={()=>setVoicePrefill(null)} onBack={()=>setAuthState(null)}/><VoiceAssistant teams={teams} isAdmin={false} defaultTeam={team} onNavigate={handleVoiceNavigate} onCreateEntry={handleVoiceCreateEntry}/></>;
+    return <CalendarView key={voiceJumpTarget?.id||'main'} team={team} isAdminAccess={false} activeCalType={defaultType} scrollToEntry={voiceJumpTarget} voicePrefill={voicePrefill} onVoicePrefillApplied={()=>setVoicePrefill(null)} onBack={()=>setAuthState(null)}/>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);

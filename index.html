@@ -1229,6 +1229,16 @@ function GateScreen({ onSuccess }) {
             }
         }
     };
+    useEffect(()=>{
+        const onKey=(ev)=>{
+            if(checking)return;
+            if(ev.key>='0'&&ev.key<='9'){ev.preventDefault();handleAction(parseInt(ev.key));}
+            else if(ev.key==='Backspace'){ev.preventDefault();setPin(p=>p.slice(0,-1));setError('');}
+            else if(ev.key==='Escape'){ev.preventDefault();setPin('');setError('');}
+        };
+        window.addEventListener('keydown',onKey);
+        return ()=>window.removeEventListener('keydown',onKey);
+    },[pin,checking]);
     return (
         <div style={{minHeight:'100vh',background:'#030712',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
             <div style={{width:'100%',maxWidth:340,textAlign:'center'}}>
@@ -1271,6 +1281,15 @@ function LoginScreen({ onLogin, teams }) {
             else { setError('Falscher PIN'); setTimeout(() => { setPin(''); setError(''); }, 1000); }
         }
     };
+    useEffect(()=>{
+        const onKey=(ev)=>{
+            if(ev.key>='0'&&ev.key<='9'){ev.preventDefault();handleAction(parseInt(ev.key));}
+            else if(ev.key==='Backspace'){ev.preventDefault();setPin(p=>p.slice(0,-1));setError('');}
+            else if(ev.key==='Escape'){ev.preventDefault();setPin('');setError('');}
+        };
+        window.addEventListener('keydown',onKey);
+        return ()=>window.removeEventListener('keydown',onKey);
+    },[pin]);
     return (
         <div style={{minHeight:'100vh',background:'#030712',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
             <div style={{width:'100%',maxWidth:340,textAlign:'center'}}>
@@ -1932,6 +1951,9 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     const [blockEntry, setBlockEntry] = useState(null);
     const [crossCopyEntry, setCrossCopyEntry] = useState(null);
     const [lastDeleted, setLastDeleted] = useState(null); // gemerkter, zuletzt gelöschter Auftrag für Undo
+    // ── NEUE-AUFTRÄGE-BENACHRICHTIGUNG (nur Monteure) ──
+    const [showMessages, setShowMessages] = useState(false);
+    const [lastRead, setLastRead] = useState(() => { try { return parseInt(localStorage.getItem('pe_read_'+team.id)) || 0; } catch(e){ return 0; } });
 
     // ── FERIEN / ABWESENHEITEN DER MONTEURE ──
     const [monteurs, setMonteurs] = useState([]);
@@ -2037,6 +2059,41 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
 
     const filteredEntries = useMemo(()=>calEntries.filter(e=>(e.calType||'montage')===activeCalType).sort((a,b)=>{const da=a.deliveryDate||'',db_=b.deliveryDate||'';if(da<db_)return -1;if(da>db_)return 1;return(a.createdAt||'')<(b.createdAt||'')?-1:1;}),[calEntries,activeCalType]);
 
+    // Neue Aufträge seit letztem "gelesen" (alle Kalender-Typen des Teams, offen)
+    const newEntries = useMemo(()=>calEntries
+        .filter(e=>e.createdAt && new Date(e.createdAt).getTime()>lastRead && !e.isDone)
+        .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')),[calEntries,lastRead]);
+    const markMessagesRead = ()=>{ const now=Date.now(); setLastRead(now); try{ localStorage.setItem('pe_read_'+team.id,String(now)); }catch(e){} setShowMessages(false); };
+    const jumpToNewEntry = (e)=>{ const d=parseDateSafe(e.deliveryDate); if(d)setCalWeek(d); if(e.calType&&e.calType!==activeCalType)setActiveCalType(e.calType); setHighlightId(e.id); setShowMessages(false); setTimeout(()=>setHighlightId(null),4000); };
+
+    // Tastatur: Esc schließt das oberste Fenster, Enter speichert den Auftrag
+    useEffect(()=>{
+        const onKey=(ev)=>{
+            if(ev.key==='Escape'){
+                if(editCalEntry)setEditCalEntry(null);
+                else if(showCalImport)setShowCalImport(false);
+                else if(showAIImport)setShowAIImport(false);
+                else if(moveEntry)setMoveEntry(null);
+                else if(blockEntry)setBlockEntry(null);
+                else if(crossCopyEntry)setCrossCopyEntry(null);
+                else if(standbyDateModal)setStandbyDateModal(null);
+                else if(showStandbyPicker)setShowStandbyPicker(null);
+                else if(showFerienModal)setShowFerienModal(false);
+                else if(showMonteurBilling)setShowMonteurBilling(false);
+                else if(showMessages)setShowMessages(false);
+                else if(copyEntry)setCopyEntry(null);
+                else if(calImportResult!==null)setCalImportResult(null);
+                return;
+            }
+            if(ev.key==='Enter'){
+                const tag=(document.activeElement&&document.activeElement.tagName)||'';
+                if(editCalEntry&&tag!=='TEXTAREA'){ ev.preventDefault(); if(editCalEntry.customer){ if(editCalEntry.isNew)saveNewCalEntry(editCalEntry); else saveCalEntry(editCalEntry); } }
+            }
+        };
+        window.addEventListener('keydown',onKey);
+        return ()=>window.removeEventListener('keydown',onKey);
+    },[editCalEntry,showCalImport,showAIImport,moveEntry,blockEntry,crossCopyEntry,standbyDateModal,showStandbyPicker,showFerienModal,showMonteurBilling,showMessages,copyEntry,calImportResult]);
+
     const {entryLanes,numLanes,laneVisibleEntries} = useMemo(()=>{
         const weekStart=toLocalDateStr(days[0]),weekEnd=toLocalDateStr(days[5]);
         const visible=filteredEntries.filter(e=>{const start=(e.deliveryDate||'').substring(0,10),end=(e.endDate||'').substring(0,10)||start;return start<=weekEnd&&(end||start)>=weekStart;});
@@ -2129,6 +2186,13 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                     <button onClick={()=>setCalWeek(new Date())} style={{background:'#334155',border:'none',borderRadius:8,padding:'4px 10px',color:'#cbd5e1',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',flexShrink:0}}>Heute</button>
                     <button onClick={()=>{const d=new Date(calWeek);d.setDate(d.getDate()+7);setCalWeek(d);}} style={{background:'#334155',border:'none',borderRadius:8,width:30,height:30,flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-right" size={14} className="text-blue-400"/></button>
                     <button onClick={triggerWeekPDF} style={{background:'#475569',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="download" size={12}/>A3 PDF</button>
+
+                    {!isAdminAccess && (
+                        <button onClick={()=>setShowMessages(true)} style={{position:'relative',background:'#334155',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                            <Icon name="bell" size={13}/>Neu
+                            {newEntries.length>0 && <span style={{position:'absolute',top:-6,right:-6,background:'#ef4444',color:'#fff',fontSize:9,fontWeight:900,borderRadius:10,minWidth:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 5px',border:'2px solid #1e293b'}}>{newEntries.length}</span>}
+                        </button>
+                    )}
 
                     {!isAdminAccess && (
                         <button className="monteur-billing-btn" onClick={()=>setShowMonteurBilling(true)}>
@@ -2422,6 +2486,54 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                     <div style={{padding:'10px 16px',background:'#0f172a',borderBottom:'1px solid #1e293b'}}><input value={standbySearch} onChange={e=>setStandbySearch(e.target.value)} placeholder="🔍 Suchen..." autoFocus style={{width:'100%',background:'#1e293b',border:'1px solid #334155',borderRadius:8,padding:'9px 12px',color:'#fff',fontSize:11,boxSizing:'border-box'}}/></div>
                     <div style={{flex:1,overflowY:'auto',padding:'10px 16px',display:'flex',flexDirection:'column',gap:8}}>
                         {standbyItems.filter(s=>!standbySearch||s.customer?.toLowerCase().includes(standbySearch.toLowerCase())).map(item=>(<div key={item.id} onClick={()=>setStandbyDateModal({item,startDate:showStandbyPicker.dayStr,endDate:showStandbyPicker.dayStr})} style={{background:'#1e293b',border:'1px solid #334155',borderLeft:'3px solid #f59e0b',borderRadius:10,padding:'12px 14px',cursor:'pointer'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{color:'#fff',fontSize:12,fontWeight:900,textTransform:'uppercase'}}>{item.customer}</div>{item.address&&<div style={{color:'#94a3b8',fontSize:10,marginTop:2}}>{item.address}</div>}</div><div style={{background:'#f59e0b',color:'#fff',fontSize:8,fontWeight:900,padding:'4px 8px',borderRadius:6,textTransform:'uppercase'}}>Auswählen →</div></div></div>))}
+                    </div>
+                </div>
+            )}
+
+            {showMessages && !isAdminAccess && (
+                <div style={{position:'fixed',inset:0,zIndex:120,background:'rgba(3,7,18,0.75)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={()=>setShowMessages(false)}>
+                    <div onClick={ev=>ev.stopPropagation()} style={{width:'100%',maxWidth:560,maxHeight:'85vh',background:'#0f172a',borderTopLeftRadius:24,borderTopRightRadius:24,border:'1px solid #1e293b',borderBottom:'none',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+                        <div style={{padding:'16px 20px',borderBottom:'1px solid #1e293b',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:10}}>
+                                <div style={{width:36,height:36,borderRadius:10,background:'rgba(59,130,246,0.2)',border:'1px solid rgba(59,130,246,0.4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>🔔</div>
+                                <div>
+                                    <div style={{color:'#60a5fa',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>Neue Aufträge · {team.name}</div>
+                                    <div style={{color:'#fff',fontSize:14,fontWeight:900}}>{newEntries.length} neu seit zuletzt gelesen</div>
+                                </div>
+                            </div>
+                            <button onClick={()=>setShowMessages(false)} style={{background:'#1e293b',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+                        </div>
+                        <div style={{flex:1,overflowY:'auto',padding:'12px 16px',display:'flex',flexDirection:'column',gap:8}}>
+                            {newEntries.length===0?(
+                                <div style={{textAlign:'center',padding:'40px 0',color:'#475569'}}><div style={{fontSize:36,marginBottom:10}}>✅</div><div style={{fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Keine neuen Aufträge</div></div>
+                            ):newEntries.map(e=>{
+                                const typeLabel=e.calType==='beplankung'?'🏗 Beplankung':e.calType==='ausflocken'?'❄️ Ausflocken':'🔧 Montage';
+                                const wd=parseDateSafe(e.deliveryDate);
+                                return (
+                                    <div key={e.id} onClick={()=>jumpToNewEntry(e)} style={{background:'#1e293b',border:'1px solid #334155',borderLeft:'3px solid #3b82f6',borderRadius:12,padding:'12px 14px',cursor:'pointer'}}>
+                                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                                            <div style={{flex:1,minWidth:0}}>
+                                                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}>
+                                                    <span style={{background:'rgba(59,130,246,0.15)',color:'#60a5fa',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',textTransform:'uppercase'}}>{typeLabel}</span>
+                                                    {e.auftragsNr&&<span style={{color:'#475569',fontSize:9,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}
+                                                </div>
+                                                <div style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</div>
+                                                {e.address&&<div style={{color:'#94a3b8',fontSize:11,marginTop:2}}>{e.address}</div>}
+                                                {e.memo&&<div style={{color:'#fde68a',fontSize:10,fontWeight:700,marginTop:3}}>📝 {e.memo}</div>}
+                                            </div>
+                                            <div style={{flexShrink:0,textAlign:'right'}}>
+                                                <div style={{color:'#60a5fa',fontSize:11,fontWeight:900}}>KW {getWeekNumber(wd||new Date())}</div>
+                                                <div style={{color:'#475569',fontSize:9,marginTop:2}}>{formatDate(e.deliveryDate)}</div>
+                                                <div style={{marginTop:6,color:'#3b82f6',fontSize:9,fontWeight:700}}>Öffnen →</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div style={{padding:'12px 16px',borderTop:'1px solid #1e293b',background:'#0f172a'}}>
+                            <button onClick={markMessagesRead} disabled={newEntries.length===0} style={{width:'100%',padding:'14px',background:newEntries.length>0?'#10b981':'#1e293b',border:'none',borderRadius:14,color:newEntries.length>0?'#fff':'#475569',fontWeight:900,fontSize:12,textTransform:'uppercase',letterSpacing:1,cursor:newEntries.length>0?'pointer':'not-allowed'}}>✓ Als gelesen markieren</button>
+                        </div>
                     </div>
                 </div>
             )}

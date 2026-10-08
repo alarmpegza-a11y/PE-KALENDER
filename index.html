@@ -1416,11 +1416,14 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
                 {e.isMultiDay&&e.endDate&&<div className="multiday-badge" style={{background:border+'33',color:border}}>📅 {totalDays} Tage</div>}
                 {isProv&&<div style={{fontSize:8,fontWeight:900,background:'#eab308',color:'#fff',borderRadius:3,padding:'1px 5px'}}>⚠ PROV.</div>}
                 {e.isBlocked&&<div style={{fontSize:8,fontWeight:900,background:'#f97316',color:'#fff',borderRadius:3,padding:'1px 5px'}}>🚧 BLOCKIERT</div>}
+                {(e.isDringend||e.isUmbau)&&<div style={{fontSize:8,fontWeight:900,background:'#ef4444',color:'#fff',borderRadius:3,padding:'1px 5px'}}>🚨 DRINGEND</div>}
+                {e.isUmbau&&<div style={{fontSize:8,fontWeight:900,background:'#f97316',color:'#fff',borderRadius:3,padding:'1px 5px'}}>🔨 UMBAU</div>}
             </div>
 
             {e.auftragsNr&&<div style={{fontSize:8,fontWeight:900,opacity:0.75,marginBottom:2,textTransform:'uppercase'}}>{cleanAuftragsNr(e.auftragsNr)}</div>}
             <div style={{fontSize:10,fontWeight:900,lineHeight:1.3,marginBottom:2,textTransform:'uppercase'}}>{e.customer}</div>
             {e.address&&<div style={{fontSize:9,fontWeight:700,lineHeight:1.3,marginBottom:2,opacity:0.85}}>{e.address}</div>}
+            {(e.isDringend||e.isUmbau)&&<div style={{marginTop:3,background:'#ef4444',color:'#fff',borderRadius:4,padding:'2px 6px',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:0.5,textAlign:'center'}}>🚨 DRINGEND{e.isUmbau?' · 🔨 UMBAU':''} 🚨</div>}
             {e.memo&&<div className="memo-block" style={{background:border+'22',borderLeftColor:border,color:text}}><span style={{fontSize:7,fontWeight:900,textTransform:'uppercase',letterSpacing:1,opacity:0.6,display:'block',marginBottom:1}}>📝 MEMO</span><span style={{fontSize:11,fontWeight:800}}>{e.memo}</span></div>}
             {e.isMultiDay&&e.endDate&&isStart&&<div style={{fontSize:8,color:border,fontWeight:700,marginTop:3}}>{formatDate(e.deliveryDate)} – {formatDate(e.endDate)}</div>}
             {e.target>0&&<div style={{marginTop:3,display:'inline-block',background:border,color:'#fff',fontSize:8,fontWeight:900,padding:'1px 5px',borderRadius:3}}>{e.target} ELE</div>}
@@ -2061,8 +2064,10 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
 
     // Neue Aufträge seit letztem "gelesen" (alle Kalender-Typen des Teams, offen)
     const newEntries = useMemo(()=>calEntries
-        .filter(e=>e.createdAt && new Date(e.createdAt).getTime()>lastRead && !e.isDone)
-        .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')),[calEntries,lastRead]);
+        .filter(e=>!e.isDone)
+        .map(e=>{const created=e.createdAt?new Date(e.createdAt).getTime():0;const updated=e.updatedAt?new Date(e.updatedAt).getTime():0;return {...e,_ts:Math.max(created,updated),_isChange:updated>created&&updated>lastRead};})
+        .filter(e=>e._ts>lastRead)
+        .sort((a,b)=>b._ts-a._ts),[calEntries,lastRead]);
     const markMessagesRead = ()=>{ const now=Date.now(); setLastRead(now); try{ localStorage.setItem('pe_read_'+team.id,String(now)); }catch(e){} setShowMessages(false); };
     const jumpToNewEntry = (e)=>{ const d=parseDateSafe(e.deliveryDate); if(d)setCalWeek(d); if(e.calType&&e.calType!==activeCalType)setActiveCalType(e.calType); setHighlightId(e.id); setShowMessages(false); setTimeout(()=>setHighlightId(null),4000); };
 
@@ -2110,13 +2115,21 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     const undoDelete=async()=>{if(!lastDeleted)return;const{db,doc,setDoc}=window.FirebaseSDK;await setDoc(doc(db,`teams_cal_${team.id}`,lastDeleted.id),lastDeleted);setLastDeleted(null);};
     const toggleDone=async(entry)=>{const{db,doc,updateDoc}=window.FirebaseSDK;await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{isDone:!entry.isDone,doneAt:!entry.isDone?new Date().toISOString():null});};
     const unblockEntry=async(entry)=>{const{db,doc,updateDoc}=window.FirebaseSDK;await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{isBlocked:false,blockReason:'',blockImages:[],blockedAt:null});};
-    const executeMoveEntry=async(entry,newStartDateStr)=>{const{db,doc,updateDoc}=window.FirebaseSDK;const oldStart=(entry.deliveryDate||'').substring(0,10),oldEnd=(entry.endDate||'').substring(0,10)||oldStart;const duration=daysBetween(oldStart,oldEnd)-1;const newEnd=duration>0?addDaysToStr(newStartDateStr,duration):null;const isMultiDay=!!(newEnd&&newEnd>newStartDateStr);await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{deliveryDate:newStartDateStr,endDate:newEnd||null,isMultiDay});setMoveEntry(null);};
+    const executeMoveEntry=async(entry,newStartDateStr)=>{const{db,doc,updateDoc}=window.FirebaseSDK;const oldStart=(entry.deliveryDate||'').substring(0,10),oldEnd=(entry.endDate||'').substring(0,10)||oldStart;const duration=daysBetween(oldStart,oldEnd)-1;const newEnd=duration>0?addDaysToStr(newStartDateStr,duration):null;const isMultiDay=!!(newEnd&&newEnd>newStartDateStr);await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{deliveryDate:newStartDateStr,endDate:newEnd||null,isMultiDay,updatedAt:new Date().toISOString(),changeInfo:'📅 Verschoben'});setMoveEntry(null);};
 
     const saveCalEntry=async(entry)=>{
         try{
             const{db,doc,updateDoc}=window.FirebaseSDK;
             const images = Array.isArray(entry.images) ? entry.images : (entry.image ? [entry.image] : []);
-            await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,deliveryDate:entry.deliveryDate,endDate:entry.endDate||null,isMultiDay:!!(entry.endDate&&entry.endDate>entry.deliveryDate),images, image: images[0]||null,calType:entry.calType||'montage',isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||'',fehlerIntern:!!entry.fehlerIntern,weiterVerrechnen:!!entry.weiterVerrechnen});
+            const prev = calEntries.find(x=>x.id===entry.id) || {};
+            const changes = [];
+            if((prev.deliveryDate||'').substring(0,10)!==(entry.deliveryDate||'').substring(0,10) || (prev.endDate||'')!==(entry.endDate||'')) changes.push('📅 Termin geändert');
+            if((prev.memo||'')!==(entry.memo||'')) changes.push('📝 Memo aktualisiert');
+            if(!prev.isDringend && entry.isDringend) changes.push('🚨 Dringend markiert');
+            if(!prev.isUmbau && entry.isUmbau) changes.push('🔨 Umbau (dringend)');
+            const payload = {entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,deliveryDate:entry.deliveryDate,endDate:entry.endDate||null,isMultiDay:!!(entry.endDate&&entry.endDate>entry.deliveryDate),images, image: images[0]||null,calType:entry.calType||'montage',isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||'',fehlerIntern:!!entry.fehlerIntern,weiterVerrechnen:!!entry.weiterVerrechnen,isDringend:!!entry.isDringend,isUmbau:!!entry.isUmbau};
+            if(changes.length){ payload.updatedAt=new Date().toISOString(); payload.changeInfo=changes.join(' · '); }
+            await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),payload);
             setEditCalEntry(null);
         }catch(err){alert('Fehler: '+err.message);}
     };
@@ -2126,7 +2139,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
             const{db,doc,setDoc}=window.FirebaseSDK;const id=`cal-${genId()}`;
             const isMultiDay=!!(entry.endDate&&entry.endDate>entry.deliveryDate);
             const images = Array.isArray(entry.images) ? entry.images : [];
-            await setDoc(doc(db,`teams_cal_${team.id}`,id),{id,createdAt:new Date().toISOString(),isDone:false,isBilled:false,entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,images, image: images[0]||null,deliveryDate:entry.deliveryDate||'',endDate:entry.endDate||null,isMultiDay,calType:entry.calType||activeCalType,isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||'',fehlerIntern:!!entry.fehlerIntern,weiterVerrechnen:!!entry.weiterVerrechnen});
+            await setDoc(doc(db,`teams_cal_${team.id}`,id),{id,createdAt:new Date().toISOString(),isDone:false,isBilled:false,entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,images, image: images[0]||null,deliveryDate:entry.deliveryDate||'',endDate:entry.endDate||null,isMultiDay,calType:entry.calType||activeCalType,isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||'',fehlerIntern:!!entry.fehlerIntern,weiterVerrechnen:!!entry.weiterVerrechnen,isDringend:!!entry.isDringend,isUmbau:!!entry.isUmbau});
             setEditCalEntry(null);
         }catch(err){alert('Fehler: '+err.message);}
     };
@@ -2330,6 +2343,8 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                                 {e.isMultiDay&&e.endDate&&<span style={{background:border+'33',color:border,fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>📅 {totalD} Tage</span>}
                                                 {e.isProv&&<span style={{background:'#eab308',color:'#fff',fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>⚠ PROV</span>}
                                                 {e.isBlocked&&<span style={{background:'#f97316',color:'#fff',fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>🚧 BLOCKIERT</span>}
+                                                {(e.isDringend||e.isUmbau)&&<span style={{background:'#ef4444',color:'#fff',fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>🚨 DRINGEND</span>}
+                                                {e.isUmbau&&<span style={{background:'#f97316',color:'#fff',fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>🔨 UMBAU</span>}
                                                 {imgs.length>0&&<span style={{background:'#10b981',color:'#fff',fontSize:8,fontWeight:900,padding:'2px 6px',borderRadius:4}}>📷 {imgs.length}</span>}
                                             </div>
                                             {/* Auftragsnr */}
@@ -2340,6 +2355,8 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                             {e.address&&<div className="mobile-address" style={{color:textCol}}>{e.address}</div>}
                                             {/* Datum für mehrtägige */}
                                             {e.isMultiDay&&e.endDate&&isStart&&<div style={{fontSize:10,color:border,fontWeight:700,marginTop:3}}>{formatDate(e.deliveryDate)} – {formatDate(e.endDate)}</div>}
+                                            {/* Dringend */}
+                                            {(e.isDringend||e.isUmbau)&&<div style={{marginTop:6,background:'#ef4444',color:'#fff',borderRadius:6,padding:'4px 8px',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:0.5,textAlign:'center'}}>🚨 DRINGEND{e.isUmbau?' · 🔨 UMBAU':''} 🚨</div>}
                                             {/* Memo */}
                                             {e.memo&&<div className="mobile-memo" style={{background:border+'22',borderLeftColor:border,color:textCol}}>
                                                 <div style={{fontSize:8,fontWeight:900,textTransform:'uppercase',opacity:0.6,marginBottom:2}}>📝 MEMO</div>
@@ -2454,6 +2471,14 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Kunde *" value={editCalEntry.customer} onChange={e=>setEditCalEntry({...editCalEntry,customer:e.target.value})}/>
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Adresse" value={editCalEntry.address} onChange={e=>setEditCalEntry({...editCalEntry,address:e.target.value})}/>
                         <div><div style={{color:'#f59e0b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>📝 MEMO</div><input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#0f172a',border:'2px solid #f59e0b55',color:'#fde68a',fontSize:12,fontWeight:800,boxSizing:'border-box'}} placeholder="Wichtige Hausinfo..." value={editCalEntry.memo} onChange={e=>setEditCalEntry({...editCalEntry,memo:e.target.value})}/></div>
+                        <div>
+                            <div style={{color:'#f87171',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Dringlichkeit</div>
+                            <div style={{display:'flex',gap:8}}>
+                                <button type="button" onClick={()=>setEditCalEntry({...editCalEntry,isDringend:!editCalEntry.isDringend})} style={{flex:1,padding:'10px 8px',borderRadius:10,border:`1px solid ${editCalEntry.isDringend?'#ef4444':'rgba(255,255,255,0.12)'}`,background:editCalEntry.isDringend?'rgba(239,68,68,0.22)':'#1e293b',color:editCalEntry.isDringend?'#fca5a5':'#94a3b8',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>{editCalEntry.isDringend?'☑':'☐'} 🚨 Dringend</button>
+                                <button type="button" onClick={()=>setEditCalEntry({...editCalEntry,isUmbau:!editCalEntry.isUmbau})} style={{flex:1,padding:'10px 8px',borderRadius:10,border:`1px solid ${editCalEntry.isUmbau?'#f97316':'rgba(255,255,255,0.12)'}`,background:editCalEntry.isUmbau?'rgba(249,115,22,0.22)':'#1e293b',color:editCalEntry.isUmbau?'#fdba74':'#94a3b8',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>{editCalEntry.isUmbau?'☑':'☐'} 🔨 Umbau</button>
+                            </div>
+                            {(editCalEntry.isDringend||editCalEntry.isUmbau)&&<div style={{marginTop:6,background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'6px 10px',fontSize:9,color:'#fca5a5',fontWeight:800}}>🚨 Wird auf der Karte klar als DRINGEND angezeigt{editCalEntry.isUmbau?' · 🔨 Umbau':''}</div>}
+                        </div>
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Auftragsnr." value={editCalEntry.auftragsNr} onChange={e=>setEditCalEntry({...editCalEntry,auftragsNr:e.target.value})}/>
                         <input type="number" style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="ELE" value={editCalEntry.target||''} onChange={e=>setEditCalEntry({...editCalEntry,target:e.target.value})}/>
                         <div>
@@ -2514,11 +2539,14 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
                                             <div style={{flex:1,minWidth:0}}>
                                                 <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}>
+                                                    {e._isChange?<span style={{background:'rgba(245,158,11,0.2)',color:'#fbbf24',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',textTransform:'uppercase'}}>✏️ Geändert</span>:<span style={{background:'rgba(16,185,129,0.2)',color:'#34d399',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',textTransform:'uppercase'}}>★ Neu</span>}
+                                                    {(e.isDringend||e.isUmbau)&&<span style={{background:'rgba(239,68,68,0.25)',color:'#fca5a5',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',textTransform:'uppercase'}}>🚨 Dringend{e.isUmbau?' · 🔨 Umbau':''}</span>}
                                                     <span style={{background:'rgba(59,130,246,0.15)',color:'#60a5fa',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',textTransform:'uppercase'}}>{typeLabel}</span>
                                                     {e.auftragsNr&&<span style={{color:'#475569',fontSize:9,fontFamily:'monospace'}}>#{cleanAuftragsNr(e.auftragsNr)}</span>}
                                                 </div>
                                                 <div style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase'}}>{e.customer}</div>
                                                 {e.address&&<div style={{color:'#94a3b8',fontSize:11,marginTop:2}}>{e.address}</div>}
+                                                {e._isChange&&e.changeInfo&&<div style={{color:'#fbbf24',fontSize:10,fontWeight:800,marginTop:3,background:'rgba(245,158,11,0.1)',borderRadius:6,padding:'3px 8px',display:'inline-block'}}>{e.changeInfo}</div>}
                                                 {e.memo&&<div style={{color:'#fde68a',fontSize:10,fontWeight:700,marginTop:3}}>📝 {e.memo}</div>}
                                             </div>
                                             <div style={{flexShrink:0,textAlign:'right'}}>

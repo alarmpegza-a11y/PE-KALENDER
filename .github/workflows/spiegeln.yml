@@ -1,0 +1,17 @@
+name: Spiegeln in AW-Organisation
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quelle holen
+        run: |
+          git clone --mirror "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" quelle.git
+      - name: In AW-Repo spiegeln
+        run: |
+          cd quelle.git
+          git push --mirror "https://x-access-token:${{ secrets.AW_MIRROR_TOKEN }}@github.com/Arthur-Weber-AG/PE-KALENDER.git"

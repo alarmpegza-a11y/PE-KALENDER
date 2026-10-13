@@ -6,6 +6,7 @@ on:
 
 jobs:
   mirror:
+    if: github.repository_owner != 'Arthur-Weber-AG'
     runs-on: ubuntu-latest
     steps:
       - name: Quelle holen

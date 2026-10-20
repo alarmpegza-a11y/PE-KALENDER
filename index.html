@@ -1968,9 +1968,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     const [showFerienModal, setShowFerienModal] = useState(false);
     // ── Globale Hinweise/Erinnerungen (gruppenübergreifend) ──
     const [reminders, setReminders] = useState([]);
-    const [showReminders, setShowReminders] = useState(false);
     const [reminderAlert, setReminderAlert] = useState(null);
-    const [newReminder, setNewReminder] = useState({address:'',customer:'',text:''});
     const [ferienForm, setFerienForm] = useState({ monteurName:'', start:'', end:'' });
     const [newMonteurName, setNewMonteurName] = useState('');
 
@@ -2094,7 +2092,6 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                 else if(standbyDateModal)setStandbyDateModal(null);
                 else if(showStandbyPicker)setShowStandbyPicker(null);
                 else if(reminderAlert)setReminderAlert(null);
-                else if(showReminders)setShowReminders(false);
                 else if(showFerienModal)setShowFerienModal(false);
                 else if(showMonteurBilling)setShowMonteurBilling(false);
                 else if(showMessages)setShowMessages(false);
@@ -2109,7 +2106,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
         };
         window.addEventListener('keydown',onKey);
         return ()=>window.removeEventListener('keydown',onKey);
-    },[editCalEntry,showCalImport,showAIImport,moveEntry,blockEntry,crossCopyEntry,standbyDateModal,showStandbyPicker,showFerienModal,showMonteurBilling,showMessages,copyEntry,calImportResult,reminderAlert,showReminders]);
+    },[editCalEntry,showCalImport,showAIImport,moveEntry,blockEntry,crossCopyEntry,standbyDateModal,showStandbyPicker,showFerienModal,showMonteurBilling,showMessages,copyEntry,calImportResult,reminderAlert]);
 
     const {entryLanes,numLanes,laneVisibleEntries} = useMemo(()=>{
         const weekStart=toLocalDateStr(days[0]),weekEnd=toLocalDateStr(days[5]);
@@ -2158,12 +2155,6 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
         }catch(err){alert('Fehler: '+err.message);}
     };
 
-    const addReminder=async()=>{
-        if(!newReminder.address.trim()||!newReminder.text.trim())return;
-        const{db,doc,setDoc}=window.FirebaseSDK;const id='rem-'+genId();
-        await setDoc(doc(db,'reminders',id),{id,address:newReminder.address.trim(),customer:newReminder.customer.trim(),text:newReminder.text.trim(),createdAt:new Date().toISOString()});
-        setNewReminder({address:'',customer:'',text:''});
-    };
     const deleteReminder=async(id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,'reminders',id));};
 
     const triggerWeekPDF=()=>{setTimeout(()=>{const el=document.getElementById('cal-week-pdf-content');if(!el)return;html2pdf().set({margin:5,filename:`Kalender_KW${getWeekNumber(calWeek)}_${team.name}.pdf`,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false},jsPDF:{unit:'mm',format:'a3',orientation:'landscape'}}).from(el).save();},200);};
@@ -2241,7 +2232,6 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
 
                     {isAdminAccess&&<>
                         <button onClick={()=>setEditCalEntry({...emptyEntry})} style={{background:'#10b981',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="plus" size={12}/>Neu</button>
-                        <button onClick={()=>setShowReminders(true)} title="Objekt-Hinweise verwalten (gruppenübergreifend)" style={{background:'#ef4444',border:'2px solid #fecaca',borderRadius:8,padding:'6px 14px',color:'#fff',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0,boxShadow:'0 2px 8px rgba(239,68,68,0.4)'}}>⚠ Hinweise{reminders.length>0?` (${reminders.length})`:''}</button>
                         <button onClick={()=>setShowStandbyPicker({dayStr:toLocalDateStr(days[0])})} style={{background:'#f59e0b',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="archive" size={12}/>Standby</button>
                         <button onClick={()=>setShowCalImport(true)} style={{background:'#3b82f6',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="upload" size={12}/>Import</button>
                         <button onClick={()=>setShowAIImport(true)} style={{background:'linear-gradient(135deg,#6366f1,#8b5cf6)',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}>🤖 KI Import</button>
@@ -2616,43 +2606,6 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                     }}
                 />
             )}
-            {showReminders && isAdminAccess && (
-                <div onClick={()=>setShowReminders(false)} style={{position:'fixed',inset:0,background:'rgba(3,7,18,0.75)',backdropFilter:'blur(4px)',zIndex:400,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'5vh 16px',overflowY:'auto'}}>
-                    <div onClick={ev=>ev.stopPropagation()} style={{width:'100%',maxWidth:560,background:'#0f172a',border:'1px solid #1e293b',borderRadius:20,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-                        <div style={{padding:'16px 20px',borderBottom:'1px solid #1e293b',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                            <div style={{display:'flex',alignItems:'center',gap:10}}>
-                                <div style={{width:36,height:36,borderRadius:10,background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.45)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>⚠</div>
-                                <div>
-                                    <div style={{color:'#fca5a5',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>Objekt-Hinweise · gruppenübergreifend</div>
-                                    <div style={{color:'#fff',fontSize:14,fontWeight:900}}>{reminders.length} aktive Hinweise</div>
-                                </div>
-                            </div>
-                            <button onClick={()=>setShowReminders(false)} style={{background:'#1e293b',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16}}>✕</button>
-                        </div>
-                        <div style={{padding:'14px 20px',borderBottom:'1px solid #1e293b',display:'flex',flexDirection:'column',gap:8}}>
-                            <div style={{color:'#64748b',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Neuen Hinweis anlegen</div>
-                            <input value={newReminder.address} onChange={e=>setNewReminder({...newReminder,address:e.target.value})} placeholder="Objekt / Adresse * (z. B. Zürcherstrasse, Altendorf)" style={{background:'#1e293b',border:'1px solid #334155',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:12,outline:'none'}}/>
-                            <input value={newReminder.customer} onChange={e=>setNewReminder({...newReminder,customer:e.target.value})} placeholder="Kunde (optional)" style={{background:'#1e293b',border:'1px solid #334155',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:12,outline:'none'}}/>
-                            <textarea value={newReminder.text} onChange={e=>setNewReminder({...newReminder,text:e.target.value})} placeholder="Hinweistext * (z. B. ACHTUNG WHG 6 AQUAPANEL)" rows={2} style={{background:'#1e293b',border:'1px solid #334155',borderRadius:10,padding:'10px 12px',color:'#fde68a',fontSize:12,fontWeight:700,outline:'none',resize:'vertical'}}/>
-                            <button onClick={addReminder} disabled={!newReminder.address.trim()||!newReminder.text.trim()} style={{background:(newReminder.address.trim()&&newReminder.text.trim())?'#ef4444':'#1e293b',border:'none',borderRadius:10,padding:'11px',color:(newReminder.address.trim()&&newReminder.text.trim())?'#fff':'#475569',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:1,cursor:(newReminder.address.trim()&&newReminder.text.trim())?'pointer':'not-allowed'}}>＋ Hinweis speichern</button>
-                        </div>
-                        <div style={{maxHeight:'40vh',overflowY:'auto',padding:'12px 20px 20px',display:'flex',flexDirection:'column',gap:8}}>
-                            {reminders.length===0?(
-                                <div style={{textAlign:'center',padding:'24px 0',color:'#475569',fontSize:12,fontWeight:700}}>Noch keine Hinweise angelegt.</div>
-                            ):reminders.slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map(r=>(
-                                <div key={r.id} style={{background:'#1e293b',border:'1px solid #334155',borderLeft:'3px solid #ef4444',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'flex-start',gap:10}}>
-                                    <div style={{flex:1,minWidth:0}}>
-                                        <div style={{color:'#fff',fontSize:12,fontWeight:900}}>{r.address}</div>
-                                        {r.customer&&<div style={{color:'#94a3b8',fontSize:10,marginTop:1}}>{r.customer}</div>}
-                                        <div style={{color:'#fde68a',fontSize:11,fontWeight:800,marginTop:4,background:'rgba(239,68,68,0.1)',borderRadius:6,padding:'4px 8px'}}>⚠ {r.text}</div>
-                                    </div>
-                                    <button onClick={()=>{if(window.confirm('Diesen Hinweis löschen?'))deleteReminder(r.id);}} style={{background:'rgba(220,38,38,0.15)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:8,padding:'6px 10px',color:'#f87171',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',flexShrink:0}}>🗑 Löschen</button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {reminderAlert && (
                 <div style={{position:'fixed',inset:0,background:'rgba(3,7,18,0.85)',backdropFilter:'blur(4px)',zIndex:450,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
@@ -2849,6 +2802,13 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
     const [editTeam, setEditTeam] = useState(null);
     const [newTeam, setNewTeam] = useState({ name:'',pin:'',color:'#3b82f6',calTypes:['montage'] });
     const [showBilling, setShowBilling] = useState(false);
+    // ── Globale Objekt-Hinweise (zentral im Admin verwalten) ──
+    const [showReminders, setShowReminders] = useState(false);
+    const [reminders, setReminders] = useState([]);
+    const [newReminder, setNewReminder] = useState({address:'',customer:'',text:''});
+    useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'reminders'),snap=>setReminders(snap.docs.map(d=>({id:d.id,...d.data()}))));},[]);
+    const addReminder=async()=>{if(!newReminder.address.trim()||!newReminder.text.trim())return;const{db,doc,setDoc}=window.FirebaseSDK;const id='rem-'+genId();await setDoc(doc(db,'reminders',id),{id,address:newReminder.address.trim(),customer:newReminder.customer.trim(),text:newReminder.text.trim(),createdAt:new Date().toISOString()});setNewReminder({address:'',customer:'',text:''});};
+    const deleteReminder=async(id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,'reminders',id));};
 
     const toggleCalType=(types,ct)=>{if(types.includes(ct)){const next=types.filter(t=>t!==ct);return next.length===0?[ct]:next;}return[...types,ct];};
     const serializeCalTypes=(types)=>{if(!types||types.length===0)return'montage';if(types.length===3)return'all';if(types.length===1)return types[0];return JSON.stringify(types);};
@@ -2869,10 +2829,49 @@ function AdminPanel({ teams, onLogout, onSelectTeam, onOpenStandby, onSearch }) 
                 <div style={{display:'flex',gap:isMobile?6:10,alignItems:'center',flexWrap:'wrap'}}>
                     <button onClick={onSearch} style={{background:'linear-gradient(135deg,#1e293b,#334155)',border:'1px solid #475569',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 18px',color:'#94a3b8',fontSize:isMobile?9:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5,flex:isMobile?'1 1 auto':'none',justifyContent:'center'}}><Icon name="search" size={isMobile?11:14}/>🔍 Suche</button>
                     <button onClick={onOpenStandby} style={{background:'linear-gradient(135deg,#fef3c7,#fffbeb)',border:'1px solid #fde68a',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 18px',color:'#92400e',fontSize:isMobile?9:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5,flex:isMobile?'1 1 auto':'none',justifyContent:'center'}}><Icon name="archive" size={isMobile?11:14}/>📦 Standby</button>
+                    <button onClick={()=>setShowReminders(true)} style={{background:'linear-gradient(135deg,#ef4444,#dc2626)',border:'1px solid #fecaca',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 18px',color:'#fff',fontSize:isMobile?9:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5,flex:isMobile?'1 1 auto':'none',justifyContent:'center',boxShadow:'0 4px 14px rgba(239,68,68,0.35)'}}>⚠ Hinweise{reminders.length>0?` (${reminders.length})`:''}</button>
                     <button onClick={()=>setShowBilling(true)} style={{background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'1px solid #86efac',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 18px',color:'#15803d',fontSize:isMobile?9:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5,flex:isMobile?'1 1 auto':'none',justifyContent:'center'}}><Icon name="receipt" size={isMobile?11:14}/>💰 {isMobile?'Abrechnung':'Admin Abrechnung'}</button>
                     <button onClick={onLogout} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:isMobile?9:12,padding:isMobile?'7px 10px':'9px 16px',color:'#64748b',fontSize:isMobile?9:10,fontWeight:700,cursor:'pointer',flex:isMobile?'1 1 auto':'none'}}>Logout</button>
                 </div>
             </div>
+
+            {showReminders && (
+                <div onClick={()=>setShowReminders(false)} style={{position:'fixed',inset:0,background:'rgba(3,7,18,0.75)',backdropFilter:'blur(4px)',zIndex:400,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'5vh 16px',overflowY:'auto'}}>
+                    <div onClick={ev=>ev.stopPropagation()} style={{width:'100%',maxWidth:560,background:'#0f172a',border:'1px solid #1e293b',borderRadius:20,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+                        <div style={{padding:'16px 20px',borderBottom:'1px solid #1e293b',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:10}}>
+                                <div style={{width:36,height:36,borderRadius:10,background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.45)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>⚠</div>
+                                <div>
+                                    <div style={{color:'#fca5a5',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>Objekt-Hinweise · gilt für alle Gruppen</div>
+                                    <div style={{color:'#fff',fontSize:14,fontWeight:900}}>{reminders.length} aktive Hinweise</div>
+                                </div>
+                            </div>
+                            <button onClick={()=>setShowReminders(false)} style={{background:'#1e293b',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16}}>✕</button>
+                        </div>
+                        <div style={{padding:'14px 20px',borderBottom:'1px solid #1e293b',display:'flex',flexDirection:'column',gap:8}}>
+                            <div style={{color:'#64748b',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Neuen Hinweis anlegen</div>
+                            <input value={newReminder.address} onChange={e=>setNewReminder({...newReminder,address:e.target.value})} placeholder="Objekt / Adresse * (z. B. Zürcherstrasse, Altendorf)" style={{background:'#1e293b',border:'1px solid #334155',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:12,outline:'none'}}/>
+                            <input value={newReminder.customer} onChange={e=>setNewReminder({...newReminder,customer:e.target.value})} placeholder="Kunde (optional)" style={{background:'#1e293b',border:'1px solid #334155',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:12,outline:'none'}}/>
+                            <textarea value={newReminder.text} onChange={e=>setNewReminder({...newReminder,text:e.target.value})} placeholder="Hinweistext * (z. B. ACHTUNG WHG 6 AQUAPANEL)" rows={2} style={{background:'#1e293b',border:'1px solid #334155',borderRadius:10,padding:'10px 12px',color:'#fde68a',fontSize:12,fontWeight:700,outline:'none',resize:'vertical'}}/>
+                            <button onClick={addReminder} disabled={!newReminder.address.trim()||!newReminder.text.trim()} style={{background:(newReminder.address.trim()&&newReminder.text.trim())?'#ef4444':'#1e293b',border:'none',borderRadius:10,padding:'11px',color:(newReminder.address.trim()&&newReminder.text.trim())?'#fff':'#475569',fontSize:11,fontWeight:900,textTransform:'uppercase',letterSpacing:1,cursor:(newReminder.address.trim()&&newReminder.text.trim())?'pointer':'not-allowed'}}>＋ Hinweis speichern</button>
+                        </div>
+                        <div style={{maxHeight:'40vh',overflowY:'auto',padding:'12px 20px 20px',display:'flex',flexDirection:'column',gap:8}}>
+                            {reminders.length===0?(
+                                <div style={{textAlign:'center',padding:'24px 0',color:'#475569',fontSize:12,fontWeight:700}}>Noch keine Hinweise angelegt.</div>
+                            ):reminders.slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map(r=>(
+                                <div key={r.id} style={{background:'#1e293b',border:'1px solid #334155',borderLeft:'3px solid #ef4444',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'flex-start',gap:10}}>
+                                    <div style={{flex:1,minWidth:0}}>
+                                        <div style={{color:'#fff',fontSize:12,fontWeight:900}}>{r.address}</div>
+                                        {r.customer&&<div style={{color:'#94a3b8',fontSize:10,marginTop:1}}>{r.customer}</div>}
+                                        <div style={{color:'#fde68a',fontSize:11,fontWeight:800,marginTop:4,background:'rgba(239,68,68,0.1)',borderRadius:6,padding:'4px 8px'}}>⚠ {r.text}</div>
+                                    </div>
+                                    <button onClick={()=>{if(window.confirm('Diesen Hinweis löschen?'))deleteReminder(r.id);}} style={{background:'rgba(220,38,38,0.15)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:8,padding:'6px 10px',color:'#f87171',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',flexShrink:0}}>🗑 Löschen</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div style={{flex:1,padding:isMobile?'12px 12px 24px':'32px 32px 48px',maxWidth:1400,width:'100%',margin:'0 auto',boxSizing:'border-box'}}>
                 <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?8:16,marginBottom:isMobile?18:32}}>

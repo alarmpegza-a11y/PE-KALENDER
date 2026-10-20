@@ -288,9 +288,22 @@ const addDaysToStr = (dateStr, n) => { const d = parseDateSafe(dateStr); d.setDa
 // Timezone-safe: parse YYYY-MM-DD as local noon to avoid UTC offset issues
 const parseDateSafe = (s) => { if(!s) return new Date(); const p=String(s).substring(0,10); return new Date(p+'T12:00:00'); };
 // ── Hinweis-/Erinnerungs-Abgleich: alle Adress-Wörter (>=3 Zeichen) müssen in der Adresse vorkommen ──
-const normTxt = (s) => String(s||'').toLowerCase().replace(/[.,;/()]/g,' ').replace(/\s+/g,' ').trim();
-const reminderTokens = (addr) => normTxt(addr).split(' ').filter(w=>w.length>=3);
-const reminderMatches = (reminder, address) => { const toks=reminderTokens(reminder&&reminder.address); if(!toks.length) return false; const hay=normTxt(address); return toks.every(t=>hay.includes(t)); };
+const normTxt = (s) => String(s||'').toLowerCase().replace(/[.,;/()\-]/g,' ').replace(/\s+/g,' ').trim();
+const sigTokens = (s) => Array.from(new Set(normTxt(s).split(' ').filter(w=>w.length>=4)));
+const houseNo = (s) => { const m=normTxt(s).match(/(?:^|\s)(\d{1,4}[a-z]?)(?:\s|$)/); return m?m[1]:null; };
+// Tolerant: Treffer, wenn genug markante Wörter (>=4 Zeichen) aus Adresse+Kunde übereinstimmen
+// (mind. 2 Wörter, ODER 1 Wort + gleiche Hausnummer) — Straße/Name müssen nicht exakt gleich sein.
+const reminderMatches = (reminder, address, customer) => {
+    if(!reminder) return false;
+    const oHay = normTxt((address||'')+' '+(customer||''));
+    if(!oHay) return false;
+    const rToks = sigTokens((reminder.address||'')+' '+(reminder.customer||''));
+    if(!rToks.length) return false;
+    const score = rToks.filter(t=>oHay.includes(t)).length;
+    const rNo=houseNo(reminder.address), oNo=houseNo(address);
+    const numMatch = !!(rNo && oNo && rNo===oNo);
+    return score>=2 || (score>=1 && numMatch);
+};
 const parseCalTypes = (calType) => { if (!calType||calType==='montage') return ['montage']; if (calType==='both'||calType==='all') return ['montage','beplankung','ausflocken']; if (calType==='beplankung') return ['beplankung']; if (calType==='ausflocken') return ['ausflocken']; try { const arr=JSON.parse(calType); if(Array.isArray(arr)) return arr; } catch(e) {} return ['montage']; };
 
 const getImages = (entry) => {
@@ -2150,12 +2163,12 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
             const images = Array.isArray(entry.images) ? entry.images : [];
             await setDoc(doc(db,`teams_cal_${team.id}`,id),{id,createdAt:new Date().toISOString(),isDone:false,isBilled:false,entryType:entry.entryType||'LIEFERUNG',customer:entry.customer||'',address:entry.address||'',memo:entry.memo||'',auftragsNr:entry.auftragsNr||'',target:parseInt(entry.target)||0,images, image: images[0]||null,deliveryDate:entry.deliveryDate||'',endDate:entry.endDate||null,isMultiDay,calType:entry.calType||activeCalType,isProv:!!entry.isProv,customStartLabel:entry.customStartLabel||'',fehlerIntern:!!entry.fehlerIntern,weiterVerrechnen:!!entry.weiterVerrechnen,isDringend:!!entry.isDringend,isUmbau:!!entry.isUmbau});
             setEditCalEntry(null);
-            const remMatches=reminders.filter(r=>reminderMatches(r,entry.address||''));
-            if(remMatches.length) setReminderAlert({customer:entry.customer||'',address:entry.address||'',matches:remMatches});
         }catch(err){alert('Fehler: '+err.message);}
     };
 
     const deleteReminder=async(id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,'reminders',id));};
+    // Warnung sofort beim Wegklicken aus Kunde/Adresse (vor dem Speichern)
+    const checkReminders=(addr,cust)=>{ if(reminderAlert)return; if(!(addr||'').trim())return; const m=reminders.filter(r=>reminderMatches(r,addr,cust)); if(m.length) setReminderAlert({customer:cust||'',address:addr||'',matches:m}); };
 
     const triggerWeekPDF=()=>{setTimeout(()=>{const el=document.getElementById('cal-week-pdf-content');if(!el)return;html2pdf().set({margin:5,filename:`Kalender_KW${getWeekNumber(calWeek)}_${team.name}.pdf`,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false},jsPDF:{unit:'mm',format:'a3',orientation:'landscape'}}).from(el).save();},200);};
 
@@ -2481,8 +2494,8 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                         {!editCalEntry.isNew&&<button onClick={()=>downloadEntryPDF(editCalEntry)} style={{alignSelf:'flex-start',background:'#3b82f6',border:'none',borderRadius:8,padding:'6px 12px',color:'#fff',fontSize:9,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Icon name="download" size={12}/>PDF {getImages(editCalEntry).length > 0 ? `(${getImages(editCalEntry).length} Fotos)` : ''}</button>}
                         <div style={{display:'flex',gap:6}}>{[['montage','🔧 Montage','#2563eb'],['beplankung','🏗 Beplankung','#059669'],['ausflocken','❄️ Ausflocken','#b45309']].map(([ct,label,color])=>(<button key={ct} onClick={()=>setEditCalEntry({...editCalEntry,calType:ct})} style={{flex:1,padding:'8px 4px',borderRadius:8,border:'none',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',background:editCalEntry.calType===ct?color:'#1e293b',color:editCalEntry.calType===ct?'#fff':'#64748b'}}>{label}</button>))}</div>
                         <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#0f172a',border:'2px solid #3b82f6',color:'#60a5fa',fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:1,boxSizing:'border-box'}} placeholder="Typ" value={editCalEntry.entryType||'LIEFERUNG'} onChange={e=>setEditCalEntry({...editCalEntry,entryType:e.target.value.toUpperCase()})}/>
-                        <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Kunde *" value={editCalEntry.customer} onChange={e=>setEditCalEntry({...editCalEntry,customer:e.target.value})}/>
-                        <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Adresse" value={editCalEntry.address} onChange={e=>setEditCalEntry({...editCalEntry,address:e.target.value})}/>
+                        <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Kunde *" value={editCalEntry.customer} onChange={e=>setEditCalEntry({...editCalEntry,customer:e.target.value})} onBlur={()=>checkReminders(editCalEntry.address,editCalEntry.customer)}/>
+                        <input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#1e293b',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',fontSize:11,boxSizing:'border-box'}} placeholder="Adresse" value={editCalEntry.address} onChange={e=>setEditCalEntry({...editCalEntry,address:e.target.value})} onBlur={()=>checkReminders(editCalEntry.address,editCalEntry.customer)}/>
                         <div><div style={{color:'#f59e0b',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>📝 MEMO</div><input style={{width:'100%',padding:'10px 12px',borderRadius:10,background:'#0f172a',border:'2px solid #f59e0b55',color:'#fde68a',fontSize:12,fontWeight:800,boxSizing:'border-box'}} placeholder="Wichtige Hausinfo..." value={editCalEntry.memo} onChange={e=>setEditCalEntry({...editCalEntry,memo:e.target.value})}/></div>
                         <div>
                             <div style={{color:'#f87171',fontSize:8,fontWeight:900,textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>Dringlichkeit</div>

@@ -50,6 +50,8 @@
       try {
         firebase.initializeApp(firebaseConfig);
         window._db = firebase.firestore();
+        // Spart Lesevorgänge: Daten bleiben auf dem Gerät, beim Wiederöffnen werden nur Änderungen geladen
+        window._db.enablePersistence({ synchronizeTabs: true }).catch(function(){});
         window.FirebaseReady = true;
         // Keine automatische Anmeldung mehr — die App meldet sich erst
         // an, nachdem der Zugangscode (Stufe 1) korrekt eingegeben wurde.
@@ -64,14 +66,46 @@
           function setDoc(ref, data) { return db.collection(ref._col).doc(ref._id).set(data); }
           function updateDoc(ref, data) { return db.collection(ref._col).doc(ref._id).update(data); }
           function deleteDoc(ref) { return db.collection(ref._col).doc(ref._id).delete(); }
+          // Gemeinsame Live-Abfragen: Jede Sammlung wird nur EINMAL abonniert, egal wie viele
+          // Ansichten sie brauchen. Nach dem Schliessen einer Ansicht bleibt die Abfrage noch
+          // 30 Minuten offen, damit Ansichtswechsel nicht alles neu laden (spart Lesevorgänge).
+          const _shared = {};
+          const KEEP_MS = 30 * 60 * 1000;
           function onSnapshot(ref, callback, errorCallback) {
-            const unsub = db.collection(ref._col).onSnapshot(snap => {
-              const docs = snap.docs.map(d => ({ id: d.id, data: () => ({ ...d.data() }) }));
-              callback({ docs });
-            }, errorCallback || console.error);
-            return unsub;
+            const col = ref._col;
+            let s = _shared[col];
+            if (!s) {
+              s = _shared[col] = { subs: new Set(), last: null, unsub: null, timer: null };
+              s.unsub = db.collection(col).onSnapshot(snap => {
+                const docs = snap.docs.map(d => ({ id: d.id, data: () => ({ ...d.data() }) }));
+                s.last = { docs };
+                s.subs.forEach(sub => { try { sub.cb(s.last); } catch (e) { console.error(e); } });
+              }, err => {
+                let handled = false;
+                s.subs.forEach(sub => { if (sub.err) { handled = true; try { sub.err(err); } catch (e) {} } });
+                if (!handled) console.error(err);
+                // Bei Fehler Abfrage verwerfen, damit sie beim nächsten Mal neu aufgebaut wird
+                try { s.unsub(); } catch (e) {}
+                clearTimeout(s.timer);
+                if (_shared[col] === s) delete _shared[col];
+              });
+            }
+            clearTimeout(s.timer); s.timer = null;
+            const sub = { cb: callback, err: errorCallback };
+            s.subs.add(sub);
+            if (s.last) { const snap = s.last; setTimeout(() => { if (s.subs.has(sub)) { try { callback(snap); } catch (e) { console.error(e); } } }, 0); }
+            return () => {
+              s.subs.delete(sub);
+              if (!s.subs.size && !s.timer && _shared[col] === s) {
+                s.timer = setTimeout(() => {
+                  if (!s.subs.size && _shared[col] === s) { try { s.unsub(); } catch (e) {} delete _shared[col]; }
+                }, KEEP_MS);
+              }
+            };
           }
           function getDocs(ref) {
+            const s = _shared[ref._col];
+            if (s && s.last) return Promise.resolve(s.last);
             return db.collection(ref._col).get().then(snap => ({
               docs: snap.docs.map(d => ({ id: d.id, data: () => ({ ...d.data() }) }))
             }));

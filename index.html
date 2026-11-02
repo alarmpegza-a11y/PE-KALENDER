@@ -1568,13 +1568,16 @@ function BillingModal({ teams, onClose }) {
     const today=new Date().toLocaleDateString('de-DE');
 
     // EXCEL EXPORT — ALLE GRUPPEN AUF EINMAL
-    // + MATERIALABZUG AQUAPANEL 18 mm (Art. 461.163.00.5) aus der Werkstatt-App (werkstatt_entnahmen)
+    // Zusätzliche Spalten: Material / Artikel-Nr. / Anzahl Platten / m² — NUR für Aquapanel 18 mm (Art. 461.163.00.5)
+    // aus der Werkstatt-App (werkstatt_entnahmen). Betroffene Zeilen leuchten gelb.
     const exportAllExcel=async()=>{
         if(!window.XLSX){alert('Excel-Bibliothek nicht geladen. Seite neu laden und erneut versuchen.');return;}
         const exportEntries=allEntries.filter(e=>e.isDone||e.isBilled);
+        if(exportEntries.length===0){alert('Keine erledigten Aufträge zum Exportieren.');return;}
 
         // ── Werkstatt-Entnahmen laden: nur Aquapanel 18 mm ──
         const AQUA18_ARTNR='461.163.00.5';
+        const AQUA18_NAME='Aquapanel 18 mm';
         const isAqua18=(i)=>!!i&&(i.abzug===true||i.id==='aqua18'||i.artNr===AQUA18_ARTNR||(/aqua\s*-?\s*pan/i.test(i.name||'')&&/(^|\D)18(\D|$)/.test(String(i.dicke||''))));
         let aquaList=[];
         try{
@@ -1583,65 +1586,53 @@ function BillingModal({ teams, onClose }) {
             snap.docs.forEach(d=>{
                 const ent={id:d.id,...d.data()};
                 (ent.items||[]).filter(isAqua18).forEach(it=>{
-                    aquaList.push({entId:ent.id,createdAt:ent.createdAt||'',datum:ent.datum||'',teamId:ent.teamId||'',teamName:ent.teamName||'',
+                    aquaList.push({createdAt:ent.createdAt||'',teamId:ent.teamId||'',teamName:ent.teamName||'',
                         objLabel:ent.objLabel||'',objAddress:ent.objAddress||'',auftragsNr:ent.auftragsNr||'',calEntryId:ent.calEntryId||'',
                         anzahl:Number(it.anzahl)||0,m2:Number(it.m2)||0,artNr:it.artNr||AQUA18_ARTNR});
                 });
             });
         }catch(err){
             console.error('Werkstatt-Entnahmen konnten nicht geladen werden',err);
-            if(!confirm('ACHTUNG: Die Werkstatt-Entnahmen (Aquapanel 18 mm) konnten nicht geladen werden.\n\nDer Materialabzug fehlt dann in der Excel!\n\nTrotzdem exportieren?'))return;
+            if(!confirm('ACHTUNG: Die Werkstatt-Entnahmen (Aquapanel 18 mm) konnten nicht geladen werden.\n\nDie Spalten Material / Artikel-Nr. bleiben dann leer!\n\nTrotzdem exportieren?'))return;
         }
-        if(exportEntries.length===0&&aquaList.length===0){alert('Keine erledigten Aufträge zum Exportieren.');return;}
 
         // ── Entnahmen den Aufträgen zuordnen (1. Kalender-Eintrag, 2. gleiche Gruppe + Auftragsnr.) ──
         const normNr=(n)=>String(cleanAuftragsNr(String(n||''))||'').trim().toLowerCase();
-        const aquaByEntry={};
+        const aquaByEntry={};const aquaOhneAuftrag=[];
         aquaList.forEach(a=>{
             let target=allEntries.find(e=>e.teamId===a.teamId&&e.id===a.calEntryId);
             if(!target&&normNr(a.auftragsNr)){
                 const cands=allEntries.filter(e=>e.teamId===a.teamId&&normNr(e.auftragsNr)===normNr(a.auftragsNr));
                 target=cands.find(e=>e.isDone||e.isBilled)||cands[0];
             }
-            a.entry=target||null;
             if(target){const k=target.teamId+'/'+target.id;(aquaByEntry[k]=aquaByEntry[k]||[]).push(a);}
+            else aquaOhneAuftrag.push(a);
         });
         const aquaFor=(e)=>aquaByEntry[e.teamId+'/'+e.id]||[];
-        const aquaText=(e)=>{const l=aquaFor(e);if(!l.length)return '';const n=l.reduce((x,a)=>x+a.anzahl,0);const m=l.reduce((x,a)=>x+a.m2,0);return `⚠ ABZUG: ${n} Stk Aquapanel 18 mm (${m.toFixed(2)} m²) · Art. ${AQUA18_ARTNR}`;};
-        const aquaStatus=(a)=>!a.entry?'⚠ Kein Auftrag zugeordnet':a.entry.isBilled?'Abgerechnet':a.entry.isDone?'Offen (Auftrag erledigt)':'Offen (Auftrag noch nicht erledigt)';
-        const fmtEntDate=(a)=>{const d=a.createdAt?new Date(a.createdAt):null;return d&&!isNaN(d)?d.toLocaleDateString('de-CH')+' '+d.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'}):(a.datum||'');};
+        const aquaCols=(e)=>{const l=aquaFor(e);if(!l.length)return ['','','',''];
+            const n=l.reduce((x,a)=>x+a.anzahl,0);const m=Math.round(l.reduce((x,a)=>x+a.m2,0)*100)/100;
+            return [AQUA18_NAME,AQUA18_ARTNR,n,m];};
 
-        // Stile
         const ST_ROW={fill:{fgColor:{rgb:'FFFF00'}},font:{bold:true}};
-        const ST_ABZUG={fill:{fgColor:{rgb:'FFC000'}},font:{bold:true,color:{rgb:'C00000'}},alignment:{wrapText:true,vertical:'center'}};
-        const ST_BANNER={fill:{fgColor:{rgb:'C00000'}},font:{bold:true,color:{rgb:'FFFFFF'},sz:12}};
-        const ST_HEAD={fill:{fgColor:{rgb:'FFE699'}},font:{bold:true}};
+        const ST_MAT={fill:{fgColor:{rgb:'FFC000'}},font:{bold:true,color:{rgb:'C00000'}}};
         const styleCell=(ws,r,c,st)=>{const ref=window.XLSX.utils.encode_cell({r,c});if(!ws[ref])ws[ref]={t:'s',v:''};ws[ref].s=st;};
 
-        // Baut ein Tabellenblatt: OFFEN oben, klarer Trenner, ABGERECHNET unten
+        // Baut ein Tabellenblatt: OFFEN oben, klarer Trenner, ABGERECHNET unten (wie bisher) + 4 Material-Spalten
         const buildSheet=(entries,withGroup)=>{
-            const header=withGroup?['Gruppe','Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen','Materialabzug Aquapanel 18 mm']:['Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen','Materialabzug Aquapanel 18 mm'];
+            const base=withGroup?['Gruppe','Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen']:['Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen'];
+            const header=[...base,'Material','Artikel-Nr.','Anzahl Platten','m²'];
             const ncols=header.length;
-            const abrCol=header.indexOf('Abrechnen'),matCol=ncols-1;
+            const abrCol=base.length-1,matStart=base.length;
             const sorter=withGroup
                 ?(a,b)=>(a.teamName||'').localeCompare(b.teamName||'')||(a.deliveryDate||'').localeCompare(b.deliveryDate||'')
                 :(a,b)=>(a.deliveryDate||'').localeCompare(b.deliveryDate||'');
             const abrText=(e)=>{const p=[];if(e.fehlerIntern)p.push('Fehler intern');if(e.weiterVerrechnen)p.push('Weiter verrechnen');return p.join(' + ');};
-            const toRow=(e)=>{const r=[];if(withGroup)r.push(e.teamName||'');r.push(formatDate(e.deliveryDate)||'',e.customer||'',cleanAuftragsNr(e.auftragsNr)||'',e.address||'',e.memo||'',e.isBilled?'Abgerechnet':'Offen',abrText(e),aquaText(e));return r;};
+            const toRow=(e)=>{const r=[];if(withGroup)r.push(e.teamName||'');r.push(formatDate(e.deliveryDate)||'',e.customer||'',cleanAuftragsNr(e.auftragsNr)||'',e.address||'',e.memo||'',e.isBilled?'Abgerechnet':'Offen',abrText(e),...aquaCols(e));return r;};
             const blank=()=>new Array(ncols).fill('');
             const banner=(txt)=>{const r=blank();r[0]=txt;return r;};
             const open=entries.filter(e=>!e.isBilled).sort(sorter);
             const billed=entries.filter(e=>e.isBilled).sort(sorter);
-            const aoa=[],merges=[],redRows=[],aquaRows=[],bannerRows=[];
-            // ── Hinweis oben, falls Aquapanel-Abzüge offen sind ──
-            const teamIds=new Set(entries.map(e=>e.teamId));
-            const openAqua=aquaList.filter(a=>(withGroup||teamIds.has(a.teamId))&&!(a.entry&&a.entry.isBilled));
-            if(openAqua.length){
-                const n=openAqua.reduce((x,a)=>x+a.anzahl,0);
-                bannerRows.push(aoa.length);merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:ncols-1}});
-                aoa.push(banner(`⚠ MATERIALABZUG: ${n} Stk Aquapanel 18 mm (Art. ${AQUA18_ARTNR}) noch nicht abgerechnet — Details im Blatt «Aquapanel 18mm Abzug»`));
-                aoa.push(blank());
-            }
+            const aoa=[],merges=[],redRows=[],aquaRows=[];
             // ── OFFEN ──
             merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:ncols-1}});aoa.push(banner(`🟡 OFFEN — NOCH NICHT ABGERECHNET   (${open.length})`));
             aoa.push(header.slice());
@@ -1654,54 +1645,33 @@ function BillingModal({ teams, onClose }) {
             aoa.push(header.slice());
             billed.forEach(e=>{const ri=aoa.length;aoa.push(toRow(e));if(e.fehlerIntern||e.weiterVerrechnen)redRows.push(ri);if(aquaFor(e).length)aquaRows.push(ri);});
             if(billed.length===0)aoa.push(banner('— keine abgerechneten Aufträge —'));
-            const ws=window.XLSX.utils.aoa_to_sheet(aoa);
-            ws['!merges']=merges;
-            // Aquapanel-18-Zeilen GELB, Abzug-Zelle ORANGE/ROT
-            aquaRows.forEach(ri=>{for(let c=0;c<ncols;c++)styleCell(ws,ri,c,ST_ROW);styleCell(ws,ri,matCol,ST_ABZUG);});
-            bannerRows.forEach(ri=>styleCell(ws,ri,0,ST_BANNER));
-            // "Abrechnen"-Zellen ROT darstellen (Fehler intern / Weiter verrechnen)
-            redRows.forEach(ri=>{const ref=window.XLSX.utils.encode_cell({r:ri,c:abrCol});if(ws[ref])ws[ref].s={font:{bold:true,color:{rgb:'C00000'}},fill:{fgColor:{rgb:'FFE2E2'}},alignment:{horizontal:'center',vertical:'center'}};});
-            ws['!cols']=withGroup?[{wch:16},{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20},{wch:52}]:[{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20},{wch:52}];
-            return ws;
-        };
-
-        // Eigenes Blatt für den Buchhalter: ALLE Aquapanel-18-Entnahmen
-        const buildAquaSheet=()=>{
-            const header=['Entnahme','Gruppe','Objekt','Adresse','Auftragsnr.','Artikel-Nr.','Material','Anzahl Stk','m²','Status Abrechnung'];
-            const ncols=header.length;
-            const aoa=[],merges=[];
-            merges.push({s:{r:0,c:0},e:{r:0,c:ncols-1}});
-            aoa.push([`⚠ MATERIALABZUG AQUAPANEL 18 mm — Art. ${AQUA18_ARTNR} — im System abziehen`,...new Array(ncols-1).fill('')]);
-            aoa.push(new Array(ncols).fill(''));
-            aoa.push(header);
-            const list=aquaList.slice().sort((a,b)=>{const oa=(a.entry&&a.entry.isBilled)?1:0,ob=(b.entry&&b.entry.isBilled)?1:0;return oa-ob||(b.createdAt||'').localeCompare(a.createdAt||'');});
-            list.forEach(a=>aoa.push([fmtEntDate(a),a.teamName,a.entry?(a.entry.customer||a.objLabel):a.objLabel,a.objAddress||(a.entry&&a.entry.address)||'',cleanAuftragsNr(String(a.auftragsNr||(a.entry&&a.entry.auftragsNr)||''))||'',a.artNr,'Aquapanel 18 mm',a.anzahl,Math.round(a.m2*100)/100,aquaStatus(a)]));
-            if(!list.length)aoa.push(['— keine Entnahmen Aquapanel 18 mm —',...new Array(ncols-1).fill('')]);
-            else{
-                const tn=list.reduce((x,a)=>x+a.anzahl,0),tm=list.reduce((x,a)=>x+a.m2,0);
-                const on=list.filter(a=>!(a.entry&&a.entry.isBilled)).reduce((x,a)=>x+a.anzahl,0);
-                aoa.push(new Array(ncols).fill(''));
-                aoa.push(['','','','','','','TOTAL',tn,Math.round(tm*100)/100,`davon noch offen: ${on} Stk`]);
+            // ── Aquapanel 18 mm ohne passenden Auftrag (frei eingetippt) — ganz unten, damit nichts verloren geht ──
+            const teamIds=new Set(entries.map(e=>e.teamId));
+            const ohne=aquaOhneAuftrag.filter(a=>withGroup||teamIds.has(a.teamId));
+            if(ohne.length){
+                aoa.push(blank());aoa.push(blank());
+                merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:ncols-1}});aoa.push(banner(`⚠ AQUAPANEL 18 mm OHNE AUFTRAG IM KALENDER   (${ohne.length})`));
+                aoa.push(header.slice());
+                ohne.forEach(a=>{const ri=aoa.length;const d=a.createdAt?new Date(a.createdAt):null;const r=[];
+                    if(withGroup)r.push(a.teamName);
+                    r.push(d&&!isNaN(d)?d.toLocaleDateString('de-CH'):'',a.objLabel,cleanAuftragsNr(String(a.auftragsNr||''))||'',a.objAddress,'Werkstatt-Entnahme','Offen','',AQUA18_NAME,a.artNr,a.anzahl,Math.round(a.m2*100)/100);
+                    aoa.push(r);aquaRows.push(ri);});
             }
             const ws=window.XLSX.utils.aoa_to_sheet(aoa);
             ws['!merges']=merges;
-            styleCell(ws,0,0,ST_BANNER);
-            for(let c=0;c<ncols;c++)styleCell(ws,2,c,ST_HEAD);
-            list.forEach((a,i)=>{const r=3+i;const billedRow=a.entry&&a.entry.isBilled;
-                for(let c=0;c<ncols;c++)styleCell(ws,r,c,billedRow?{font:{color:{rgb:'7F7F7F'}}}:ST_ROW);
-                if(!billedRow){styleCell(ws,r,7,ST_ABZUG);styleCell(ws,r,9,ST_ABZUG);}
-            });
-            if(list.length){const tr=aoa.length-1;for(let c=6;c<ncols;c++)styleCell(ws,tr,c,{font:{bold:true},fill:{fgColor:{rgb:'FFE699'}}});}
-            ws['!cols']=[{wch:16},{wch:16},{wch:26},{wch:30},{wch:14},{wch:14},{wch:18},{wch:11},{wch:9},{wch:30}];
+            // Aquapanel-18-Zeilen GELB, Material-Spalten ORANGE/ROT
+            aquaRows.forEach(ri=>{for(let c=0;c<ncols;c++)styleCell(ws,ri,c,ST_ROW);for(let c=matStart;c<ncols;c++)styleCell(ws,ri,c,ST_MAT);});
+            // "Abrechnen"-Zellen ROT darstellen (Fehler intern / Weiter verrechnen)
+            redRows.forEach(ri=>{const ref=window.XLSX.utils.encode_cell({r:ri,c:abrCol});if(ws[ref])ws[ref].s={font:{bold:true,color:{rgb:'C00000'}},fill:{fgColor:{rgb:'FFE2E2'}},alignment:{horizontal:'center',vertical:'center'}};});
+            const matW=[{wch:18},{wch:14},{wch:14},{wch:8}];
+            ws['!cols']=withGroup?[{wch:16},{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20},...matW]:[{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20},...matW];
             return ws;
         };
-
         const wb=window.XLSX.utils.book_new();
-        // Sheet 1: Aquapanel-Abzug (nur wenn vorhanden), Sheet 2: ALLE Gruppen kombiniert
-        if(aquaList.length) window.XLSX.utils.book_append_sheet(wb,buildAquaSheet(),'Aquapanel 18mm Abzug');
+        // Sheet 1: ALLE Gruppen kombiniert
         window.XLSX.utils.book_append_sheet(wb,buildSheet(exportEntries,true),'Alle Gruppen');
         // Pro Gruppe ein eigenes Tabellenblatt
-        const usedNames={'Aquapanel 18mm Abzug':1,'Alle Gruppen':1};
+        const usedNames={'Alle Gruppen':1};
         teams.forEach(t=>{
             const teamEntries=exportEntries.filter(e=>e.teamId===t.id);
             if(teamEntries.length===0) return;

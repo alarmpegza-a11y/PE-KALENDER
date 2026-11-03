@@ -713,15 +713,20 @@ function BlockModal({ entry, team, onClose }) {
 
     const saveBlock = async () => {
         setSaving(true);
-        const { db, doc, updateDoc } = window.FirebaseSDK;
-        await updateDoc(doc(db, `teams_cal_${team.id}`, entry.id), {
-            isBlocked: true,
-            blockReason: reason.trim(),
-            blockImages: images,
-            blockedAt: new Date().toISOString(),
-        });
-        setSaving(false);
-        onClose();
+        try {
+            const { db, doc, updateDoc } = window.FirebaseSDK;
+            await updateDoc(doc(db, `teams_cal_${team.id}`, entry.id), {
+                isBlocked: true,
+                blockReason: reason.trim(),
+                blockImages: images,
+                blockedAt: new Date().toISOString(),
+            });
+            onClose();
+        } catch(err) {
+            alert('Blockieren fehlgeschlagen: ' + err.message + '\nBitte Internetverbindung prüfen und erneut versuchen.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const unblock = async () => {
@@ -1511,7 +1516,8 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
 
             <div style={{display:'flex',gap:3,marginTop:5,justifyContent:'flex-end',alignItems:'center'}}>
                 {!isAdminAccess&&(<span style={{fontSize:8,color:border,fontWeight:900,opacity:0.7,display:'flex',alignItems:'center',gap:2}}>📄 PDF{images.length>0?` (${images.length} Fotos)`:''}</span>)}
-                {!isAdminAccess&&canMarkDone&&<button onClick={(ev)=>{ev.stopPropagation();setBlockEntry&&setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.25)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f97316',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}}>{e.isBlocked?'🚧 Blockiert':'⚠ Blockieren'}</button>}
+                {!isAdminAccess&&<button onClick={(ev)=>{ev.stopPropagation();setBlockEntry&&setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.25)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f97316',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}}>{e.isBlocked?'🚧 Blockiert':'⚠ Blockieren'}</button>}
+                {isAdminAccess&&!isMoveActive&&e.isBlocked&&<button onClick={(ev)=>{ev.stopPropagation();setBlockEntry&&setBlockEntry({...e});}} style={{background:'rgba(249,115,22,0.15)',border:'1px solid rgba(249,115,22,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f97316',lineHeight:1,fontWeight:900}} title='Blockier-Grund & Fotos ansehen'>🚧 Ansehen</button>}
                 {isAdminAccess&&!isMoveActive&&e.isBlocked&&<button onClick={(ev)=>{ev.stopPropagation();if(confirm(`Blockierung für "${e.customer}" aufheben?`))unblockEntry&&unblockEntry(e);}} style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.45)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#10b981',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}} title='Blockierung aufheben (freigeben)'>✓ Freigeben</button>}
                 {canMarkDone&&<button onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.25)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.3)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#10b981',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setMoveEntry({...e});}} style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f59e0b',lineHeight:1,fontWeight:900}}>↕ Verschieben</button>}
@@ -1568,16 +1574,13 @@ function BillingModal({ teams, onClose }) {
     const today=new Date().toLocaleDateString('de-DE');
 
     // EXCEL EXPORT — ALLE GRUPPEN AUF EINMAL
-    // Zusätzliche Spalten: Material / Artikel-Nr. / Anzahl Platten / m² — NUR für Aquapanel 18 mm (Art. 461.163.00.5)
-    // aus der Werkstatt-App (werkstatt_entnahmen). Betroffene Zeilen leuchten gelb.
+    // + MATERIALABZUG AQUAPANEL 18 mm (Art. 461.163.00.5) aus der Werkstatt-App (werkstatt_entnahmen)
     const exportAllExcel=async()=>{
         if(!window.XLSX){alert('Excel-Bibliothek nicht geladen. Seite neu laden und erneut versuchen.');return;}
         const exportEntries=allEntries.filter(e=>e.isDone||e.isBilled);
-        if(exportEntries.length===0){alert('Keine erledigten Aufträge zum Exportieren.');return;}
 
         // ── Werkstatt-Entnahmen laden: nur Aquapanel 18 mm ──
         const AQUA18_ARTNR='461.163.00.5';
-        const AQUA18_NAME='Aquapanel 18 mm';
         const isAqua18=(i)=>!!i&&(i.abzug===true||i.id==='aqua18'||i.artNr===AQUA18_ARTNR||(/aqua\s*-?\s*pan/i.test(i.name||'')&&/(^|\D)18(\D|$)/.test(String(i.dicke||''))));
         let aquaList=[];
         try{
@@ -1586,53 +1589,65 @@ function BillingModal({ teams, onClose }) {
             snap.docs.forEach(d=>{
                 const ent={id:d.id,...d.data()};
                 (ent.items||[]).filter(isAqua18).forEach(it=>{
-                    aquaList.push({createdAt:ent.createdAt||'',teamId:ent.teamId||'',teamName:ent.teamName||'',
+                    aquaList.push({entId:ent.id,createdAt:ent.createdAt||'',datum:ent.datum||'',teamId:ent.teamId||'',teamName:ent.teamName||'',
                         objLabel:ent.objLabel||'',objAddress:ent.objAddress||'',auftragsNr:ent.auftragsNr||'',calEntryId:ent.calEntryId||'',
                         anzahl:Number(it.anzahl)||0,m2:Number(it.m2)||0,artNr:it.artNr||AQUA18_ARTNR});
                 });
             });
         }catch(err){
             console.error('Werkstatt-Entnahmen konnten nicht geladen werden',err);
-            if(!confirm('ACHTUNG: Die Werkstatt-Entnahmen (Aquapanel 18 mm) konnten nicht geladen werden.\n\nDie Spalten Material / Artikel-Nr. bleiben dann leer!\n\nTrotzdem exportieren?'))return;
+            if(!confirm('ACHTUNG: Die Werkstatt-Entnahmen (Aquapanel 18 mm) konnten nicht geladen werden.\n\nDer Materialabzug fehlt dann in der Excel!\n\nTrotzdem exportieren?'))return;
         }
+        if(exportEntries.length===0&&aquaList.length===0){alert('Keine erledigten Aufträge zum Exportieren.');return;}
 
         // ── Entnahmen den Aufträgen zuordnen (1. Kalender-Eintrag, 2. gleiche Gruppe + Auftragsnr.) ──
         const normNr=(n)=>String(cleanAuftragsNr(String(n||''))||'').trim().toLowerCase();
-        const aquaByEntry={};const aquaOhneAuftrag=[];
+        const aquaByEntry={};
         aquaList.forEach(a=>{
             let target=allEntries.find(e=>e.teamId===a.teamId&&e.id===a.calEntryId);
             if(!target&&normNr(a.auftragsNr)){
                 const cands=allEntries.filter(e=>e.teamId===a.teamId&&normNr(e.auftragsNr)===normNr(a.auftragsNr));
                 target=cands.find(e=>e.isDone||e.isBilled)||cands[0];
             }
+            a.entry=target||null;
             if(target){const k=target.teamId+'/'+target.id;(aquaByEntry[k]=aquaByEntry[k]||[]).push(a);}
-            else aquaOhneAuftrag.push(a);
         });
         const aquaFor=(e)=>aquaByEntry[e.teamId+'/'+e.id]||[];
-        const aquaCols=(e)=>{const l=aquaFor(e);if(!l.length)return ['','','',''];
-            const n=l.reduce((x,a)=>x+a.anzahl,0);const m=Math.round(l.reduce((x,a)=>x+a.m2,0)*100)/100;
-            return [AQUA18_NAME,AQUA18_ARTNR,n,m];};
+        const aquaText=(e)=>{const l=aquaFor(e);if(!l.length)return '';const n=l.reduce((x,a)=>x+a.anzahl,0);const m=l.reduce((x,a)=>x+a.m2,0);return `⚠ ABZUG: ${n} Stk Aquapanel 18 mm (${m.toFixed(2)} m²) · Art. ${AQUA18_ARTNR}`;};
+        const aquaStatus=(a)=>!a.entry?'⚠ Kein Auftrag zugeordnet':a.entry.isBilled?'Abgerechnet':a.entry.isDone?'Offen (Auftrag erledigt)':'Offen (Auftrag noch nicht erledigt)';
+        const fmtEntDate=(a)=>{const d=a.createdAt?new Date(a.createdAt):null;return d&&!isNaN(d)?d.toLocaleDateString('de-CH')+' '+d.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'}):(a.datum||'');};
 
+        // Stile
         const ST_ROW={fill:{fgColor:{rgb:'FFFF00'}},font:{bold:true}};
-        const ST_MAT={fill:{fgColor:{rgb:'FFC000'}},font:{bold:true,color:{rgb:'C00000'}}};
+        const ST_ABZUG={fill:{fgColor:{rgb:'FFC000'}},font:{bold:true,color:{rgb:'C00000'}},alignment:{wrapText:true,vertical:'center'}};
+        const ST_BANNER={fill:{fgColor:{rgb:'C00000'}},font:{bold:true,color:{rgb:'FFFFFF'},sz:12}};
+        const ST_HEAD={fill:{fgColor:{rgb:'FFE699'}},font:{bold:true}};
         const styleCell=(ws,r,c,st)=>{const ref=window.XLSX.utils.encode_cell({r,c});if(!ws[ref])ws[ref]={t:'s',v:''};ws[ref].s=st;};
 
-        // Baut ein Tabellenblatt: OFFEN oben, klarer Trenner, ABGERECHNET unten (wie bisher) + 4 Material-Spalten
+        // Baut ein Tabellenblatt: OFFEN oben, klarer Trenner, ABGERECHNET unten
         const buildSheet=(entries,withGroup)=>{
-            const base=withGroup?['Gruppe','Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen']:['Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen'];
-            const header=[...base,'Material','Artikel-Nr.','Anzahl Platten','m²'];
+            const header=withGroup?['Gruppe','Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen','Materialabzug Aquapanel 18 mm']:['Datum','Kunde','Auftragsnr.','Adresse','Memo','Status','Abrechnen','Materialabzug Aquapanel 18 mm'];
             const ncols=header.length;
-            const abrCol=base.length-1,matStart=base.length;
+            const abrCol=header.indexOf('Abrechnen'),matCol=ncols-1;
             const sorter=withGroup
                 ?(a,b)=>(a.teamName||'').localeCompare(b.teamName||'')||(a.deliveryDate||'').localeCompare(b.deliveryDate||'')
                 :(a,b)=>(a.deliveryDate||'').localeCompare(b.deliveryDate||'');
             const abrText=(e)=>{const p=[];if(e.fehlerIntern)p.push('Fehler intern');if(e.weiterVerrechnen)p.push('Weiter verrechnen');return p.join(' + ');};
-            const toRow=(e)=>{const r=[];if(withGroup)r.push(e.teamName||'');r.push(formatDate(e.deliveryDate)||'',e.customer||'',cleanAuftragsNr(e.auftragsNr)||'',e.address||'',e.memo||'',e.isBilled?'Abgerechnet':'Offen',abrText(e),...aquaCols(e));return r;};
+            const toRow=(e)=>{const r=[];if(withGroup)r.push(e.teamName||'');r.push(formatDate(e.deliveryDate)||'',e.customer||'',cleanAuftragsNr(e.auftragsNr)||'',e.address||'',e.memo||'',e.isBilled?'Abgerechnet':'Offen',abrText(e),aquaText(e));return r;};
             const blank=()=>new Array(ncols).fill('');
             const banner=(txt)=>{const r=blank();r[0]=txt;return r;};
             const open=entries.filter(e=>!e.isBilled).sort(sorter);
             const billed=entries.filter(e=>e.isBilled).sort(sorter);
-            const aoa=[],merges=[],redRows=[],aquaRows=[];
+            const aoa=[],merges=[],redRows=[],aquaRows=[],bannerRows=[];
+            // ── Hinweis oben, falls Aquapanel-Abzüge offen sind ──
+            const teamIds=new Set(entries.map(e=>e.teamId));
+            const openAqua=aquaList.filter(a=>(withGroup||teamIds.has(a.teamId))&&!(a.entry&&a.entry.isBilled));
+            if(openAqua.length){
+                const n=openAqua.reduce((x,a)=>x+a.anzahl,0);
+                bannerRows.push(aoa.length);merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:ncols-1}});
+                aoa.push(banner(`⚠ MATERIALABZUG: ${n} Stk Aquapanel 18 mm (Art. ${AQUA18_ARTNR}) noch nicht abgerechnet — Details im Blatt «Aquapanel 18mm Abzug»`));
+                aoa.push(blank());
+            }
             // ── OFFEN ──
             merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:ncols-1}});aoa.push(banner(`🟡 OFFEN — NOCH NICHT ABGERECHNET   (${open.length})`));
             aoa.push(header.slice());
@@ -1645,33 +1660,54 @@ function BillingModal({ teams, onClose }) {
             aoa.push(header.slice());
             billed.forEach(e=>{const ri=aoa.length;aoa.push(toRow(e));if(e.fehlerIntern||e.weiterVerrechnen)redRows.push(ri);if(aquaFor(e).length)aquaRows.push(ri);});
             if(billed.length===0)aoa.push(banner('— keine abgerechneten Aufträge —'));
-            // ── Aquapanel 18 mm ohne passenden Auftrag (frei eingetippt) — ganz unten, damit nichts verloren geht ──
-            const teamIds=new Set(entries.map(e=>e.teamId));
-            const ohne=aquaOhneAuftrag.filter(a=>withGroup||teamIds.has(a.teamId));
-            if(ohne.length){
-                aoa.push(blank());aoa.push(blank());
-                merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:ncols-1}});aoa.push(banner(`⚠ AQUAPANEL 18 mm OHNE AUFTRAG IM KALENDER   (${ohne.length})`));
-                aoa.push(header.slice());
-                ohne.forEach(a=>{const ri=aoa.length;const d=a.createdAt?new Date(a.createdAt):null;const r=[];
-                    if(withGroup)r.push(a.teamName);
-                    r.push(d&&!isNaN(d)?d.toLocaleDateString('de-CH'):'',a.objLabel,cleanAuftragsNr(String(a.auftragsNr||''))||'',a.objAddress,'Werkstatt-Entnahme','Offen','',AQUA18_NAME,a.artNr,a.anzahl,Math.round(a.m2*100)/100);
-                    aoa.push(r);aquaRows.push(ri);});
+            const ws=window.XLSX.utils.aoa_to_sheet(aoa);
+            ws['!merges']=merges;
+            // Aquapanel-18-Zeilen GELB, Abzug-Zelle ORANGE/ROT
+            aquaRows.forEach(ri=>{for(let c=0;c<ncols;c++)styleCell(ws,ri,c,ST_ROW);styleCell(ws,ri,matCol,ST_ABZUG);});
+            bannerRows.forEach(ri=>styleCell(ws,ri,0,ST_BANNER));
+            // "Abrechnen"-Zellen ROT darstellen (Fehler intern / Weiter verrechnen)
+            redRows.forEach(ri=>{const ref=window.XLSX.utils.encode_cell({r:ri,c:abrCol});if(ws[ref])ws[ref].s={font:{bold:true,color:{rgb:'C00000'}},fill:{fgColor:{rgb:'FFE2E2'}},alignment:{horizontal:'center',vertical:'center'}};});
+            ws['!cols']=withGroup?[{wch:16},{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20},{wch:52}]:[{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20},{wch:52}];
+            return ws;
+        };
+
+        // Eigenes Blatt für den Buchhalter: ALLE Aquapanel-18-Entnahmen
+        const buildAquaSheet=()=>{
+            const header=['Entnahme','Gruppe','Objekt','Adresse','Auftragsnr.','Artikel-Nr.','Material','Anzahl Stk','m²','Status Abrechnung'];
+            const ncols=header.length;
+            const aoa=[],merges=[];
+            merges.push({s:{r:0,c:0},e:{r:0,c:ncols-1}});
+            aoa.push([`⚠ MATERIALABZUG AQUAPANEL 18 mm — Art. ${AQUA18_ARTNR} — im System abziehen`,...new Array(ncols-1).fill('')]);
+            aoa.push(new Array(ncols).fill(''));
+            aoa.push(header);
+            const list=aquaList.slice().sort((a,b)=>{const oa=(a.entry&&a.entry.isBilled)?1:0,ob=(b.entry&&b.entry.isBilled)?1:0;return oa-ob||(b.createdAt||'').localeCompare(a.createdAt||'');});
+            list.forEach(a=>aoa.push([fmtEntDate(a),a.teamName,a.entry?(a.entry.customer||a.objLabel):a.objLabel,a.objAddress||(a.entry&&a.entry.address)||'',cleanAuftragsNr(String(a.auftragsNr||(a.entry&&a.entry.auftragsNr)||''))||'',a.artNr,'Aquapanel 18 mm',a.anzahl,Math.round(a.m2*100)/100,aquaStatus(a)]));
+            if(!list.length)aoa.push(['— keine Entnahmen Aquapanel 18 mm —',...new Array(ncols-1).fill('')]);
+            else{
+                const tn=list.reduce((x,a)=>x+a.anzahl,0),tm=list.reduce((x,a)=>x+a.m2,0);
+                const on=list.filter(a=>!(a.entry&&a.entry.isBilled)).reduce((x,a)=>x+a.anzahl,0);
+                aoa.push(new Array(ncols).fill(''));
+                aoa.push(['','','','','','','TOTAL',tn,Math.round(tm*100)/100,`davon noch offen: ${on} Stk`]);
             }
             const ws=window.XLSX.utils.aoa_to_sheet(aoa);
             ws['!merges']=merges;
-            // Aquapanel-18-Zeilen GELB, Material-Spalten ORANGE/ROT
-            aquaRows.forEach(ri=>{for(let c=0;c<ncols;c++)styleCell(ws,ri,c,ST_ROW);for(let c=matStart;c<ncols;c++)styleCell(ws,ri,c,ST_MAT);});
-            // "Abrechnen"-Zellen ROT darstellen (Fehler intern / Weiter verrechnen)
-            redRows.forEach(ri=>{const ref=window.XLSX.utils.encode_cell({r:ri,c:abrCol});if(ws[ref])ws[ref].s={font:{bold:true,color:{rgb:'C00000'}},fill:{fgColor:{rgb:'FFE2E2'}},alignment:{horizontal:'center',vertical:'center'}};});
-            const matW=[{wch:18},{wch:14},{wch:14},{wch:8}];
-            ws['!cols']=withGroup?[{wch:16},{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20},...matW]:[{wch:12},{wch:24},{wch:14},{wch:34},{wch:30},{wch:13},{wch:20},...matW];
+            styleCell(ws,0,0,ST_BANNER);
+            for(let c=0;c<ncols;c++)styleCell(ws,2,c,ST_HEAD);
+            list.forEach((a,i)=>{const r=3+i;const billedRow=a.entry&&a.entry.isBilled;
+                for(let c=0;c<ncols;c++)styleCell(ws,r,c,billedRow?{font:{color:{rgb:'7F7F7F'}}}:ST_ROW);
+                if(!billedRow){styleCell(ws,r,7,ST_ABZUG);styleCell(ws,r,9,ST_ABZUG);}
+            });
+            if(list.length){const tr=aoa.length-1;for(let c=6;c<ncols;c++)styleCell(ws,tr,c,{font:{bold:true},fill:{fgColor:{rgb:'FFE699'}}});}
+            ws['!cols']=[{wch:16},{wch:16},{wch:26},{wch:30},{wch:14},{wch:14},{wch:18},{wch:11},{wch:9},{wch:30}];
             return ws;
         };
+
         const wb=window.XLSX.utils.book_new();
-        // Sheet 1: ALLE Gruppen kombiniert
+        // Sheet 1: Aquapanel-Abzug (nur wenn vorhanden), Sheet 2: ALLE Gruppen kombiniert
+        if(aquaList.length) window.XLSX.utils.book_append_sheet(wb,buildAquaSheet(),'Aquapanel 18mm Abzug');
         window.XLSX.utils.book_append_sheet(wb,buildSheet(exportEntries,true),'Alle Gruppen');
         // Pro Gruppe ein eigenes Tabellenblatt
-        const usedNames={'Alle Gruppen':1};
+        const usedNames={'Aquapanel 18mm Abzug':1,'Alle Gruppen':1};
         teams.forEach(t=>{
             const teamEntries=exportEntries.filter(e=>e.teamId===t.id);
             if(teamEntries.length===0) return;
@@ -2106,6 +2142,12 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     // ── Globale Hinweise/Erinnerungen (gruppenübergreifend) ──
     const [reminders, setReminders] = useState([]);
     const [reminderAlert, setReminderAlert] = useState(null);
+    // ── Verschiebe-Anträge (Monteur beantragt, Admin gibt frei) ──
+    const [moveRequests, setMoveRequests] = useState([]);
+    const [showMoveRequests, setShowMoveRequests] = useState(false);
+    const [moveReqEntry, setMoveReqEntry] = useState(null);
+    const [moveReqDate, setMoveReqDate] = useState('');
+    const [moveReqNote, setMoveReqNote] = useState('');
     const [ferienForm, setFerienForm] = useState({ monteurName:'', start:'', end:'' });
     const [newMonteurName, setNewMonteurName] = useState('');
 
@@ -2130,6 +2172,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,`monteurs_${team.id}_${activeCalType}`),snap=>{setMonteurs(snap.docs.map(d=>({id:d.id,...d.data()})));});},[team.id,activeCalType]);
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,`ferien_${team.id}_${activeCalType}`),snap=>{setFerien(snap.docs.map(d=>({id:d.id,...d.data()})));});},[team.id,activeCalType]);
     useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'reminders'),snap=>{setReminders(snap.docs.map(d=>({id:d.id,...d.data()})));});},[]);
+    useEffect(()=>{const{db,collection,onSnapshot}=window.FirebaseSDK;return onSnapshot(collection(db,'move_requests'),snap=>{setMoveRequests(snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.status==='open'));});},[]);
     const ferienAmTag = (dayStr)=>ferien.filter(f=>{const s=(f.start||'').substring(0,10);const e=(f.end||f.start||'').substring(0,10);return s&&dayStr>=s&&dayStr<=e;});
     const addMonteur = async (name)=>{const n=(name||'').trim();if(!n)return;if(monteurs.some(m=>(m.name||'').toLowerCase()===n.toLowerCase())){setNewMonteurName('');return;}const{db,doc,setDoc}=window.FirebaseSDK;const id=`mon-${genId()}`;await setDoc(doc(db,`monteurs_${team.id}_${activeCalType}`,id),{id,name:n,createdAt:new Date().toISOString()});setNewMonteurName('');};
     const deleteMonteur = async (id)=>{const{db,doc,deleteDoc}=window.FirebaseSDK;await deleteDoc(doc(db,`monteurs_${team.id}_${activeCalType}`,id));};
@@ -2228,6 +2271,8 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                 else if(crossCopyEntry)setCrossCopyEntry(null);
                 else if(standbyDateModal)setStandbyDateModal(null);
                 else if(showStandbyPicker)setShowStandbyPicker(null);
+                else if(moveReqEntry)setMoveReqEntry(null);
+                else if(showMoveRequests)setShowMoveRequests(false);
                 else if(reminderAlert)setReminderAlert(null);
                 else if(showFerienModal)setShowFerienModal(false);
                 else if(showMonteurBilling)setShowMonteurBilling(false);
@@ -2243,7 +2288,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
         };
         window.addEventListener('keydown',onKey);
         return ()=>window.removeEventListener('keydown',onKey);
-    },[editCalEntry,showCalImport,showAIImport,moveEntry,blockEntry,crossCopyEntry,standbyDateModal,showStandbyPicker,showFerienModal,showMonteurBilling,showMessages,copyEntry,calImportResult,reminderAlert]);
+    },[editCalEntry,showCalImport,showAIImport,moveEntry,blockEntry,crossCopyEntry,standbyDateModal,showStandbyPicker,showFerienModal,showMonteurBilling,showMessages,copyEntry,calImportResult,reminderAlert,moveReqEntry,showMoveRequests]);
 
     const {entryLanes,numLanes,laneVisibleEntries} = useMemo(()=>{
         const weekStart=toLocalDateStr(days[0]),weekEnd=toLocalDateStr(days[5]);
@@ -2262,6 +2307,32 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     const toggleDone=async(entry)=>{const{db,doc,updateDoc}=window.FirebaseSDK;await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{isDone:!entry.isDone,doneAt:!entry.isDone?new Date().toISOString():null});};
     const unblockEntry=async(entry)=>{const{db,doc,updateDoc}=window.FirebaseSDK;await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{isBlocked:false,blockReason:'',blockImages:[],blockedAt:null});};
     const executeMoveEntry=async(entry,newStartDateStr)=>{const{db,doc,updateDoc}=window.FirebaseSDK;const oldStart=(entry.deliveryDate||'').substring(0,10),oldEnd=(entry.endDate||'').substring(0,10)||oldStart;const duration=daysBetween(oldStart,oldEnd)-1;const newEnd=duration>0?addDaysToStr(newStartDateStr,duration):null;const isMultiDay=!!(newEnd&&newEnd>newStartDateStr);await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{deliveryDate:newStartDateStr,endDate:newEnd||null,isMultiDay,updatedAt:new Date().toISOString(),changeInfo:'📅 Verschoben'});setMoveEntry(null);};
+    const submitMoveRequest=async()=>{
+        if(!moveReqEntry||!moveReqDate)return;
+        const{db,doc,setDoc,updateDoc}=window.FirebaseSDK;const id='mvreq-'+genId();const e=moveReqEntry;
+        try{
+            await setDoc(doc(db,'move_requests',id),{id,status:'open',createdAt:new Date().toISOString(),teamId:team.id,teamName:team.name,calType:e.calType||activeCalType,entryId:e.id,customer:e.customer||'',address:e.address||'',auftragsNr:e.auftragsNr||'',oldStart:(e.deliveryDate||'').substring(0,10),oldEnd:(e.endDate||'').substring(0,10)||'',requestedDate:moveReqDate,note:moveReqNote.trim()});
+            try{ await updateDoc(doc(db,`teams_cal_${team.id}`,e.id),{moveRequested:true}); }catch(err2){}
+            setMoveReqEntry(null);setMoveReqDate('');setMoveReqNote('');
+            alert('✓ Verschiebe-Antrag gesendet. Der Admin entscheidet darüber.');
+        }catch(err){ alert('Antrag fehlgeschlagen: '+err.message); }
+    };
+    const approveMoveRequest=async(req)=>{
+        const{db,doc,updateDoc,deleteDoc}=window.FirebaseSDK;
+        try{
+            const oldStart=req.oldStart||'';const oldEnd=req.oldEnd||oldStart;
+            const duration=(oldStart&&oldEnd)?daysBetween(oldStart,oldEnd)-1:0;
+            const newEnd=duration>0?addDaysToStr(req.requestedDate,duration):null;
+            const isMultiDay=!!(newEnd&&newEnd>req.requestedDate);
+            await updateDoc(doc(db,`teams_cal_${req.teamId}`,req.entryId),{deliveryDate:req.requestedDate,endDate:newEnd||null,isMultiDay,moveRequested:false,updatedAt:new Date().toISOString(),changeInfo:'📅 Verschoben (Antrag genehmigt)'});
+        }catch(err){ alert('Auftrag konnte nicht verschoben werden: '+err.message); }
+        try{ await deleteDoc(doc(db,'move_requests',req.id)); }catch(err){}
+    };
+    const rejectMoveRequest=async(req)=>{
+        const{db,doc,updateDoc,deleteDoc}=window.FirebaseSDK;
+        try{ await updateDoc(doc(db,`teams_cal_${req.teamId}`,req.entryId),{moveRequested:false}); }catch(err){}
+        try{ await deleteDoc(doc(db,'move_requests',req.id)); }catch(err){}
+    };
 
     const saveCalEntry=async(entry)=>{
         try{
@@ -2369,6 +2440,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
 
                     {isAdminAccess&&<>
                         <button onClick={()=>setEditCalEntry({...emptyEntry})} style={{background:'#10b981',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="plus" size={12}/>Neu</button>
+                        <button onClick={()=>setShowMoveRequests(true)} style={{position:'relative',background:moveRequests.length>0?'#f59e0b':'#334155',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}} title="Verschiebe-Anträge der Monteure">📥 Anfragen{moveRequests.length>0?<span style={{position:'absolute',top:-6,right:-6,background:'#ef4444',color:'#fff',fontSize:9,fontWeight:900,borderRadius:10,minWidth:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 5px',border:'2px solid #1e293b'}}>{moveRequests.length}</span>:null}</button>
                         <button onClick={()=>setShowStandbyPicker({dayStr:toLocalDateStr(days[0])})} style={{background:'#f59e0b',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="archive" size={12}/>Standby</button>
                         <button onClick={()=>setShowCalImport(true)} style={{background:'#3b82f6',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="upload" size={12}/>Import</button>
                         <button onClick={()=>setShowAIImport(true)} style={{background:'linear-gradient(135deg,#6366f1,#8b5cf6)',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}>🤖 KI Import</button>
@@ -2519,7 +2591,9 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                             {/* Action buttons */}
                                             <div className="mobile-actions">
                                                 {!isAdminAccess&&<button className="mobile-btn" onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{background:'rgba(59,130,246,0.12)',border:`1px solid ${border}55`,color:textCol,flex:'0 0 auto',minWidth:60}}>📄 PDF{imgs.length>0?` (${imgs.length})`:''}</button>}
-                                                {!isAdminAccess&&canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.2)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,color:'#f97316'}}>🚧 {e.isBlocked?'Blockiert':'Block'}</button>}
+                                                {!isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setBlockEntry({...e});}} style={{background:e.isBlocked?'rgba(249,115,22,0.2)':'rgba(249,115,22,0.1)',border:`1px solid ${e.isBlocked?'#f97316':'rgba(249,115,22,0.35)'}`,color:'#f97316'}}>🚧 {e.isBlocked?'Blockiert':'Block'}</button>}
+                                                {!isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setMoveReqEntry({...e});setMoveReqDate((e.deliveryDate||'').substring(0,10));setMoveReqNote('');}} style={{background:'rgba(245,158,11,0.12)',border:'1px solid rgba(245,158,11,0.4)',color:'#f59e0b'}} title="Verschieben beantragen">↕ Verschieben{e.moveRequested?' ⏳':''}</button>}
+                                                {isAdminAccess&&e.isBlocked&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setBlockEntry({...e});}} style={{background:'rgba(249,115,22,0.15)',border:'1px solid rgba(249,115,22,0.4)',color:'#f97316'}} title="Blockier-Grund & Fotos ansehen">🚧 Ansehen</button>}
                                                 {isAdminAccess&&e.isBlocked&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();if(confirm(`Blockierung für "${e.customer}" aufheben?`))unblockEntry({...e});}} style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.45)',color:'#10b981'}} title="Blockierung aufheben">✓ Freigeben</button>}
                                                 {canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.2)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.35)'}`,color:'#10b981'}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setEditCalEntry({...e});}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>✏️ Bearbeiten</button>}
@@ -2725,6 +2799,71 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
 
             {showMonteurBilling&&!isAdminAccess&&(
                 <MonteurBillingModal team={team} onClose={()=>setShowMonteurBilling(false)}/>
+            )}
+
+            {moveReqEntry && !isAdminAccess && (
+                <div style={{position:'fixed',inset:0,background:'rgba(3,7,18,0.8)',backdropFilter:'blur(4px)',zIndex:460,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+                    <div style={{width:'100%',maxWidth:420,background:'#1e293b',border:'2px solid rgba(245,158,11,0.5)',borderRadius:20,overflow:'hidden'}}>
+                        <div style={{background:'rgba(245,158,11,0.15)',padding:'16px 20px',borderBottom:'1px solid rgba(245,158,11,0.3)',display:'flex',alignItems:'center',gap:12}}>
+                            <div style={{width:40,height:40,borderRadius:10,background:'rgba(245,158,11,0.25)',border:'1px solid #f59e0b',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>↕</div>
+                            <div><div style={{color:'#fbbf24',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>Verschieben beantragen</div><div style={{color:'#fff',fontSize:14,fontWeight:900,textTransform:'uppercase'}}>{moveReqEntry.customer}</div></div>
+                        </div>
+                        <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
+                            <div style={{color:'#94a3b8',fontSize:11}}>Aktuell: <b style={{color:'#fff'}}>{formatDate(moveReqEntry.deliveryDate)}</b></div>
+                            <div>
+                                <div style={{color:'#fbbf24',fontSize:9,fontWeight:900,textTransform:'uppercase',marginBottom:5}}>Gewünschtes neues Datum</div>
+                                <input type="date" value={moveReqDate} onChange={e=>setMoveReqDate(e.target.value)} style={{width:'100%',background:'#0f172a',border:'2px solid #f59e0b',borderRadius:10,padding:'11px 12px',color:'#fff',fontSize:13,boxSizing:'border-box'}}/>
+                            </div>
+                            <div>
+                                <div style={{color:'#94a3b8',fontSize:9,fontWeight:900,textTransform:'uppercase',marginBottom:5}}>Grund / Bemerkung (optional)</div>
+                                <textarea value={moveReqNote} onChange={e=>setMoveReqNote(e.target.value)} rows={2} placeholder="z. B. Baustelle noch nicht bereit" style={{width:'100%',background:'#0f172a',border:'1px solid #334155',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:12,boxSizing:'border-box',resize:'vertical'}}/>
+                            </div>
+                            <div style={{background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:8,padding:'8px 12px',fontSize:10,color:'#fbbf24',fontWeight:700}}>ℹ️ Der Auftrag wird erst verschoben, wenn der Admin den Antrag freigibt.</div>
+                            <div style={{display:'grid',gridTemplateColumns:'1fr 2fr',gap:10}}>
+                                <button onClick={()=>{setMoveReqEntry(null);}} style={{padding:'13px',background:'transparent',border:'1px solid #334155',borderRadius:12,color:'#94a3b8',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:'pointer'}}>Abbrechen</button>
+                                <button onClick={submitMoveRequest} disabled={!moveReqDate} style={{padding:'13px',background:moveReqDate?'#f59e0b':'#334155',border:'none',borderRadius:12,color:moveReqDate?'#1e293b':'#64748b',fontWeight:900,fontSize:11,textTransform:'uppercase',cursor:moveReqDate?'pointer':'not-allowed'}}>↕ Antrag senden</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showMoveRequests && isAdminAccess && (
+                <div onClick={()=>setShowMoveRequests(false)} style={{position:'fixed',inset:0,background:'rgba(3,7,18,0.75)',backdropFilter:'blur(4px)',zIndex:460,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'5vh 16px',overflowY:'auto'}}>
+                    <div onClick={ev=>ev.stopPropagation()} style={{width:'100%',maxWidth:560,background:'#0f172a',border:'1px solid #1e293b',borderRadius:20,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+                        <div style={{padding:'16px 20px',borderBottom:'1px solid #1e293b',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:10}}>
+                                <div style={{width:36,height:36,borderRadius:10,background:'rgba(245,158,11,0.2)',border:'1px solid rgba(245,158,11,0.45)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>📥</div>
+                                <div><div style={{color:'#fbbf24',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>Verschiebe-Anträge der Monteure</div><div style={{color:'#fff',fontSize:14,fontWeight:900}}>{moveRequests.length} offene Anfragen</div></div>
+                            </div>
+                            <button onClick={()=>setShowMoveRequests(false)} style={{background:'#1e293b',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16}}>✕</button>
+                        </div>
+                        <div style={{maxHeight:'65vh',overflowY:'auto',padding:'14px 20px 20px',display:'flex',flexDirection:'column',gap:10}}>
+                            {moveRequests.length===0?(
+                                <div style={{textAlign:'center',padding:'32px 0',color:'#475569'}}><div style={{fontSize:34,marginBottom:10}}>✅</div><div style={{fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Keine offenen Anträge</div></div>
+                            ):moveRequests.slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map(req=>(
+                                <div key={req.id} style={{background:'#1e293b',border:'1px solid #334155',borderLeft:'3px solid #f59e0b',borderRadius:12,padding:'12px 14px'}}>
+                                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4,flexWrap:'wrap'}}>
+                                        <span style={{background:'rgba(245,158,11,0.15)',color:'#fbbf24',fontSize:8,fontWeight:900,borderRadius:4,padding:'1px 6px',textTransform:'uppercase'}}>{req.teamName||'?'}</span>
+                                        {req.auftragsNr&&<span style={{color:'#64748b',fontSize:9,fontFamily:'monospace'}}>#{cleanAuftragsNr(req.auftragsNr)}</span>}
+                                    </div>
+                                    <div style={{color:'#fff',fontSize:13,fontWeight:900,textTransform:'uppercase'}}>{req.customer}</div>
+                                    {req.address&&<div style={{color:'#94a3b8',fontSize:10,marginTop:1}}>{req.address}</div>}
+                                    <div style={{color:'#e2e8f0',fontSize:12,fontWeight:800,marginTop:6,display:'flex',alignItems:'center',gap:8}}>
+                                        <span style={{color:'#94a3b8'}}>{req.oldStart?formatDate(req.oldStart):'—'}</span>
+                                        <span style={{color:'#f59e0b',fontSize:15}}>→</span>
+                                        <span style={{color:'#fbbf24'}}>{formatDate(req.requestedDate)}</span>
+                                    </div>
+                                    {req.note&&<div style={{color:'#fde68a',fontSize:11,fontWeight:700,marginTop:6,background:'rgba(245,158,11,0.08)',borderRadius:6,padding:'5px 9px'}}>📝 {req.note}</div>}
+                                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:10}}>
+                                        <button onClick={()=>{if(window.confirm('Diesen Verschiebe-Antrag ablehnen?'))rejectMoveRequest(req);}} style={{padding:'10px',background:'rgba(220,38,38,0.15)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:10,color:'#f87171',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>✕ Ablehnen</button>
+                                        <button onClick={()=>{if(window.confirm(`Auftrag auf ${formatDate(req.requestedDate)} verschieben?`))approveMoveRequest(req);}} style={{padding:'10px',background:'#10b981',border:'none',borderRadius:10,color:'#fff',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>✓ Freigeben & verschieben</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             )}
 
             {blockEntry&&(

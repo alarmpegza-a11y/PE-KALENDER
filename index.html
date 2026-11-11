@@ -110,7 +110,10 @@
               docs: snap.docs.map(d => ({ id: d.id, data: () => ({ ...d.data() }) }))
             }));
           }
-          window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs };
+          function getDoc(ref) {
+            return db.collection(ref._col).doc(ref._id).get().then(snap => ({ exists: snap.exists, id: ref._id, data: () => ({ ...(snap.data() || {}) }) }));
+          }
+          window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, getDoc };
         } else {
           const _listeners = {};
           function _getCol(col) { try { return JSON.parse(localStorage.getItem('pe_' + col) || '{}'); } catch(e) { return {}; } }
@@ -134,7 +137,8 @@
             return () => { _listeners[col] = (_listeners[col] || []).filter(c => c !== callback); window.removeEventListener('storage', handler); };
           }
           function getDocs(ref) { return Promise.resolve(_makeSnap(_getCol(ref._col))); }
-          window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs };
+          function getDoc(ref) { const all=_getCol(ref._col); const d=all[ref._id]; return Promise.resolve({ exists: !!d, id: ref._id, data: () => ({ ...(d || {}) }) }); }
+          window.FirebaseSDK = { db, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, getDoc };
         }
       })();
 
@@ -1454,7 +1458,7 @@ function ImportModal({ calWeek, team, currentCalLabel, activeCalType, days, onCl
 // ============================================================
 // CalCard
 // ============================================================
-function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive, setBlockEntry, setCrossCopyEntry, unblockEntry }) {
+function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone, setCopyEntry, deleteCalEntry, setEditCalEntry, canMarkDone, setMoveEntry, isMoveActive, setBlockEntry, setCrossCopyEntry, unblockEntry, openAbnahme }) {
     const isProv = !!e.isProv;
     const bg = isProv ? PROV_BG : CARD_COLORS[ci];
     const border = isProv ? PROV_BORDER : CARD_BORDER[ci];
@@ -1520,6 +1524,7 @@ function CalCard({ e, dayStr, ci, isStart, totalDays, isAdminAccess, toggleDone,
                 {isAdminAccess&&!isMoveActive&&e.isBlocked&&<button onClick={(ev)=>{ev.stopPropagation();setBlockEntry&&setBlockEntry({...e});}} style={{background:'rgba(249,115,22,0.15)',border:'1px solid rgba(249,115,22,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f97316',lineHeight:1,fontWeight:900}} title='Blockier-Grund & Fotos ansehen'>🚧 Ansehen</button>}
                 {isAdminAccess&&!isMoveActive&&e.isBlocked&&<button onClick={(ev)=>{ev.stopPropagation();if(confirm(`Blockierung für "${e.customer}" aufheben?`))unblockEntry&&unblockEntry(e);}} style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.45)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#10b981',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}} title='Blockierung aufheben (freigeben)'>✓ Freigeben</button>}
                 {canMarkDone&&<button onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.25)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.3)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#10b981',lineHeight:1,fontWeight:900,display:'flex',alignItems:'center',gap:2}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
+                {openAbnahme&&<button onClick={(ev)=>{ev.stopPropagation();openAbnahme(e);}} style={{background:e.hasAbnahme?'rgba(5,150,105,0.2)':'rgba(0,74,153,0.12)',border:`1px solid ${e.hasAbnahme?'#059669':'rgba(0,74,153,0.4)'}`,borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:e.hasAbnahme?'#059669':'#004a99',lineHeight:1,fontWeight:900}} title="Abnahme-Protokoll">📋 {e.hasAbnahme?'Abnahme ✓':'Abnahme'}</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setMoveEntry({...e});}} style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#f59e0b',lineHeight:1,fontWeight:900}}>↕ Verschieben</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setCopyEntry({...e});}} style={{background:'rgba(37,99,235,0.15)',border:'none',borderRadius:3,padding:'2px 4px',cursor:'pointer',fontSize:9,color:'#2563eb',lineHeight:1}} title='In dieser Gruppe kopieren'>⧉</button>}
                 {isAdminAccess&&!isMoveActive&&<button onClick={(ev)=>{ev.stopPropagation();setCrossCopyEntry&&setCrossCopyEntry({...e});}} style={{background:'rgba(99,102,241,0.2)',border:'1px solid rgba(99,102,241,0.4)',borderRadius:3,padding:'2px 5px',cursor:'pointer',fontSize:8,color:'#818cf8',lineHeight:1,fontWeight:900}} title='In andere Gruppe kopieren'>⧉→</button>}
@@ -2112,6 +2117,137 @@ function CrossTeamCopyModal({ entry, currentTeam, teams, onClose, onCopied }) {
 // ============================================================
 // CALENDAR VIEW
 // ============================================================
+// ═══════════════════════════════════════════════════════════
+// ABNAHME-PROTOKOLL (Vorwandsysteme) — Formular + Unterschriften + PDF
+// Speicherung: nur Formulardaten + kleine Unterschrift-Bilder (JPEG) in
+// Sammlung 'abnahmen'. PDF wird on-demand im Browser erzeugt (kein PDF in DB).
+// ═══════════════════════════════════════════════════════════
+const ABN_MONTAGE = [['raummasse','Raummasse laut Detailplan eingehalten'],['blei','Vorwände im Blei erstellt'],['befestigung','Befestigungsabstände laut Hersteller eingehalten'],['winkel','Vorwände im Winkel'],['hoehen','Alle relevanten Höhen eingehalten (Anschlüsse, Nischen etc.)']];
+const ABN_SCHALL = [['entkoppelt','Montagewinkel vom Bauwerk entkoppelt'],['keinKontakt','Kein direkter Kontakt vom Vorwandsystem zum Bauwerk'],['verunreinigt','Vorwand mit Gips / Mörtel verunreinigt']];
+
+function generateAbnahmePDF(data) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+    const pageW=210, margin=18, contentW=pageW-margin*2;
+    let y=margin;
+    const F=(s,st='normal',col=[0,0,0])=>{doc.setFontSize(s);doc.setFont('helvetica',st);doc.setTextColor(col[0],col[1],col[2]);};
+    doc.setFillColor(0,74,153); doc.rect(0,0,pageW,15,'F');
+    F(15,'bold',[255,255,255]); doc.text('PE Fabrikation', margin, 10);
+    y=24; F(14,'bold',[0,0,0]); doc.text('Abnahmeprotokoll Vorwandsysteme', pageW/2, y, {align:'center'}); y+=11;
+    F(10,'normal',[0,0,0]);
+    doc.text('Objekt: '+(data.objekt||''), margin, y);
+    doc.text('Datum: '+(data.datum?formatDate(data.datum):''), pageW-margin-46, y); y+=6;
+    doc.text('Kunde: '+(data.kunde||''), margin, y); y+=6;
+    doc.text('Wohnungen: '+(data.wohnungen||''), margin, y); y+=9;
+    const cb=(x,yy,checked)=>{ doc.setDrawColor(0); doc.setLineWidth(0.3); doc.rect(x,yy-3.3,4,4); if(checked){ F(10,'bold',[0,0,0]); doc.text('X',x+0.75,yy-0.2); } };
+    F(12,'bold'); doc.text('System', margin, y); y+=6; F(10,'normal');
+    cb(margin,y,data.system&&data.system.duofix); doc.text('Geberit Duofix', margin+7, y); y+=6;
+    cb(margin,y,data.system&&data.system.gis); doc.text('Geberit GIS', margin+7, y); y+=6;
+    cb(margin,y,!!(data.system&&data.system.sonstiges)); doc.text((data.system&&data.system.sonstiges)?data.system.sonstiges:'…………………………', margin+7, y); y+=10;
+    const jaNein=(label,val)=>{ F(10,'normal',[0,0,0]); const lines=doc.splitTextToSize(label, contentW-56); doc.text(lines, margin, y); const jaX=margin+contentW-46, neinX=margin+contentW-20; cb(jaX,y,val==='ja'); doc.text('JA', jaX+6, y); cb(neinX,y,val==='nein'); doc.text('Nein', neinX+6, y); y+=Math.max(lines.length*4.6, 6)+2; };
+    F(12,'bold'); doc.text('Montage', margin, y); y+=6; const M=data.montage||{}; ABN_MONTAGE.forEach(([k,l])=>jaNein(l,M[k]));
+    y+=2; F(12,'bold'); doc.text('Schallschutz', margin, y); y+=6; const S=data.schallschutz||{}; ABN_SCHALL.forEach(([k,l])=>jaNein(l,S[k]));
+    y+=4; F(12,'bold'); doc.text('Mängel', margin, y); y+=4;
+    const colA=margin, colB=margin+contentW*0.34, colC=margin+contentW*0.67, tblW=contentW;
+    F(9,'bold',[60,60,60]); doc.text('Anlageteil', colA+2, y+4.5); doc.text('Mangel', colB+2, y+4.5); doc.text('Weitergehen', colC+2, y+4.5);
+    const rows=(data.maengel||[]).filter(r=>r.anlageteil||r.mangel||r.weitergehen); const nRows=Math.max(rows.length,3); const rh=8; doc.setDrawColor(120); doc.setLineWidth(0.3);
+    for(let i=0;i<=nRows+1;i++){ doc.line(margin,y+i*rh,margin+tblW,y+i*rh); }
+    [colA,colB,colC,margin+tblW].forEach(x=>doc.line(x,y,x,y+(nRows+1)*rh));
+    F(9,'normal',[0,0,0]); rows.forEach((r,i)=>{ const ry=y+(i+2)*rh-2.8; doc.text(doc.splitTextToSize(r.anlageteil||'',contentW*0.33-3),colA+2,ry); doc.text(doc.splitTextToSize(r.mangel||'',contentW*0.32-3),colB+2,ry); doc.text(doc.splitTextToSize(r.weitergehen||'',contentW*0.32-3),colC+2,ry); });
+    y=y+(nRows+1)*rh+7;
+    F(10,'italic',[0,0,0]); doc.text('Ohne Mängel gehen alle Vorwände in die Obhut vom Sanitärinstallateur.', margin, y); y+=13;
+    const sigW=72, sigH=22, sy=y;
+    F(8,'bold',[90,90,90]); doc.text('PE-Fabrikation:', margin, sy); doc.text('Kunde / PL Sanitär:', margin+contentW-sigW, sy);
+    if(data.signPE){ try{ doc.addImage(data.signPE,'JPEG',margin,sy+2,sigW,sigH); }catch(e){} }
+    if(data.signKunde){ try{ doc.addImage(data.signKunde,'JPEG',margin+contentW-sigW,sy+2,sigW,sigH); }catch(e){} }
+    const ly=sy+2+sigH+2; doc.setDrawColor(0); doc.setLineWidth(0.4); doc.line(margin,ly,margin+sigW,ly); doc.line(margin+contentW-sigW,ly,margin+contentW,ly);
+    F(8,'normal',[60,60,60]); if(data.kundeName) doc.text(data.kundeName, margin+contentW-sigW, ly+4);
+    const fn='Abnahme_'+((data.kunde||'Objekt').replace(/[^a-z0-9]/gi,'_').substring(0,28))+'_'+String(data.datum||'').replace(/-/g,'')+'.pdf';
+    doc.save(fn);
+}
+
+function AbnahmeSignaturePad({ value, onChange, label }) {
+    const ref = React.useRef(null);
+    const drawing = React.useRef(false);
+    React.useEffect(()=>{ const c=ref.current; if(!c) return; const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height); if(value){ const im=new Image(); im.onload=()=>ctx.drawImage(im,0,0,c.width,c.height); im.src=value; } },[]);
+    const pos=(e)=>{ const c=ref.current, r=c.getBoundingClientRect(), t=e.touches?e.touches[0]:e; return { x:(t.clientX-r.left)*(c.width/r.width), y:(t.clientY-r.top)*(c.height/r.height) }; };
+    const start=(e)=>{ e.preventDefault(); drawing.current=true; const ctx=ref.current.getContext('2d'); const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineWidth=2.2; ctx.lineCap='round'; ctx.strokeStyle='#111'; };
+    const move=(e)=>{ if(!drawing.current) return; e.preventDefault(); const ctx=ref.current.getContext('2d'); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); };
+    const end=()=>{ if(!drawing.current) return; drawing.current=false; onChange(ref.current.toDataURL('image/jpeg',0.6)); };
+    const clear=()=>{ const c=ref.current, ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height); onChange(''); };
+    return (<div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}><span style={{fontSize:9,fontWeight:900,color:'#64748b',textTransform:'uppercase'}}>{label}</span><button type="button" onClick={clear} style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:6,padding:'2px 8px',color:'#64748b',fontSize:9,fontWeight:800,cursor:'pointer'}}>Löschen</button></div><canvas ref={ref} width={500} height={150} style={{width:'100%',height:110,background:'#fff',borderRadius:8,border:'1px solid #cbd5e1',touchAction:'none',display:'block'}} onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end} onTouchStart={start} onTouchMove={move} onTouchEnd={end}/></div>);
+}
+
+function AbnahmeModal({ entry, team, existing, onClose }) {
+    const todayStr = new Date().toISOString().substring(0,10);
+    const init = existing || {};
+    const [objekt,setObjekt]=React.useState(init.objekt||entry.address||'');
+    const [kunde,setKunde]=React.useState(init.kunde||entry.customer||'');
+    const [datum,setDatum]=React.useState(init.datum||todayStr);
+    const [wohnungen,setWohnungen]=React.useState(init.wohnungen||'');
+    const [system,setSystem]=React.useState(init.system||{duofix:false,gis:false,sonstiges:''});
+    const [montage,setMontage]=React.useState(init.montage||{});
+    const [schallschutz,setSchallschutz]=React.useState(init.schallschutz||{});
+    const [maengel,setMaengel]=React.useState(init.maengel&&init.maengel.length?init.maengel:[{anlageteil:'',mangel:'',weitergehen:''}]);
+    const [kundeName,setKundeName]=React.useState(init.kundeName||'');
+    const [signPE,setSignPE]=React.useState(init.signPE||'');
+    const [signKunde,setSignKunde]=React.useState(init.signKunde||'');
+    const [saving,setSaving]=React.useState(false);
+    const inp={width:'100%',padding:'9px 11px',borderRadius:8,border:'1px solid #cbd5e1',fontSize:13,boxSizing:'border-box',color:'#0f172a',background:'#fff'};
+    const inpS={padding:'8px 9px',borderRadius:7,border:'1px solid #cbd5e1',fontSize:12,boxSizing:'border-box',width:'100%',background:'#fff'};
+    const lab={fontSize:9,fontWeight:900,color:'#64748b',textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:3};
+    const sec={fontSize:12,fontWeight:900,color:'#004a99',textTransform:'uppercase',letterSpacing:1,marginBottom:6,borderBottom:'2px solid #e2e8f0',paddingBottom:3};
+    const rowS={display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'5px 0',borderBottom:'1px solid #f1f5f9'};
+    const buildData=()=>({ id:'abn-'+entry.id, entryId:entry.id, teamId:team.id, teamName:team.name||'', objekt,kunde,datum,wohnungen,system,montage,schallschutz, maengel:maengel.filter(r=>r.anlageteil||r.mangel||r.weitergehen), kundeName, signPE, signKunde });
+    const save=async()=>{ setSaving(true); try{ const{db,doc,setDoc,updateDoc}=window.FirebaseSDK; const d={...buildData(), updatedAt:new Date().toISOString(), createdAt:init.createdAt||new Date().toISOString()}; await setDoc(doc(db,'abnahmen',d.id), d); try{ await updateDoc(doc(db,`teams_cal_${team.id}`,entry.id),{hasAbnahme:true}); }catch(e){} onClose(); }catch(err){ alert('Speichern fehlgeschlagen: '+err.message); } setSaving(false); };
+    const download=()=>{ try{ generateAbnahmePDF(buildData()); }catch(err){ alert('PDF-Fehler: '+err.message); } };
+    const JaNein=({v,on})=>(<div style={{display:'flex',gap:6,flexShrink:0}}><button type="button" onClick={()=>on(v==='ja'?'':'ja')} style={{padding:'5px 13px',borderRadius:8,border:`1px solid ${v==='ja'?'#10b981':'#cbd5e1'}`,background:v==='ja'?'#10b981':'#fff',color:v==='ja'?'#fff':'#64748b',fontSize:11,fontWeight:900,cursor:'pointer'}}>JA</button><button type="button" onClick={()=>on(v==='nein'?'':'nein')} style={{padding:'5px 13px',borderRadius:8,border:`1px solid ${v==='nein'?'#ef4444':'#cbd5e1'}`,background:v==='nein'?'#ef4444':'#fff',color:v==='nein'?'#fff':'#64748b',fontSize:11,fontWeight:900,cursor:'pointer'}}>Nein</button></div>);
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(3,7,18,0.85)',zIndex:500,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'3vh 10px',overflowY:'auto'}}>
+        <div style={{width:'100%',maxWidth:640,background:'#fff',borderRadius:16,overflow:'hidden',boxShadow:'0 20px 60px rgba(0,0,0,0.45)'}}>
+          <div style={{background:'#004a99',padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div><div style={{color:'#bfdbfe',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>PE Fabrikation</div><div style={{color:'#fff',fontSize:15,fontWeight:900}}>Abnahmeprotokoll Vorwandsysteme</div></div>
+            <button onClick={onClose} style={{background:'rgba(255,255,255,0.15)',border:'none',borderRadius:8,width:32,height:32,color:'#fff',fontSize:16,cursor:'pointer'}}>✕</button>
+          </div>
+          <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:16,maxHeight:'74vh',overflowY:'auto'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div style={{gridColumn:'1 / -1'}}><span style={lab}>Objekt</span><input style={inp} value={objekt} onChange={e=>setObjekt(e.target.value)}/></div>
+              <div><span style={lab}>Kunde</span><input style={inp} value={kunde} onChange={e=>setKunde(e.target.value)}/></div>
+              <div><span style={lab}>Datum</span><input type="date" style={inp} value={datum} onChange={e=>setDatum(e.target.value)}/></div>
+              <div style={{gridColumn:'1 / -1'}}><span style={lab}>Wohnungen</span><input style={inp} value={wohnungen} onChange={e=>setWohnungen(e.target.value)}/></div>
+            </div>
+            <div><div style={sec}>System</div>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,marginBottom:5,cursor:'pointer'}}><input type="checkbox" checked={!!system.duofix} onChange={e=>setSystem({...system,duofix:e.target.checked})} style={{width:17,height:17}}/> Geberit Duofix</label>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,marginBottom:5,cursor:'pointer'}}><input type="checkbox" checked={!!system.gis} onChange={e=>setSystem({...system,gis:e.target.checked})} style={{width:17,height:17}}/> Geberit GIS</label>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginTop:2}}><span style={{fontSize:13,color:'#475569'}}>Sonstiges:</span><input value={system.sonstiges||''} onChange={e=>setSystem({...system,sonstiges:e.target.value})} style={{...inp,flex:1}}/></div>
+            </div>
+            <div><div style={sec}>Montage</div>{ABN_MONTAGE.map(([k,l])=>(<div key={k} style={rowS}><span style={{fontSize:12,flex:1,color:'#0f172a'}}>{l}</span><JaNein v={montage[k]||''} on={(nv)=>setMontage({...montage,[k]:nv})}/></div>))}</div>
+            <div><div style={sec}>Schallschutz</div>{ABN_SCHALL.map(([k,l])=>(<div key={k} style={rowS}><span style={{fontSize:12,flex:1,color:'#0f172a'}}>{l}</span><JaNein v={schallschutz[k]||''} on={(nv)=>setSchallschutz({...schallschutz,[k]:nv})}/></div>))}</div>
+            <div><div style={sec}>Mängel</div>
+              {maengel.map((r,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto',gap:6,marginBottom:6}}>
+                <input placeholder="Anlageteil" value={r.anlageteil} onChange={e=>{const m=[...maengel];m[i]={...m[i],anlageteil:e.target.value};setMaengel(m);}} style={inpS}/>
+                <input placeholder="Mangel" value={r.mangel} onChange={e=>{const m=[...maengel];m[i]={...m[i],mangel:e.target.value};setMaengel(m);}} style={inpS}/>
+                <input placeholder="Weitergehen" value={r.weitergehen} onChange={e=>{const m=[...maengel];m[i]={...m[i],weitergehen:e.target.value};setMaengel(m);}} style={inpS}/>
+                <button type="button" onClick={()=>setMaengel(maengel.filter((_,j)=>j!==i))} style={{background:'#fee2e2',border:'none',borderRadius:6,color:'#dc2626',fontWeight:900,cursor:'pointer',padding:'0 10px'}}>✕</button>
+              </div>))}
+              <button type="button" onClick={()=>setMaengel([...maengel,{anlageteil:'',mangel:'',weitergehen:''}])} style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'6px 12px',color:'#2563eb',fontSize:11,fontWeight:900,cursor:'pointer'}}>＋ Mangel-Zeile</button>
+            </div>
+            <div style={{fontSize:11,fontStyle:'italic',color:'#475569'}}>Ohne Mängel gehen alle Vorwände in die Obhut vom Sanitärinstallateur.</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+              <AbnahmeSignaturePad label="Unterschrift PE-Fabrikation" value={signPE} onChange={setSignPE}/>
+              <div><span style={lab}>Kunde — Name</span><input style={{...inp,marginBottom:8}} value={kundeName} onChange={e=>setKundeName(e.target.value)} placeholder="Name Kunde"/><AbnahmeSignaturePad label="Unterschrift Kunde" value={signKunde} onChange={setSignKunde}/></div>
+            </div>
+          </div>
+          <div style={{padding:'12px 18px',borderTop:'1px solid #e2e8f0',display:'flex',gap:10,background:'#f8fafc',flexWrap:'wrap'}}>
+            <button onClick={onClose} style={{padding:'12px 16px',background:'#fff',border:'1px solid #cbd5e1',borderRadius:10,color:'#64748b',fontWeight:900,fontSize:11,cursor:'pointer'}}>Schließen</button>
+            <button onClick={download} style={{flex:1,minWidth:120,padding:'12px',background:'#1e293b',border:'none',borderRadius:10,color:'#fff',fontWeight:900,fontSize:12,cursor:'pointer'}}>📄 PDF herunterladen</button>
+            <button onClick={save} disabled={saving} style={{flex:1,minWidth:120,padding:'12px',background:saving?'#94a3b8':'#004a99',border:'none',borderRadius:10,color:'#fff',fontWeight:900,fontSize:12,cursor:saving?'default':'pointer'}}>{saving?'Speichert…':'✓ Speichern'}</button>
+          </div>
+        </div>
+      </div>
+    );
+}
+
 function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalType: initialCalType, scrollToEntry=null, voicePrefill=null, onVoicePrefillApplied=null }) {
     const isMobile = useIsMobile();
     const [calEntries, setCalEntries] = useState([]);
@@ -2148,6 +2284,12 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
     const [moveReqEntry, setMoveReqEntry] = useState(null);
     const [moveReqDate, setMoveReqDate] = useState('');
     const [moveReqNote, setMoveReqNote] = useState('');
+    // ── Abnahme-Protokoll ──
+    const [abnahmeEntry, setAbnahmeEntry] = useState(null);
+    const [abnahmeExisting, setAbnahmeExisting] = useState(null);
+    const [showAbnahmen, setShowAbnahmen] = useState(false);
+    const [abnahmenList, setAbnahmenList] = useState([]);
+    const [abnahmenLoading, setAbnahmenLoading] = useState(false);
     const [ferienForm, setFerienForm] = useState({ monteurName:'', start:'', end:'' });
     const [newMonteurName, setNewMonteurName] = useState('');
 
@@ -2271,6 +2413,8 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                 else if(crossCopyEntry)setCrossCopyEntry(null);
                 else if(standbyDateModal)setStandbyDateModal(null);
                 else if(showStandbyPicker)setShowStandbyPicker(null);
+                else if(abnahmeEntry){setAbnahmeEntry(null);setAbnahmeExisting(null);}
+                else if(showAbnahmen)setShowAbnahmen(false);
                 else if(moveReqEntry)setMoveReqEntry(null);
                 else if(showMoveRequests)setShowMoveRequests(false);
                 else if(reminderAlert)setReminderAlert(null);
@@ -2288,7 +2432,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
         };
         window.addEventListener('keydown',onKey);
         return ()=>window.removeEventListener('keydown',onKey);
-    },[editCalEntry,showCalImport,showAIImport,moveEntry,blockEntry,crossCopyEntry,standbyDateModal,showStandbyPicker,showFerienModal,showMonteurBilling,showMessages,copyEntry,calImportResult,reminderAlert,moveReqEntry,showMoveRequests]);
+    },[editCalEntry,showCalImport,showAIImport,moveEntry,blockEntry,crossCopyEntry,standbyDateModal,showStandbyPicker,showFerienModal,showMonteurBilling,showMessages,copyEntry,calImportResult,reminderAlert,moveReqEntry,showMoveRequests,abnahmeEntry,showAbnahmen]);
 
     const {entryLanes,numLanes,laneVisibleEntries} = useMemo(()=>{
         const weekStart=toLocalDateStr(days[0]),weekEnd=toLocalDateStr(days[5]);
@@ -2332,6 +2476,16 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
         const{db,doc,updateDoc,deleteDoc}=window.FirebaseSDK;
         try{ await updateDoc(doc(db,`teams_cal_${req.teamId}`,req.entryId),{moveRequested:false}); }catch(err){}
         try{ await deleteDoc(doc(db,'move_requests',req.id)); }catch(err){}
+    };
+    const openAbnahme=async(e)=>{
+        let ex=null;
+        try{ const{db,doc,getDoc}=window.FirebaseSDK; if(getDoc){ const snap=await getDoc(doc(db,'abnahmen','abn-'+e.id)); if(snap&&snap.exists) ex=snap.data(); } }catch(err){}
+        setAbnahmeExisting(ex); setAbnahmeEntry(e);
+    };
+    const loadAbnahmen=async()=>{
+        setShowAbnahmen(true); setAbnahmenLoading(true);
+        try{ const{db,collection,getDocs}=window.FirebaseSDK; const snap=await getDocs(collection(db,'abnahmen')); setAbnahmenList(snap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))); }catch(err){ alert('Laden fehlgeschlagen: '+err.message); }
+        setAbnahmenLoading(false);
     };
 
     const saveCalEntry=async(entry)=>{
@@ -2441,6 +2595,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                     {isAdminAccess&&<>
                         <button onClick={()=>setEditCalEntry({...emptyEntry})} style={{background:'#10b981',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="plus" size={12}/>Neu</button>
                         <button onClick={()=>setShowMoveRequests(true)} style={{position:'relative',background:moveRequests.length>0?'#f59e0b':'#334155',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}} title="Verschiebe-Anträge der Monteure">📥 Anfragen{moveRequests.length>0?<span style={{position:'absolute',top:-6,right:-6,background:'#ef4444',color:'#fff',fontSize:9,fontWeight:900,borderRadius:10,minWidth:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 5px',border:'2px solid #1e293b'}}>{moveRequests.length}</span>:null}</button>
+                        <button onClick={loadAbnahmen} style={{background:'#004a99',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}} title="Abnahme-Protokolle · alle PDF herunterladen">📋 Abnahmen</button>
                         <button onClick={()=>setShowStandbyPicker({dayStr:toLocalDateStr(days[0])})} style={{background:'#f59e0b',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="archive" size={12}/>Standby</button>
                         <button onClick={()=>setShowCalImport(true)} style={{background:'#3b82f6',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}><Icon name="upload" size={12}/>Import</button>
                         <button onClick={()=>setShowAIImport(true)} style={{background:'linear-gradient(135deg,#6366f1,#8b5cf6)',border:'none',borderRadius:8,padding:'5px 12px',color:'#fff',fontSize:8,fontWeight:900,textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',gap:4,flexShrink:0}}>🤖 KI Import</button>
@@ -2596,6 +2751,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                                 {isAdminAccess&&e.isBlocked&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setBlockEntry({...e});}} style={{background:'rgba(249,115,22,0.15)',border:'1px solid rgba(249,115,22,0.4)',color:'#f97316'}} title="Blockier-Grund & Fotos ansehen">🚧 Ansehen</button>}
                                                 {isAdminAccess&&e.isBlocked&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();if(confirm(`Blockierung für "${e.customer}" aufheben?`))unblockEntry({...e});}} style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.45)',color:'#10b981'}} title="Blockierung aufheben">✓ Freigeben</button>}
                                                 {canMark&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();toggleDone(e);}} style={{background:e.isDone?'rgba(16,185,129,0.2)':'rgba(16,185,129,0.1)',border:`1px solid ${e.isDone?'#10b981':'rgba(16,185,129,0.35)'}`,color:'#10b981'}}>{e.isDone?'✓ Erledigt':'○ Erledigen'}</button>}
+                                                <button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();openAbnahme(e);}} style={{background:e.hasAbnahme?'rgba(5,150,105,0.15)':'rgba(0,74,153,0.12)',border:`1px solid ${e.hasAbnahme?'#059669':'rgba(0,74,153,0.4)'}`,color:e.hasAbnahme?'#059669':'#004a99'}} title="Abnahme-Protokoll">📋 {e.hasAbnahme?'Abnahme ✓':'Abnahme'}</button>
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setEditCalEntry({...e});}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>✏️ Bearbeiten</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={(ev)=>{ev.stopPropagation();setCrossCopyEntry({...e});}} style={{background:'rgba(99,102,241,0.15)',border:'1px solid rgba(99,102,241,0.4)',color:'#818cf8',flex:'0 0 auto'}} title="In andere Gruppe senden">📤 Senden</button>}
                                                 {isAdminAccess&&<button className="mobile-btn" onClick={async(ev)=>{ev.stopPropagation();await downloadEntryPDF(e);}} style={{background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.3)',color:'#60a5fa',flex:'0 0 auto'}}>📄{imgs.length>0?` ${imgs.length}`:''}</button>}
@@ -2669,7 +2825,7 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                     const canMark=isAdminAccess||(e.isMultiDay&&e.endDate?dayStr===e.deliveryDate.substring(0,10):true);
                                     const isMoveActiveCard=!!(moveEntry&&moveEntry.id===e.id);
                                     return(<div key={di} id={`cal-entry-${e.id}`} style={{borderRight,borderBottom,padding:'4px',boxSizing:'border-box',background:isActionTarget?'rgba(245,158,11,0.04)':'#fff',cursor:(isActionTarget&&!isMoveActiveCard)?'crosshair':'default'}} onClick={(ev)=>{if(isMoveTarget&&!isMoveActiveCard&&isStart){ev.stopPropagation();executeMoveEntry(moveEntry,dayStr);}else if(isCopyTarget){pasteCopyToDay(dayStr);}}}>
-                                        <CalCard e={e} dayStr={dayStr} ci={ci} isStart={isStart} totalDays={totalDays2} isAdminAccess={isAdminAccess} toggleDone={toggleDone} setCopyEntry={setCopyEntry} deleteCalEntry={deleteCalEntry} setEditCalEntry={setEditCalEntry} canMarkDone={canMark} setMoveEntry={setMoveEntry} isMoveActive={isMoveActiveCard} setBlockEntry={setBlockEntry} setCrossCopyEntry={setCrossCopyEntry} unblockEntry={unblockEntry}/>
+                                        <CalCard e={e} dayStr={dayStr} ci={ci} isStart={isStart} totalDays={totalDays2} isAdminAccess={isAdminAccess} toggleDone={toggleDone} setCopyEntry={setCopyEntry} deleteCalEntry={deleteCalEntry} setEditCalEntry={setEditCalEntry} canMarkDone={canMark} setMoveEntry={setMoveEntry} isMoveActive={isMoveActiveCard} setBlockEntry={setBlockEntry} setCrossCopyEntry={setCrossCopyEntry} unblockEntry={unblockEntry} openAbnahme={openAbnahme}/>
                                     </div>);
                                 })}
                             </React.Fragment>
@@ -2859,6 +3015,40 @@ function CalendarView({ team, teams=[], onBack, isAdminAccess=false, activeCalTy
                                         <button onClick={()=>{if(window.confirm('Diesen Verschiebe-Antrag ablehnen?'))rejectMoveRequest(req);}} style={{padding:'10px',background:'rgba(220,38,38,0.15)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:10,color:'#f87171',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>✕ Ablehnen</button>
                                         <button onClick={()=>{if(window.confirm(`Auftrag auf ${formatDate(req.requestedDate)} verschieben?`))approveMoveRequest(req);}} style={{padding:'10px',background:'#10b981',border:'none',borderRadius:10,color:'#fff',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer'}}>✓ Freigeben & verschieben</button>
                                     </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {abnahmeEntry && (
+                <AbnahmeModal entry={abnahmeEntry} team={team} existing={abnahmeExisting} onClose={()=>{setAbnahmeEntry(null);setAbnahmeExisting(null);}}/>
+            )}
+
+            {showAbnahmen && isAdminAccess && (
+                <div onClick={()=>setShowAbnahmen(false)} style={{position:'fixed',inset:0,background:'rgba(3,7,18,0.75)',backdropFilter:'blur(4px)',zIndex:470,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'5vh 16px',overflowY:'auto'}}>
+                    <div onClick={ev=>ev.stopPropagation()} style={{width:'100%',maxWidth:560,background:'#0f172a',border:'1px solid #1e293b',borderRadius:20,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+                        <div style={{padding:'16px 20px',borderBottom:'1px solid #1e293b',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:10}}>
+                                <div style={{width:36,height:36,borderRadius:10,background:'rgba(0,74,153,0.3)',border:'1px solid rgba(37,99,235,0.5)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>📋</div>
+                                <div><div style={{color:'#60a5fa',fontSize:9,fontWeight:900,textTransform:'uppercase',letterSpacing:2}}>Abnahme-Protokolle</div><div style={{color:'#fff',fontSize:14,fontWeight:900}}>{abnahmenLoading?'Lade…':`${abnahmenList.length} Abnahmen`}</div></div>
+                            </div>
+                            <button onClick={()=>setShowAbnahmen(false)} style={{background:'#1e293b',border:'none',borderRadius:10,width:34,height:34,cursor:'pointer',color:'#94a3b8',fontSize:16}}>✕</button>
+                        </div>
+                        <div style={{maxHeight:'65vh',overflowY:'auto',padding:'14px 20px 20px',display:'flex',flexDirection:'column',gap:10}}>
+                            {abnahmenLoading?(
+                                <div style={{textAlign:'center',padding:'32px 0',color:'#64748b',fontSize:12,fontWeight:700}}>⏳ Lade Protokolle…</div>
+                            ):abnahmenList.length===0?(
+                                <div style={{textAlign:'center',padding:'32px 0',color:'#475569'}}><div style={{fontSize:34,marginBottom:10}}>📋</div><div style={{fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Noch keine Abnahmen</div></div>
+                            ):abnahmenList.map(a=>(
+                                <div key={a.id} style={{background:'#1e293b',border:'1px solid #334155',borderLeft:'3px solid #004a99',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:10}}>
+                                    <div style={{flex:1,minWidth:0}}>
+                                        <div style={{color:'#fff',fontSize:13,fontWeight:900}}>{a.kunde||a.objekt||'—'}</div>
+                                        {a.objekt&&<div style={{color:'#94a3b8',fontSize:10,marginTop:1}}>{a.objekt}</div>}
+                                        <div style={{color:'#64748b',fontSize:9,marginTop:3,display:'flex',gap:8,flexWrap:'wrap'}}>{a.teamName&&<span>👥 {a.teamName}</span>}{a.datum&&<span>📅 {formatDate(a.datum)}</span>}{(a.maengel&&a.maengel.length)?<span style={{color:'#f59e0b'}}>⚠ {a.maengel.length} Mängel</span>:<span style={{color:'#10b981'}}>✓ ohne Mängel</span>}</div>
+                                    </div>
+                                    <button onClick={()=>{try{generateAbnahmePDF(a);}catch(err){alert('PDF-Fehler: '+err.message);}}} style={{background:'#1e293b',border:'1px solid #475569',borderRadius:8,padding:'8px 12px',color:'#fff',fontSize:10,fontWeight:900,textTransform:'uppercase',cursor:'pointer',flexShrink:0}}>📄 PDF</button>
                                 </div>
                             ))}
                         </div>

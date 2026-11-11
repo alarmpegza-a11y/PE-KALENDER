@@ -2263,8 +2263,8 @@ function AbnahmeModal({ entry, team, existing, onClose }) {
               <div style={{gridColumn:'1 / -1'}}><span style={lab}>Wohnungen</span><input style={inp} value={wohnungen} onChange={e=>setWohnungen(e.target.value)}/></div>
             </div>
             <div><div style={sec}>System</div>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,marginBottom:5,cursor:'pointer'}}><input type="checkbox" checked={!!system.duofix} onChange={e=>setSystem({...system,duofix:e.target.checked})} style={{width:17,height:17}}/> Geberit Duofix</label>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,marginBottom:5,cursor:'pointer'}}><input type="checkbox" checked={!!system.gis} onChange={e=>setSystem({...system,gis:e.target.checked})} style={{width:17,height:17}}/> Geberit GIS</label>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,marginBottom:5,cursor:'pointer',color:'#0f172a',fontWeight:600}}><input type="checkbox" checked={!!system.duofix} onChange={e=>setSystem({...system,duofix:e.target.checked})} style={{width:17,height:17,accentColor:'#004a99'}}/> Geberit Duofix</label>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,marginBottom:5,cursor:'pointer',color:'#0f172a',fontWeight:600}}><input type="checkbox" checked={!!system.gis} onChange={e=>setSystem({...system,gis:e.target.checked})} style={{width:17,height:17,accentColor:'#004a99'}}/> Geberit GIS</label>
               <div style={{display:'flex',alignItems:'center',gap:8,marginTop:2}}><span style={{fontSize:13,color:'#475569'}}>Sonstiges:</span><input value={system.sonstiges||''} onChange={e=>setSystem({...system,sonstiges:e.target.value})} style={{...inp,flex:1}}/></div>
             </div>
             <div><div style={sec}>Montage</div>{ABN_MONTAGE.map(([k,l])=>(<div key={k} style={rowS}><span style={{fontSize:12,flex:1,color:'#0f172a'}}>{l}</span><JaNein v={montage[k]||''} on={(nv)=>setMontage({...montage,[k]:nv})}/></div>))}</div>
